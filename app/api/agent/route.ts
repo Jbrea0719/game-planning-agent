@@ -418,10 +418,17 @@ export async function POST(request: Request) {
           const assistantText = await runMultiAgentPipeline(userMessage.content, encode, detailed);
           // Supabase에 대화 저장
           if (session_id && pair_id) {
-            await supabase.from("messages").insert([
+            const { error: dbError } = await supabase.from("messages").insert([
               { session_id, pair_id, role: "user", content: userMessage.content, universes: "게임기획", is_deleted: false },
               { session_id, pair_id, role: "assistant", content: assistantText, universes: "게임기획", is_deleted: false },
             ]);
+            if (dbError) {
+              console.error("[agent] Supabase 저장 실패:", dbError.message, dbError.code);
+            } else {
+              console.log("[agent] Supabase 저장 성공:", session_id, pair_id);
+            }
+          } else {
+            console.warn("[agent] session_id 또는 pair_id 없음 — 저장 건너뜀");
           }
         } catch (err) {
           encode(`오류가 발생했어요: ${String(err)}`);
