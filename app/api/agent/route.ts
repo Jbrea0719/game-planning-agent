@@ -12,48 +12,81 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 // 긴 이름(정확한 게임명)이 앞에 위치해야 매칭 우선순위가 올바르게 동작함
 type GameCommunity = {
   officialDomains: string[];           // Tavily 폴백용 도메인 리스트
-  officialPathHint?: string;           // 경로 식별자 (검색 쿼리 강화 + 네이버 결과 필터 키워드 일부)
-  officialUrlFilter?: string;          // 네이버 결과에서 공식 커뮤니티 URL 매칭에 쓸 키워드 (예: "game.naver.com/lounge/sena_rebirth")
+  officialPathHint?: string;           // 경로 식별자 (검색 쿼리 강화용)
+  officialUrlFilters?: string[];       // 네이버 결과에서 공식·신뢰 출처로 인정할 URL 키워드 (OR 매칭)
+                                       // 게임마다 공식 정보가 라운지·인벤·카페·미디어로 분산되므로 다중 매칭
   dcGalleryId?: string;                // DC 갤러리 ID — URL 필터링 + 쿼리 강화에 사용
 };
 const GAME_COMMUNITIES: Record<string, GameCommunity> = {
   "세븐나이츠 리버스": {
-    officialDomains: ["game.naver.com"],
+    officialDomains: ["game.naver.com", "inven.co.kr", "cafe.naver.com"],
     officialPathHint: "sena_rebirth",
-    officialUrlFilter: "game.naver.com/lounge/sena_rebirth",
+    officialUrlFilters: [
+      "game.naver.com/lounge/sena_rebirth",  // 네이버 라운지 (인덱싱 빈약하지만 최고 신뢰)
+      "inven.co.kr/board/sena",              // 인벤 세나리 게시판 (패치노트 정기 게시)
+      "inven.co.kr/webzine/news/?news",      // 인벤 뉴스
+      "cafe.naver.com/baedon",               // 배돈 카페
+      "trees.gamemeca.com",                  // 게임메카
+      "sports.naver.com/esports",            // 네이버 e스포츠 기사
+      "newsworks.co.kr/news",                // 뉴스웍스 (넷마블 보도)
+    ],
     dcGalleryId: "sevennightsrebirth",
   },
   "세나리":  {
-    officialDomains: ["game.naver.com"],
+    officialDomains: ["game.naver.com", "inven.co.kr", "cafe.naver.com"],
     officialPathHint: "sena_rebirth",
-    officialUrlFilter: "game.naver.com/lounge/sena_rebirth",
+    officialUrlFilters: [
+      "game.naver.com/lounge/sena_rebirth",
+      "inven.co.kr/board/sena",
+      "inven.co.kr/webzine/news/?news",
+      "cafe.naver.com/baedon",
+      "trees.gamemeca.com",
+      "sports.naver.com/esports",
+      "newsworks.co.kr/news",
+    ],
     dcGalleryId: "sevennightsrebirth",
   },
   "세반리":  {
-    officialDomains: ["game.naver.com"],
+    officialDomains: ["game.naver.com", "inven.co.kr", "cafe.naver.com"],
     officialPathHint: "sena_rebirth",
-    officialUrlFilter: "game.naver.com/lounge/sena_rebirth",
+    officialUrlFilters: [
+      "game.naver.com/lounge/sena_rebirth",
+      "inven.co.kr/board/sena",
+      "inven.co.kr/webzine/news/?news",
+      "cafe.naver.com/baedon",
+      "trees.gamemeca.com",
+      "sports.naver.com/esports",
+      "newsworks.co.kr/news",
+    ],
     dcGalleryId: "sevennightsrebirth",
   },
   "seven knights reverse": {
-    officialDomains: ["game.naver.com"],
+    officialDomains: ["game.naver.com", "inven.co.kr", "cafe.naver.com"],
     officialPathHint: "sena_rebirth",
-    officialUrlFilter: "game.naver.com/lounge/sena_rebirth",
+    officialUrlFilters: [
+      "game.naver.com/lounge/sena_rebirth",
+      "inven.co.kr/board/sena",
+      "inven.co.kr/webzine/news/?news",
+      "cafe.naver.com/baedon",
+      "trees.gamemeca.com",
+      "sports.naver.com/esports",
+      "newsworks.co.kr/news",
+    ],
     dcGalleryId: "sevennightsrebirth",
   },
-  "세븐나이츠2":   { officialDomains: ["cafe.naver.com/7knights2"], officialUrlFilter: "cafe.naver.com/7knights2" },
-  "세븐나이츠":    { officialDomains: ["cafe.naver.com/7knights"],  officialUrlFilter: "cafe.naver.com/7knights" },
-  "afk arena":     { officialDomains: ["afkarena.fandom.com"],       officialUrlFilter: "afkarena.fandom.com" },
-  "afk2":          { officialDomains: ["afkarena.fandom.com"],       officialUrlFilter: "afkarena.fandom.com" },
-  "서머너즈워":    { officialDomains: ["cafe.naver.com/summonerswar"], officialUrlFilter: "cafe.naver.com/summonerswar" },
-  "니케":          { officialDomains: ["cafe.naver.com/nikkegg"],     officialUrlFilter: "cafe.naver.com/nikkegg" },
-  "에픽세븐":      { officialDomains: ["cafe.naver.com/epicseven"],   officialUrlFilter: "cafe.naver.com/epicseven" },
-  "원신":          { officialDomains: ["cafe.naver.com/genshinkr"],   officialUrlFilter: "cafe.naver.com/genshinkr" },
-  "붕괴 스타레일": { officialDomains: ["cafe.naver.com/starrailkr"],  officialUrlFilter: "cafe.naver.com/starrailkr" },
-  "스타레일":      { officialDomains: ["cafe.naver.com/starrailkr"],  officialUrlFilter: "cafe.naver.com/starrailkr" },
-  "아크나이츠":    { officialDomains: ["cafe.naver.com/arknightskr"], officialUrlFilter: "cafe.naver.com/arknightskr" },
-  "fgo":           { officialDomains: ["cafe.naver.com/fategrandorder"], officialUrlFilter: "cafe.naver.com/fategrandorder" },
-  "블루아카이브":  { officialDomains: ["cafe.naver.com/bluearchivekorea"], officialUrlFilter: "cafe.naver.com/bluearchivekorea" },
+  "세븐나이츠2":   { officialDomains: ["cafe.naver.com"], officialUrlFilters: ["cafe.naver.com/7knights2", "inven.co.kr"] },
+  "세븐나이츠":    { officialDomains: ["cafe.naver.com"], officialUrlFilters: ["cafe.naver.com/7knights", "inven.co.kr"] },
+  "afk arena":     { officialDomains: ["afkarena.fandom.com"], officialUrlFilters: ["afkarena.fandom.com", "lilith.com"] },
+  "afk2":          { officialDomains: ["afkarena.fandom.com"], officialUrlFilters: ["afkarena.fandom.com", "lilith.com"] },
+  "서머너즈워":    { officialDomains: ["cafe.naver.com"], officialUrlFilters: ["cafe.naver.com/summonerswar", "inven.co.kr/board/sw"] },
+  "니케":          { officialDomains: ["cafe.naver.com"], officialUrlFilters: ["cafe.naver.com/nikkegg", "inven.co.kr/board/nikke"] },
+  "에픽세븐":      { officialDomains: ["cafe.naver.com"], officialUrlFilters: ["cafe.naver.com/epicseven", "inven.co.kr/board/epic7"] },
+  "원신":          { officialDomains: ["cafe.naver.com"], officialUrlFilters: ["cafe.naver.com/genshinkr", "inven.co.kr/board/genshin"] },
+  "붕괴 스타레일": { officialDomains: ["cafe.naver.com"], officialUrlFilters: ["cafe.naver.com/starrailkr", "inven.co.kr/board/hsr"] },
+  "스타레일":      { officialDomains: ["cafe.naver.com"], officialUrlFilters: ["cafe.naver.com/starrailkr", "inven.co.kr/board/hsr"] },
+  "아크나이츠":    { officialDomains: ["cafe.naver.com"], officialUrlFilters: ["cafe.naver.com/arknightskr", "inven.co.kr/board/arknights"] },
+  "fgo":           { officialDomains: ["cafe.naver.com"], officialUrlFilters: ["cafe.naver.com/fategrandorder", "inven.co.kr/board/fgo"] },
+  "블루아카이브":  { officialDomains: ["cafe.naver.com"], officialUrlFilters: ["cafe.naver.com/bluearchivekorea", "inven.co.kr/board/ba"] },
 };
 
 // Tavily 인스턴스 생성 (API key 없으면 null) — 영어권 / 글로벌 보조 검색용
@@ -114,28 +147,31 @@ async function naverFetch(
   }
 }
 
-// 네이버 검색 + 다단계 도메인 필터 → TavilyResult 형태로 통일
-// 엄격한 필터(전체 경로)로 결과 없으면 점진적으로 느슨하게 (도메인만 → 필터 없음)
+// 네이버 검색 + 다중 도메인 필터 (OR 매칭) → TavilyResult 형태로 통일
+// filterKeywords 중 어느 하나라도 URL에 포함되면 결과로 채택
+// 모든 필터 매칭 0건이면 도메인 부분만 매칭으로 폴백, 그래도 0이면 빈 결과
 async function searchNaverFiltered(
   query: string,
-  domainKeyword: string,
+  filterKeywords: string[],
   type: NaverSearchType = "webkr",
   maxResults: number = 5
 ): Promise<TavilyResult> {
-  const items = await naverFetch(query, type, 20); // 필터링 여유분 확보 (최대 20개)
+  const items = await naverFetch(query, type, 30); // 필터링 여유분 확보 (최대 30개)
   if (!items || items.length === 0) return { results: [] };
 
-  // 도메인만 추출 (예: "game.naver.com/lounge/sena_rebirth" → "game.naver.com")
-  const domainOnly = domainKeyword.split("/")[0];
-  const keywordLower = domainKeyword.toLowerCase();
-  const domainOnlyLower = domainOnly.toLowerCase();
+  const lowerKeywords = filterKeywords.map(k => k.toLowerCase());
 
-  // 1차: 엄격 필터 (전체 키워드 포함)
-  let filtered = items.filter(item => item.link.toLowerCase().includes(keywordLower));
+  // 1차: 다중 키워드 OR 매칭 (어떤 키워드라도 포함되면 통과)
+  let filtered = items.filter(item =>
+    lowerKeywords.some(k => item.link.toLowerCase().includes(k))
+  );
 
-  // 2차: 느슨 필터 (도메인만 포함) — 1차에서 결과 없을 때
-  if (filtered.length === 0 && domainOnly !== domainKeyword) {
-    filtered = items.filter(item => item.link.toLowerCase().includes(domainOnlyLower));
+  // 2차: 1차 결과 없으면 각 키워드의 도메인 부분만 매칭 폴백
+  if (filtered.length === 0) {
+    const domainKeywords = lowerKeywords.map(k => k.split("/")[0]);
+    filtered = items.filter(item =>
+      domainKeywords.some(d => item.link.toLowerCase().includes(d))
+    );
   }
 
   const top = filtered.slice(0, maxResults);
@@ -151,14 +187,14 @@ async function searchNaverFiltered(
 // 네이버 다중 타입 검색 (webkr + cafearticle + news) — 한 도메인을 여러 각도에서 찾기
 async function searchNaverMultiType(
   query: string,
-  domainKeyword: string,
+  filterKeywords: string[],
   maxResults: number = 5
 ): Promise<TavilyResult> {
   // 3개 타입 병렬 검색
   const [webRes, cafeRes, newsRes] = await Promise.allSettled([
-    searchNaverFiltered(query, domainKeyword, "webkr", maxResults),
-    searchNaverFiltered(query, domainKeyword, "cafearticle", maxResults),
-    searchNaverFiltered(query, domainKeyword, "news", maxResults),
+    searchNaverFiltered(query, filterKeywords, "webkr", maxResults),
+    searchNaverFiltered(query, filterKeywords, "cafearticle", maxResults),
+    searchNaverFiltered(query, filterKeywords, "news", maxResults),
   ]);
 
   // 모든 결과 통합 (URL 중복 제거)
@@ -182,12 +218,12 @@ async function searchNaverMultiType(
 // 네이버는 짧은 description만 주므로, Tavily Extract로 실제 본문을 받아 정확도 향상
 async function searchNaverWithExtract(
   query: string,
-  domainKeyword: string,
+  filterKeywords: string[],
   tv: ReturnType<typeof getTavily>,
   maxResults: number = 3
 ): Promise<TavilyResult> {
   // 1단계: 네이버 다중 타입(webkr + cafearticle + news)으로 URL 발견
-  const naverResult = await searchNaverMultiType(query, domainKeyword, maxResults);
+  const naverResult = await searchNaverMultiType(query, filterKeywords, maxResults);
   if (naverResult.results.length === 0 || !tv) return naverResult;
 
   // 2단계: Tavily Extract로 각 URL의 본문 추출
@@ -275,13 +311,13 @@ async function searchGameInfo(
     : `${gameName} 공식 ${topic}`;
 
   // 3개 소스 병렬 검색 (네이버 우선, 결과 없으면 Tavily 폴백)
-  const officialFilter = community?.officialUrlFilter ?? community?.officialDomains[0] ?? "";
+  const officialFilters = community?.officialUrlFilters ?? community?.officialDomains ?? [];
 
   const [namuRes, dcRes, officialRes] = await Promise.allSettled([
     // 1. 나무위키
     searchWithFallback({
       naverQuery: `${query} 나무위키`,
-      naverFilter: "namu.wiki",
+      naverFilters: ["namu.wiki"],
       tavily: tv,
       tavilyQuery: query,
       tavilyDomains: ["namu.wiki"],
@@ -291,17 +327,17 @@ async function searchGameInfo(
     // 2. 디시인사이드 마이너갤
     searchWithFallback({
       naverQuery: dcQuery,
-      naverFilter: "gall.dcinside.com",
+      naverFilters: ["gall.dcinside.com"],
       tavily: tv,
       tavilyQuery: dcQuery,
       tavilyDomains: ["gall.dcinside.com"],
       hasNaver,
     }),
 
-    // 3. 공식 커뮤니티
+    // 3. 공식 + 신뢰 출처 (다중 필터 OR 매칭: 라운지·인벤·카페·게임미디어 등)
     searchWithFallback({
       naverQuery: officialQuery,
-      naverFilter: officialFilter,
+      naverFilters: officialFilters,
       tavily: tv,
       tavilyQuery: officialQuery,
       tavilyDomains: community?.officialDomains ?? [],
@@ -342,15 +378,15 @@ async function searchGameInfo(
 // 둘 다 없으면 Tavily 일반 검색으로 폴백
 async function searchWithFallback(opts: {
   naverQuery: string;
-  naverFilter: string;
+  naverFilters: string[];
   tavily: ReturnType<typeof getTavily>;
   tavilyQuery: string;
   tavilyDomains: string[];
   hasNaver: boolean;
 }): Promise<TavilyResult> {
   // 1순위: 네이버 검색(URL 발견) + Tavily Extract(본문 추출) 조합
-  if (opts.hasNaver && opts.naverFilter) {
-    const hybrid = await searchNaverWithExtract(opts.naverQuery, opts.naverFilter, opts.tavily, 3);
+  if (opts.hasNaver && opts.naverFilters.length > 0) {
+    const hybrid = await searchNaverWithExtract(opts.naverQuery, opts.naverFilters, opts.tavily, 3);
     if (hybrid.results.length > 0) return hybrid;
   }
 
