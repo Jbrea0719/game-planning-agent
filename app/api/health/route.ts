@@ -5,7 +5,9 @@ export async function GET() {
 
   // 1. 환경변수 확인
   checks.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ? "✅ 설정됨" : "❌ 없음";
-  checks.TAVILY_API_KEY = process.env.TAVILY_API_KEY ? "✅ 설정됨" : "❌ 없음";
+  checks.NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID ? "✅ 설정됨" : "❌ 없음 (한국 웹 검색 비활성)";
+  checks.NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET ? "✅ 설정됨" : "❌ 없음 (한국 웹 검색 비활성)";
+  checks.TAVILY_API_KEY = process.env.TAVILY_API_KEY ? "✅ 설정됨 (폴백용)" : "⚠️ 없음 (폴백 비활성)";
   checks.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
     ? `✅ ${process.env.NEXT_PUBLIC_SUPABASE_URL}`
     : "❌ 없음";
