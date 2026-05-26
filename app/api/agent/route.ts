@@ -5,19 +5,24 @@ import { supabase } from "@/lib/supabase";
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // ── 게임별 공식 커뮤니티 도메인 매핑 ──
+// 긴 이름(정확한 게임명)이 앞에 위치해야 매칭 우선순위가 올바르게 동작함
 const GAME_OFFICIAL_DOMAINS: Record<string, string[]> = {
-  "afk arena":     ["afkarena.fandom.com", "lilith.com"],
-  "afk2":          ["afkarena.fandom.com", "lilith.com"],
-  "세븐나이츠":     ["cafe.naver.com/7knights", "7knights.nexon.com"],
-  "서머너즈워":     ["cafe.naver.com/summonerswar", "summonerswar.com"],
-  "니케":           ["cafe.naver.com/nikkegg", "nikke.nexon.com"],
-  "에픽세븐":       ["cafe.naver.com/epicseven", "epic7global.com"],
-  "원신":           ["cafe.naver.com/genshinkr", "genshin.hoyoverse.com"],
-  "붕괴 스타레일":  ["cafe.naver.com/starrailkr", "hsr.hoyoverse.com"],
-  "스타레일":       ["cafe.naver.com/starrailkr", "hsr.hoyoverse.com"],
-  "아크나이츠":     ["cafe.naver.com/arknightskr", "arknights.global"],
-  "fgo":            ["cafe.naver.com/fategrandorder", "fate-go.jp"],
-  "블루아카이브":   ["cafe.naver.com/bluearchivekorea", "bluearchive.nexon.com"],
+  "세븐나이츠 리버스": ["cafe.naver.com/7knightsrv", "m.cafe.naver.com/7knightsrv"],
+  "세나리":            ["cafe.naver.com/7knightsrv", "m.cafe.naver.com/7knightsrv"],
+  "seven knights reverse": ["cafe.naver.com/7knightsrv"],
+  "세븐나이츠2":       ["cafe.naver.com/7knights2", "7knights2.nexon.com"],
+  "세븐나이츠":        ["cafe.naver.com/7knights", "7knights.nexon.com"],
+  "afk arena":         ["afkarena.fandom.com", "lilith.com"],
+  "afk2":              ["afkarena.fandom.com", "lilith.com"],
+  "서머너즈워":        ["cafe.naver.com/summonerswar", "summonerswar.com"],
+  "니케":              ["cafe.naver.com/nikkegg", "nikke.nexon.com"],
+  "에픽세븐":          ["cafe.naver.com/epicseven", "epic7global.com"],
+  "원신":              ["cafe.naver.com/genshinkr", "genshin.hoyoverse.com"],
+  "붕괴 스타레일":     ["cafe.naver.com/starrailkr", "hsr.hoyoverse.com"],
+  "스타레일":          ["cafe.naver.com/starrailkr", "hsr.hoyoverse.com"],
+  "아크나이츠":        ["cafe.naver.com/arknightskr", "arknights.global"],
+  "fgo":               ["cafe.naver.com/fategrandorder", "fate-go.jp"],
+  "블루아카이브":      ["cafe.naver.com/bluearchivekorea", "bluearchive.nexon.com"],
 };
 
 // Tavily 인스턴스 생성 (API key 없으면 null)
@@ -44,11 +49,12 @@ async function searchGameInfo(gameName: string, topic: string): Promise<string> 
 
   const query = `${gameName} ${topic}`;
 
-  // 공식 도메인 찾기 (게임명 소문자로 매핑)
-  const lowerGame = gameName.toLowerCase();
-  const officialDomains = Object.entries(GAME_OFFICIAL_DOMAINS).find(
-    ([key]) => lowerGame.includes(key) || key.includes(lowerGame)
-  )?.[1] ?? [];
+  // 공식 도메인 찾기 — 긴 키(정확한 게임명) 우선 매칭
+  const lowerGame = gameName.toLowerCase().trim();
+  const officialDomains = Object.entries(GAME_OFFICIAL_DOMAINS)
+    .filter(([key]) => lowerGame.includes(key) || key.includes(lowerGame))
+    .sort((a, b) => b[0].length - a[0].length) // 더 긴(정확한) 키 우선
+    [0]?.[1] ?? [];
 
   // 3개 소스 병렬 검색
   const [namuResult, dcResult, officialResult] = await Promise.allSettled([
@@ -110,7 +116,9 @@ async function searchGeneral(query: string): Promise<string> {
 // 에이전트 1: 분석 에이전트
 // 역할: 질문과 관련된 게임들을 3채널(나무위키/디시/공식)로 실시간 검색 후 비교 분석
 // ════════════════════════════════════════
-async function analyzeAgent(userQuery: string): Promise<string> {
+type ConvMessage = { role: "user" | "assistant"; content: string };
+
+async function analyzeAgent(userQuery: string, conversationHistory: ConvMessage[] = []): Promise<string> {
 
   // 도구 정의: 게임별 3채널 검색 + 일반 검색
   const tools: Anthropic.Tool[] = [
@@ -148,9 +156,26 @@ async function analyzeAgent(userQuery: string): Promise<string> {
     },
   ];
 
+  // 이전 대화 맥락 (최근 6개 메시지 요약 — 어떤 게임을 논의 중인지 파악용)
+  const historyStr = conversationHistory.length > 0
+    ? `\n\n[이전 대화 맥락 — 어떤 게임/주제를 논의 중인지 파악하세요]\n${
+        conversationHistory.slice(-6).map(m =>
+          `${m.role === "user" ? "질문" : "조던"}: ${m.content.slice(0, 300)}`
+        ).join("\n")
+      }\n`
+    : "";
+
   let messages: Anthropic.MessageParam[] = [{
     role: "user",
-    content: `다음 게임 기획 질문을 분석해줘. 관련된 게임들을 search_game 도구로 검색해서 실제 데이터를 수집하고, 비교 분석해줘.\n\n질문: ${userQuery}\n\n반드시 관련 게임 2개 이상을 검색해서 실제 커뮤니티 반응과 데이터를 수집해줘.`
+    content: `다음 게임 기획 질문을 분석해줘. search_game 도구로 실제 데이터를 검색해서 수집해줘.${historyStr}
+[현재 질문]
+${userQuery}
+
+검색 원칙:
+- 질문에 특정 게임이 명시된 경우 → 해당 게임 이름을 정확히 그대로 사용해서 search_game 검색 (예: "세븐나이츠 리버스", "니케" 등 풀네임 사용)
+- 이전 대화에서 특정 게임이 언급된 경우 → 그 게임명으로 검색 (맥락 이어받기)
+- 여러 게임 비교가 필요한 경우만 여러 번 검색, 그 외엔 해당 게임 1개를 집중 검색
+- 게임명을 임의로 줄이거나 다른 게임으로 바꾸지 말 것`
   }];
 
   let allSearchResults = "";
@@ -161,15 +186,16 @@ async function analyzeAgent(userQuery: string): Promise<string> {
       model: "claude-sonnet-4-5",
       max_tokens: 2000,
       system: `당신은 영웅수집형 게임 분석 전문 에이전트예요.
-사용자의 게임 기획 질문에 대해 실제 게임 데이터를 수집하고 비교 분석해요.
+사용자의 게임 기획 질문에 대해 실제 게임 데이터를 수집하고 분석해요.
 
-분석 대상 게임: AFK Arena/AFK2, 세븐나이츠 시리즈, 서머너즈워, 니케, 에픽세븐, 원신, 붕괴:스타레일, 아크나이츠, FGO, 블루아카이브
+참고 게임: AFK Arena/AFK2, 세븐나이츠 리버스, 세븐나이츠2, 세븐나이츠, 서머너즈워, 니케, 에픽세븐, 원신, 붕괴:스타레일, 아크나이츠, FGO, 블루아카이브
 
 분석 원칙:
-- 질문과 가장 관련 있는 게임 2~3개를 search_game으로 검색해요
-- 나무위키(개요/시스템), 디시 마이너갤(실유저 반응), 공식 커뮤니티(최신 정보)를 모두 참고해요
-- 수집한 실제 데이터를 바탕으로 성공/실패 사례를 구분해요
-- 수익화, 유저 리텐션, 메타 사이클 관점에서 분석해요`,
+- 특정 게임이 명시된 경우 → 그 게임 풀네임으로만 search_game 검색 (다른 게임으로 바꾸지 않음)
+- 게임명은 반드시 원래 이름 그대로 사용 (예: "세븐나이츠 리버스" → "세븐나이츠 리버스"로 검색, "세븐나이츠"로 축약 금지)
+- 비교 분석이 명시적으로 필요한 경우만 여러 게임 검색
+- 나무위키(개요/시스템), 디시 마이너갤(실유저 반응), 공식 커뮤니티(최신 정보) 순으로 참고
+- 검색 결과가 없거나 부족하면 search_general로 보완`,
       tools,
       messages,
     });
@@ -309,14 +335,15 @@ AFK Arena/AFK2, 세븐나이츠 시리즈, 서머너즈워, 니케, 에픽세븐
 // ════════════════════════════════════════
 async function runMultiAgentPipeline(
   userQuery: string,
+  conversationHistory: ConvMessage[],
   onChunk: (text: string) => void,
   detailed = false
 ): Promise<string> {
   const criticHistory: { round: number; approved: boolean; feedback: string }[] = [];
 
-  // ── 에이전트 1: 실시간 검색 + 분석
+  // ── 에이전트 1: 실시간 검색 + 분석 (대화 기록 포함 → 어떤 게임인지 맥락 유지)
   onChunk(`\n🔍 **분석 에이전트** — 주요 커뮤니티 포함 검색 중...\n`);
-  const analysisResult = await analyzeAgent(userQuery);
+  const analysisResult = await analyzeAgent(userQuery, conversationHistory);
   onChunk(`✅ 분석 완료\n\n`);
 
   // ── 에이전트 2: 설계
@@ -409,13 +436,15 @@ export async function POST(request: Request) {
     };
 
     const userMessage = messages[messages.length - 1];
+    // 현재 질문을 제외한 이전 대화 기록 (analyzeAgent의 맥락 파악용)
+    const conversationHistory = messages.slice(0, -1);
 
     const readable = new ReadableStream({
       async start(controller) {
         const encode = (text: string) =>
           controller.enqueue(new TextEncoder().encode(text));
         try {
-          const assistantText = await runMultiAgentPipeline(userMessage.content, encode, detailed);
+          const assistantText = await runMultiAgentPipeline(userMessage.content, conversationHistory, encode, detailed);
           // Supabase에 대화 저장
           if (session_id && pair_id) {
             const { error: dbError } = await supabase.from("messages").insert([
