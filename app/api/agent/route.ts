@@ -17,22 +17,22 @@ type GameCommunity = {
 };
 const GAME_COMMUNITIES: Record<string, GameCommunity> = {
   "세븐나이츠 리버스": {
-    officialDomains: ["forum.netmarble.com"],
-    officialPathHint: "sena_rebirth",  // forum.netmarble.com/sena_rebirth 경로 특정
+    officialDomains: ["game.naver.com"],
+    officialPathHint: "sena_rebirth",  // game.naver.com/lounge/sena_rebirth 경로 특정
     dcQueryHint: "sevennightsrebirth",
   },
   "세나리":  {
-    officialDomains: ["forum.netmarble.com"],
+    officialDomains: ["game.naver.com"],
     officialPathHint: "sena_rebirth",
     dcQueryHint: "sevennightsrebirth",
   },
   "세반리":  {
-    officialDomains: ["forum.netmarble.com"],
+    officialDomains: ["game.naver.com"],
     officialPathHint: "sena_rebirth",
     dcQueryHint: "sevennightsrebirth",
   },
   "seven knights reverse": {
-    officialDomains: ["forum.netmarble.com"],
+    officialDomains: ["game.naver.com"],
     officialPathHint: "sena_rebirth",
     dcQueryHint: "sevennightsrebirth",
   },
