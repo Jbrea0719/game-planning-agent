@@ -214,68 +214,35 @@ async function searchNaverMultiType(
   return { results: merged };
 }
 
-// Jina AI Reader로 본문 추출 (SPA·봇 차단 모두 우회)
-// https://r.jina.ai/{URL} 호출 시 헤드리스 브라우저로 렌더링 후 깔끔한 마크다운 반환
-// 무료, API 키 불필요. 네이버 라운지·나무위키·인벤·카페 모두 처리 가능
-async function fetchAndExtractText(url: string): Promise<string> {
-  try {
-    // Jina Reader는 URL을 그대로 path에 붙임 (인코딩하면 오히려 안 됨)
-    const jinaUrl = `https://r.jina.ai/${url}`;
-    const res = await fetch(jinaUrl, {
-      headers: {
-        "Accept": "text/plain",  // 마크다운 텍스트로 받기
-        // 옵션: 빠른 응답을 위해 캐시 허용
-        "X-No-Cache": "false",
-      },
-      signal: AbortSignal.timeout(15000), // SPA 렌더링은 시간이 더 걸릴 수 있음
-    });
-    if (!res.ok) {
-      console.error(`[jina reader] ${url} HTTP ${res.status}`);
-      return "";
-    }
-
-    const text = await res.text();
-    return text.trim();
-  } catch (err) {
-    console.error(`[jina reader] ${url} 추출 실패:`, err);
-    return "";
-  }
-}
-
-// 네이버 검색으로 URL 발견 → 직접 fetch로 본문 추출 (하이브리드)
+// 본문 추출 전략 변경 (2026-05):
+// 한국 주요 사이트(라운지 SPA, DC, 나무위키, 인벤, 카페)는 모두 본문 추출이 막힘.
+// - 라운지: SPA, JS 렌더 필요
+// - DC/나무위키/인벤: 봇 차단/CAPTCHA
+// Tavily Extract / Jina Reader 모두 한국 사이트에서는 실패함.
+//
+// 대신: 네이버 검색 description(~200자)이 의외로 정보 밀도 높음.
+//   예) "5월 14일(목) 업데이트 상세 안내 ■ 신규 영웅 추가 ◉ [전설] 칼 헤론..."
+// → description만으로도 사실 정보(날짜·이름·수치) 추출 충분.
+//
+// searchNaverWithExtract는 이름은 유지(시그니처 호환)하지만
+// 실제로는 본문 추출 없이 네이버 description을 그대로 활용
 async function searchNaverWithExtract(
   query: string,
   filterKeywords: string[],
-  _tv: ReturnType<typeof getTavily>,  // 미사용 (시그니처 호환용)
-  maxResults: number = 3
+  _tv: ReturnType<typeof getTavily>,
+  maxResults: number = 7
 ): Promise<TavilyResult> {
-  // 1단계: 네이버 다중 타입(webkr + cafearticle + news)으로 URL 발견
-  const naverResult = await searchNaverMultiType(query, filterKeywords, maxResults);
-  if (naverResult.results.length === 0) return naverResult;
-
-  // 2단계: 직접 fetch + HTML 파싱으로 본문 추출 (병렬 처리)
-  const extracted = await Promise.all(
-    naverResult.results.map(async r => {
-      const fullText = await fetchAndExtractText(r.url);
-      return {
-        title: r.title,
-        url: r.url,
-        content: fullText && fullText.length > 200
-          ? fullText.slice(0, 2500)        // 본문 충분히 추출됐으면 2500자
-          : r.content,                       // 추출 실패/짧으면 네이버 description 폴백
-      };
-    })
-  );
-
-  return { results: extracted };
+  // 네이버 다중 타입(webkr + cafearticle + news) 검색 결과를 그대로 반환
+  // 본문 추출 단계 제거 (어차피 한국 사이트는 다 막힘)
+  return await searchNaverMultiType(query, filterKeywords, maxResults);
 }
 
 // 검색 결과 포맷팅 (AI에게 넘길 상세 텍스트)
-// includeAnswer 요약은 사용하지 않음 — 여러 게시글을 합산 요약하면 날짜/이름이 섞임
+// content는 자르지 않고 전체 그대로 전달 (네이버 description은 보통 200~300자라 잘릴 일 없음)
 function formatResults(source: string, res: TavilyResult): string {
   if (!res.results || res.results.length === 0) return `[${source}] 검색 결과 없음`;
   const items = res.results
-    .map((r, i) => `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.content?.slice(0, 600) ?? ""}`)
+    .map((r, i) => `${i + 1}. ${r.title}\n   URL: ${r.url}\n   본문 미리보기: ${r.content ?? ""}`)
     .join("\n\n");
   return `[${source}]\n${items}`;
 }
@@ -394,10 +361,11 @@ async function searchWithFallback(opts: {
   tavilyDomains: string[];
   hasNaver: boolean;
 }): Promise<TavilyResult> {
-  // 1순위: 네이버 검색(URL 발견) + Tavily Extract(본문 추출) 조합
+  // 1순위: 네이버 검색 (description 그대로 활용 — 본문 추출은 한국 사이트가 모두 차단해서 제거됨)
+  // 결과를 7개까지 확보해 정보 밀도 보강
   if (opts.hasNaver && opts.naverFilters.length > 0) {
-    const hybrid = await searchNaverWithExtract(opts.naverQuery, opts.naverFilters, opts.tavily, 3);
-    if (hybrid.results.length > 0) return hybrid;
+    const result = await searchNaverWithExtract(opts.naverQuery, opts.naverFilters, opts.tavily, 7);
+    if (result.results.length > 0) return result;
   }
 
   // 2순위: Tavily 일반 검색 폴백 (네이버 결과 없거나 키 미설정 시)
@@ -700,10 +668,16 @@ async function runMultiAgentPipeline(
 직설적이고 실무 중심으로, "이 구조는 이래서 망합니다"처럼 솔직하게 말해줘요.
 
 [중요 — 검색 데이터 활용]
-당신은 방금 실시간 웹 검색 에이전트를 통해 공식 커뮤니티, 디시인사이드, 나무위키 데이터를 수집했어요.
+당신은 방금 실시간 네이버 검색을 통해 공식 커뮤니티(인벤·카페·라운지·게임미디어), 디시인사이드, 나무위키 데이터를 수집했어요.
 사용자 메시지에 포함된 [실시간 검색 데이터]를 반드시 활용해서 답변하세요.
 절대로 "실시간 검색 기능이 없어요", "최신 정보를 알 수 없어요" 같은 말을 하지 마세요.
-검색 결과가 충분하면 구체적 수치·이름·날짜를 그대로 인용하세요.
+
+[검색 결과 읽는 법 — 매우 중요]
+각 결과의 "본문 미리보기"는 네이버 검색 description으로 약 200~400자로 짧지만 사실 정보가 압축돼 있어요.
+짧다고 무시하지 말고, **여러 결과의 미리보기를 종합해 사실 정보(날짜·이름·수치)를 추출**하세요.
+예) 미리보기에 "5월 14일(목) 업데이트 신규 영웅 [전설] 칼 헤론" 같은 문구가 있으면 → 정확히 그대로 인용.
+여러 미리보기에 동일 사실이 반복되면 신뢰도 높음. 다른 사실이 나오면 1순위(공식) 출처 우선.
+
 검색 결과가 부족하거나 "검색 결과 없음"인 경우에만 "정확한 데이터 확인이 어려워요"라고 짧게 언급하고, 알고 있는 범위 내에서 답변하세요.
 
 [소스 신뢰도 우선순위 — 반드시 준수]
