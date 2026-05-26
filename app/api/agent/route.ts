@@ -116,9 +116,11 @@ async function searchGeneral(query: string): Promise<string> {
 // 에이전트 1: 분석 에이전트
 // 역할: 질문과 관련된 게임들을 3채널(나무위키/디시/공식)로 실시간 검색 후 비교 분석
 // ════════════════════════════════════════
-type ConvMessage = { role: "user" | "assistant"; content: string };
-
-async function analyzeAgent(userQuery: string, conversationHistory: ConvMessage[] = []): Promise<string> {
+async function analyzeAgent(
+  userQuery: string,
+  contextCard: string = "",        // 롤링 맥락 카드 (항상 3줄, 크기 고정)
+  recentMessages: { role: string; content: string }[] = []  // 직전 2개 메시지 (즉각 follow-up용)
+): Promise<string> {
 
   // 도구 정의: 게임별 3채널 검색 + 일반 검색
   const tools: Anthropic.Tool[] = [
@@ -156,26 +158,29 @@ async function analyzeAgent(userQuery: string, conversationHistory: ConvMessage[
     },
   ];
 
-  // 이전 대화 맥락 (최근 6개 메시지 요약 — 어떤 게임을 논의 중인지 파악용)
-  const historyStr = conversationHistory.length > 0
-    ? `\n\n[이전 대화 맥락 — 어떤 게임/주제를 논의 중인지 파악하세요]\n${
-        conversationHistory.slice(-6).map(m =>
-          `${m.role === "user" ? "질문" : "조던"}: ${m.content.slice(0, 300)}`
-        ).join("\n")
-      }\n`
+  // ① 롤링 맥락 카드 (크기 고정 ~150자 — 어떤 게임/주제인지 항상 파악 가능)
+  const contextSection = contextCard
+    ? `\n\n[대화 맥락 카드 — 현재 무엇을 논의 중인지]\n${contextCard}\n`
+    : "";
+
+  // ② 직전 메시지 2개 (즉각 follow-up 대응용 — "그게 뭐야?", "좀더 설명해줘" 등)
+  const recentSection = recentMessages.length > 0
+    ? `\n[직전 교환]\n${recentMessages.slice(-2).map(m =>
+        `${m.role === "user" ? "질문" : "조던"}: ${m.content.slice(0, 200)}`
+      ).join("\n")}\n`
     : "";
 
   let messages: Anthropic.MessageParam[] = [{
     role: "user",
-    content: `다음 게임 기획 질문을 분석해줘. search_game 도구로 실제 데이터를 검색해서 수집해줘.${historyStr}
+    content: `다음 게임 기획 질문을 분석해줘. search_game 도구로 실제 데이터를 검색해서 수집해줘.${contextSection}${recentSection}
 [현재 질문]
 ${userQuery}
 
 검색 원칙:
-- 질문에 특정 게임이 명시된 경우 → 해당 게임 이름을 정확히 그대로 사용해서 search_game 검색 (예: "세븐나이츠 리버스", "니케" 등 풀네임 사용)
-- 이전 대화에서 특정 게임이 언급된 경우 → 그 게임명으로 검색 (맥락 이어받기)
-- 여러 게임 비교가 필요한 경우만 여러 번 검색, 그 외엔 해당 게임 1개를 집중 검색
-- 게임명을 임의로 줄이거나 다른 게임으로 바꾸지 말 것`
+- 맥락 카드에 게임명이 있으면 → 그 게임 풀네임으로 search_game 검색
+- 현재 질문에 게임명이 명시된 경우 → 해당 풀네임으로 검색 (카드보다 현재 질문 우선)
+- 여러 게임 비교가 필요한 경우만 여러 번 검색, 그 외엔 해당 게임 1개 집중 검색
+- 게임명 절대 축약하거나 다른 게임으로 바꾸지 말 것`
   }];
 
   let allSearchResults = "";
@@ -335,15 +340,16 @@ AFK Arena/AFK2, 세븐나이츠 시리즈, 서머너즈워, 니케, 에픽세븐
 // ════════════════════════════════════════
 async function runMultiAgentPipeline(
   userQuery: string,
-  conversationHistory: ConvMessage[],
+  contextCard: string,
+  recentMessages: { role: string; content: string }[],
   onChunk: (text: string) => void,
   detailed = false
 ): Promise<string> {
   const criticHistory: { round: number; approved: boolean; feedback: string }[] = [];
 
-  // ── 에이전트 1: 실시간 검색 + 분석 (대화 기록 포함 → 어떤 게임인지 맥락 유지)
+  // ── 에이전트 1: 검색 + 분석 (롤링 카드 + 직전 2개로 맥락 파악)
   onChunk(`\n🔍 **분석 에이전트** — 주요 커뮤니티 포함 검색 중...\n`);
-  const analysisResult = await analyzeAgent(userQuery, conversationHistory);
+  const analysisResult = await analyzeAgent(userQuery, contextCard, recentMessages);
   onChunk(`✅ 분석 완료\n\n`);
 
   // ── 에이전트 2: 설계
@@ -428,23 +434,30 @@ type Message = { role: "user" | "assistant"; content: string };
 
 export async function POST(request: Request) {
   try {
-    const { messages, session_id, pair_id, detailed } = (await request.json()) as {
+    const { messages, session_id, pair_id, detailed, agentContext } = (await request.json()) as {
       messages: Message[];
       session_id?: string;
       pair_id?: string;
       detailed?: boolean;
+      agentContext?: string;  // 롤링 맥락 카드 (클라이언트에서 관리)
     };
 
     const userMessage = messages[messages.length - 1];
-    // 현재 질문을 제외한 이전 대화 기록 (analyzeAgent의 맥락 파악용)
-    const conversationHistory = messages.slice(0, -1);
+    // 직전 2개 메시지 (즉각 follow-up용 — 롤링 카드와 역할 구분)
+    const recentMessages = messages.slice(-3, -1);
 
     const readable = new ReadableStream({
       async start(controller) {
         const encode = (text: string) =>
           controller.enqueue(new TextEncoder().encode(text));
         try {
-          const assistantText = await runMultiAgentPipeline(userMessage.content, conversationHistory, encode, detailed);
+          const assistantText = await runMultiAgentPipeline(
+            userMessage.content,
+            agentContext ?? "",
+            recentMessages,
+            encode,
+            detailed
+          );
           // Supabase에 대화 저장
           if (session_id && pair_id) {
             const { error: dbError } = await supabase.from("messages").insert([

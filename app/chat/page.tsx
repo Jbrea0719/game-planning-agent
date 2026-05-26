@@ -116,6 +116,8 @@ export default function ChatPage() {
   const [showGameModal, setShowGameModal] = useState(false);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [showAnswerCompleteBtn, setShowAnswerCompleteBtn] = useState(false);
+  // 롤링 맥락 카드 — 항상 3줄, 새 답변마다 백그라운드로 교체
+  const [agentContext, setAgentContext] = useState("");
   const [docContent, setDocContent] = useState("");
   const [docLoading, setDocLoading] = useState(false);
   const [showDocModal, setShowDocModal] = useState(false);
@@ -145,6 +147,9 @@ export default function ChatPage() {
         if (data.messages?.length > 0) setPairs(groupIntoPairs(data.messages));
       })
       .catch(() => {});
+    // 저장된 맥락 카드 복원 (세션별로 관리)
+    const savedCtx = localStorage.getItem(`jordan_agent_context:${sessionId}`);
+    if (savedCtx) setAgentContext(savedCtx);
   }, [sessionId]);
 
   // 스트리밍 중 + 사용자가 스크롤 올리지 않았을 때만 자동 하단 이동
@@ -226,7 +231,12 @@ export default function ChatPage() {
       const response = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: allMessages, session_id: sessionId, pair_id: pairId }),
+        body: JSON.stringify({
+          messages: allMessages,
+          session_id: sessionId,
+          pair_id: pairId,
+          agentContext,  // 롤링 맥락 카드 전달
+        }),
         signal: controller.signal,
       });
       if (!response.ok || !response.body) throw new Error("오류");
@@ -276,6 +286,8 @@ export default function ChatPage() {
         critic_history: criticHistory,
       }]);
       setStreamingPair(null);
+      // 맥락 카드 백그라운드 업데이트 (UI 블로킹 없음)
+      updateContextCard(trimmed, cleanText);
       if (hadScrolledUp) {
         setShowAnswerCompleteBtn(true);
       } else {
@@ -401,6 +413,23 @@ export default function ChatPage() {
     await Promise.all(ids.map((id) =>
       fetch("/api/messages", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pair_id: id }) })
     ));
+  }
+
+  // 맥락 카드 백그라운드 업데이트 (답변 완료 후 비동기 호출, 대기 없음)
+  function updateContextCard(question: string, answer: string) {
+    fetch("/api/context", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, answer, existingContext: agentContext }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.context && sessionId) {
+          setAgentContext(data.context);
+          localStorage.setItem(`jordan_agent_context:${sessionId}`, data.context);
+        }
+      })
+      .catch(() => { /* 실패해도 대화 흐름에 영향 없음 */ });
   }
 
   // ── 기획서 작성 관련 함수 ──
