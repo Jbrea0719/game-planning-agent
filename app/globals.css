@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0a0e1a;
+  --foreground: #e0e8f0;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* prose 기본 구조 (typography 플러그인 대체) */
+.prose { font-size: 0.875rem; line-height: 1.6; max-width: none; }
+.prose p { margin-top: 0.3rem; margin-bottom: 0.3rem; }
+.prose h1 { font-size: 1.25rem; font-weight: 700; margin-top: 0.6rem; margin-bottom: 0; }
+.prose h2 { font-size: 1.1rem; font-weight: 700; margin-top: 0.6rem; margin-bottom: 0; }
+.prose h3 { font-size: 1rem; font-weight: 700; margin-top: 0.6rem; margin-bottom: 0; }
+.prose h4 { font-size: 0.9rem; font-weight: 700; margin-top: 0.6rem; margin-bottom: 0; }
+.prose h1 + *, .prose h2 + *, .prose h3 + * { margin-top: 0 !important; }
+.prose ul { list-style-type: disc; padding-left: 1.25rem; margin-top: 0.3rem; margin-bottom: 0.3rem; }
+.prose ol { list-style-type: decimal; padding-left: 1.25rem; margin-top: 0.3rem; margin-bottom: 0.3rem; }
+.prose li { margin-top: 0.1rem; margin-bottom: 0.1rem; }
+.prose blockquote { border-left: 3px solid; padding-left: 0.75rem; margin-top: 0.3rem; margin-bottom: 0.3rem; }
+.prose code { font-size: 0.8rem; padding: 0.1rem 0.3rem; border-radius: 0.25rem; }
+.prose pre { padding: 0.75rem; border-radius: 0.5rem; overflow-x: auto; margin-top: 0.3rem; margin-bottom: 0.3rem; }
+.prose hr { margin-top: 0.6rem; margin-bottom: 0.6rem; }
+.prose table { width: 100%; border-collapse: collapse; margin-top: 0.3rem; margin-bottom: 0.3rem; }
+.prose td, .prose th { padding: 0.3rem 0.5rem; border: 1px solid rgba(192,200,216,0.2); }
+.prose strong { font-weight: 700; }
+
+/* 다크 테마 — 실버 강조 */
+.prose h1, .prose h2, .prose h3, .prose h4 { color: #e0e8f0; }
+.prose p, .prose li, .prose td, .prose th { color: #e0e8f0; }
+.prose strong, .prose p strong, .prose li strong { color: #ffffff !important; font-weight: 700 !important; font-style: normal !important; letter-spacing: normal !important; }
+.prose em { color: #b8c4d4; }
+.prose code { color: #c0c8d8; background: rgba(192,200,216,0.1); }
+.prose blockquote { color: #a8b4c8; border-left-color: rgba(192,200,216,0.4); }
+.prose a { color: #c0c8d8; }
