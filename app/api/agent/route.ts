@@ -6,25 +6,35 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // ── 게임별 커뮤니티 설정 ──
 // officialDomains: Tavily includeDomains에 넘길 공식 커뮤니티 도메인
-// dcQueryHint: DC 마이너갤 검색 시 쿼리에 추가할 갤러리 식별 키워드 (정확도 향상)
+// officialPathHint: 도메인 내 특정 경로 식별자 — 쿼리에 포함해 정확도 향상
+//   (Tavily includeDomains은 도메인 레벨만 필터링, 경로 레벨 필터링 불가)
+// dcQueryHint: DC 마이너갤 검색 시 쿼리에 추가할 갤러리 식별 키워드
 // 긴 이름(정확한 게임명)이 앞에 위치해야 매칭 우선순위가 올바르게 동작함
-type GameCommunity = { officialDomains: string[]; dcQueryHint?: string };
+type GameCommunity = {
+  officialDomains: string[];
+  officialPathHint?: string;  // forum.netmarble.com 등 대형 도메인 경로 식별자
+  dcQueryHint?: string;
+};
 const GAME_COMMUNITIES: Record<string, GameCommunity> = {
   "세븐나이츠 리버스": {
     officialDomains: ["forum.netmarble.com"],
-    dcQueryHint: "세나리 마이너갤 sevennightsrebirth",
+    officialPathHint: "sena_rebirth",  // forum.netmarble.com/sena_rebirth 경로 특정
+    dcQueryHint: "sevennightsrebirth",
   },
   "세나리":  {
     officialDomains: ["forum.netmarble.com"],
-    dcQueryHint: "세나리 마이너갤 sevennightsrebirth",
+    officialPathHint: "sena_rebirth",
+    dcQueryHint: "sevennightsrebirth",
   },
   "세반리":  {
     officialDomains: ["forum.netmarble.com"],
-    dcQueryHint: "세나리 마이너갤 sevennightsrebirth",
+    officialPathHint: "sena_rebirth",
+    dcQueryHint: "sevennightsrebirth",
   },
   "seven knights reverse": {
     officialDomains: ["forum.netmarble.com"],
-    dcQueryHint: "세나리 마이너갤 sevennightsrebirth",
+    officialPathHint: "sena_rebirth",
+    dcQueryHint: "sevennightsrebirth",
   },
   "세븐나이츠2":   { officialDomains: ["cafe.naver.com/7knights2", "7knights2.nexon.com"] },
   "세븐나이츠":    { officialDomains: ["cafe.naver.com/7knights", "7knights.nexon.com"] },
@@ -48,8 +58,10 @@ function getTavily() {
   return tavily({ apiKey });
 }
 
-// 검색 결과 포맷팅
-function formatResults(source: string, res: { answer?: string; results: Array<{ title: string; url: string; content?: string }> }): string {
+type TavilyResult = { answer?: string; results: Array<{ title: string; url: string; content?: string }> };
+
+// 검색 결과 포맷팅 (AI에게 넘길 상세 텍스트)
+function formatResults(source: string, res: TavilyResult): string {
   if (!res.results || res.results.length === 0) return `[${source}] 검색 결과 없음`;
   const answer = res.answer ? `요약: ${res.answer}\n` : "";
   const items = res.results
@@ -58,8 +70,18 @@ function formatResults(source: string, res: { answer?: string; results: Array<{ 
   return `[${source}]\n${answer}${items}`;
 }
 
+// 검색 결과 URL 요약 (스트림 노출용 — 어떤 페이지를 찾았는지 육안 확인)
+function summarizeUrls(source: string, res: TavilyResult): string {
+  if (!res.results || res.results.length === 0) return `  ⚠️ ${source}: 결과 없음`;
+  return res.results.map(r => `  ✓ [${source}] ${r.url}`).join("\n");
+}
+
 // ── 게임별 3채널 병렬 검색 (나무위키 + 디시 마이너갤 + 공식 커뮤니티) ──
-async function searchGameInfo(gameName: string, topic: string): Promise<string> {
+async function searchGameInfo(
+  gameName: string,
+  topic: string,
+  onProgress?: (text: string) => void
+): Promise<string> {
   const tv = getTavily();
   if (!tv) return `[검색 불가] TAVILY_API_KEY 미설정 — 내부 지식으로 대체`;
 
@@ -74,50 +96,62 @@ async function searchGameInfo(gameName: string, topic: string): Promise<string> 
 
   const officialDomains = community?.officialDomains ?? [];
 
-  // DC 검색 쿼리: 갤러리 식별 힌트가 있으면 추가해 정확도 향상
-  // 예) "세나리 마이너갤 sevennightsrebirth 최근 업데이트"
+  // 공식 커뮤니티 쿼리: 경로 힌트를 포함해 대형 도메인 내 특정 섹션으로 좁힘
+  // 예) "세븐나이츠 리버스 sena_rebirth 최신 업데이트"
+  const officialQuery = community?.officialPathHint
+    ? `${gameName} ${community.officialPathHint} ${topic}`
+    : query;
+
+  // DC 검색 쿼리: 갤러리 ID를 포함해 해당 갤러리로 좁힘
+  // 예) "sevennightsrebirth 최근 업데이트"
   const dcQuery = community?.dcQueryHint
     ? `${community.dcQueryHint} ${topic}`
     : query;
 
   // 3개 소스 병렬 검색
-  const [namuResult, dcResult, officialResult] = await Promise.allSettled([
+  const [namuRes, dcRes, officialRes] = await Promise.allSettled([
     // 1. 나무위키
     tv.search(query, {
       maxResults: 3,
       searchDepth: "basic",
       includeDomains: ["namu.wiki"],
-    }).then(r => formatResults("나무위키", r)),
+    }),
 
-    // 2. 디시인사이드 마이너갤 (갤러리 힌트 포함 쿼리로 정확도 향상)
+    // 2. 디시인사이드 마이너갤 (갤러리 ID 포함 쿼리)
     tv.search(dcQuery, {
       maxResults: 3,
       searchDepth: "basic",
       includeDomains: ["gall.dcinside.com"],
-    }).then(r => formatResults("디시인사이드 마이너갤", r)),
+    }),
 
-    // 3. 공식 커뮤니티 / 홈페이지
+    // 3. 공식 커뮤니티 (경로 힌트 포함 쿼리 + 도메인 필터)
     officialDomains.length > 0
-      ? tv.search(query, {
+      ? tv.search(officialQuery, {
           maxResults: 3,
           searchDepth: "advanced",
           includeAnswer: true,
           includeDomains: officialDomains,
-        }).then(r => formatResults("공식 커뮤니티/홈페이지", r))
+        })
       : tv.search(`${gameName} 공식 ${topic}`, {
           maxResults: 3,
           searchDepth: "advanced",
           includeAnswer: true,
-        }).then(r => formatResults("공식 커뮤니티/홈페이지", r)),
+        }),
   ]);
 
-  const parts = [
-    namuResult.status === "fulfilled" ? namuResult.value : `[나무위키] 검색 오류: ${namuResult.reason}`,
-    dcResult.status === "fulfilled" ? dcResult.value : `[디시인사이드] 검색 오류: ${dcResult.reason}`,
-    officialResult.status === "fulfilled" ? officialResult.value : `[공식 커뮤니티] 검색 오류: ${officialResult.reason}`,
-  ];
+  // 찾은 URL을 스트림에 출력 — 실제로 맞는 페이지를 가져오는지 즉시 확인 가능
+  const urlLines = [
+    namuRes.status === "fulfilled" ? summarizeUrls("나무위키", namuRes.value) : `  ⚠️ 나무위키: 오류`,
+    dcRes.status === "fulfilled" ? summarizeUrls("디시", dcRes.value) : `  ⚠️ 디시: 오류`,
+    officialRes.status === "fulfilled" ? summarizeUrls("공식", officialRes.value) : `  ⚠️ 공식: 오류`,
+  ].join("\n");
+  onProgress?.(`\n${urlLines}\n`);
 
-  return `=== ${gameName} — ${topic} ===\n\n${parts.join("\n\n")}`;
+  const namuResult = namuRes.status === "fulfilled" ? formatResults("나무위키", namuRes.value) : `[나무위키] 검색 오류`;
+  const dcResult = dcRes.status === "fulfilled" ? formatResults("디시인사이드 마이너갤", dcRes.value) : `[디시인사이드] 검색 오류`;
+  const officialResult = officialRes.status === "fulfilled" ? formatResults("공식 커뮤니티/홈페이지", officialRes.value) : `[공식 커뮤니티] 검색 오류`;
+
+  return `=== ${gameName} — ${topic} ===\n\n${[namuResult, dcResult, officialResult].join("\n\n")}`;
 }
 
 // ── 일반 키워드 검색 (게임명 특정 없을 때 보조용) ──
@@ -257,7 +291,7 @@ ${userQuery}
           const { game_name, topic } = tb.input as { game_name: string; topic: string };
           // 검색 대상을 스트림에 실시간 출력 — 어떤 게임/주제를 검색했는지 육안 확인 가능
           onProgress?.(`   📌 **${game_name}** — ${topic} 검색 중...\n`);
-          result = await searchGameInfo(game_name, topic);
+          result = await searchGameInfo(game_name, topic, onProgress);
         } else if (tb.name === "search_general") {
           const { query } = tb.input as { query: string };
           result = await searchGeneral(query);
