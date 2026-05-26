@@ -321,7 +321,7 @@ async function runMultiAgentPipeline(
   const criticHistory: { round: number; approved: boolean; feedback: string }[] = [];
 
   // ── 에이전트 1: 실시간 검색 + 분석
-  onChunk(`\n🔍 **분석 에이전트** — 나무위키 · 디시인사이드 · 공식 커뮤니티 검색 중...\n`);
+  onChunk(`\n🔍 **분석 에이전트** — 주요 커뮤니티 포함 검색 중...\n`);
   const analysisResult = await analyzeAgent(userQuery);
   onChunk(`✅ 분석 완료\n\n`);
 
