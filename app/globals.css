@@ -40,7 +40,7 @@ body {
 /* 다크 테마 — 실버 강조 */
 .prose h1, .prose h2, .prose h3, .prose h4 { color: #e0e8f0; }
 .prose p, .prose li, .prose td, .prose th { color: #e0e8f0; }
-.prose strong, .prose p strong, .prose li strong { color: #ffffff !important; font-weight: 700 !important; font-style: normal !important; letter-spacing: normal !important; }
+.prose strong, .prose p strong, .prose li strong { color: #7dd3fc !important; font-weight: 700 !important; font-style: normal !important; letter-spacing: normal !important; }
 .prose em { color: #b8c4d4; }
 .prose code { color: #c0c8d8; background: rgba(192,200,216,0.1); }
 .prose blockquote { color: #a8b4c8; border-left-color: rgba(192,200,216,0.4); }
