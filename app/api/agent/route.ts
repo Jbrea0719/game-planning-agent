@@ -143,7 +143,8 @@ async function searchGeneral(query: string): Promise<string> {
 async function analyzeAgent(
   userQuery: string,
   contextCard: string = "",        // 롤링 맥락 카드 (항상 3줄, 크기 고정)
-  recentMessages: { role: string; content: string }[] = []  // 직전 2개 메시지 (즉각 follow-up용)
+  recentMessages: { role: string; content: string }[] = [],  // 직전 2개 메시지 (즉각 follow-up용)
+  onProgress?: (text: string) => void  // 검색 진행상황을 스트림에 실시간 출력
 ): Promise<string> {
 
   // 도구 정의: 게임별 3채널 검색 + 일반 검색
@@ -209,13 +210,9 @@ ${userQuery}
 
   let allSearchResults = "";
 
-  // 도구 호출 루프 (최대 4턴 — 게임당 1번씩 여러 게임 검색 가능)
-  for (let turn = 0; turn < 4; turn++) {
-    const res = await client.messages.create({
-      model: "claude-sonnet-4-5",
-      max_tokens: 2000,
-      system: `당신은 영웅수집형 게임 분석 전문 에이전트예요.
-사용자의 게임 기획 질문에 대해 실제 게임 데이터를 수집하고 분석해요.
+  const analyzeSystemPrompt = `당신은 영웅수집형 게임 분석 전문 에이전트예요.
+사용자의 게임 기획 질문에 대해 반드시 search_game 도구를 먼저 호출해서 실제 데이터를 수집하세요.
+도구를 호출하기 전에 텍스트를 출력하지 마세요. 검색 먼저, 설명은 나중에.
 
 참고 게임: AFK Arena/AFK2, 세븐나이츠 리버스, 세븐나이츠2, 세븐나이츠, 서머너즈워, 니케, 에픽세븐, 원신, 붕괴:스타레일, 아크나이츠, FGO, 블루아카이브
 
@@ -224,8 +221,18 @@ ${userQuery}
 - 게임명은 반드시 원래 이름 그대로 사용 (예: "세븐나이츠 리버스" → "세븐나이츠 리버스"로 검색, "세븐나이츠"로 축약 금지)
 - 비교 분석이 명시적으로 필요한 경우만 여러 게임 검색
 - 나무위키(개요/시스템), 디시 마이너갤(실유저 반응), 공식 커뮤니티(최신 정보) 순으로 참고
-- 검색 결과가 없거나 부족하면 search_general로 보완`,
+- 검색 결과가 없거나 부족하면 search_general로 보완`;
+
+  // 도구 호출 루프 (최대 4턴 — 게임당 1번씩 여러 게임 검색 가능)
+  for (let turn = 0; turn < 4; turn++) {
+    const res = await client.messages.create({
+      model: "claude-sonnet-4-5",
+      max_tokens: 2000,
+      system: analyzeSystemPrompt,
       tools,
+      // 첫 턴: tool_choice "any" → 반드시 도구 호출 강제 (텍스트만 생성하는 오동작 방지)
+      // 이후 턴: 자유롭게 end_turn 허용 (추가 검색 또는 종료 선택)
+      ...(turn === 0 ? { tool_choice: { type: "any" as const } } : {}),
       messages,
     });
 
@@ -235,7 +242,7 @@ ${userQuery}
         .map(b => (b as Anthropic.TextBlock).text)
         .join("");
       return allSearchResults
-        ? `[수집된 실시간 데이터]\n${allSearchResults}\n\n[분석 결과]\n${textContent}`
+        ? `[수집된 실시간 데이터]\n${allSearchResults}\n\n[분석 메모]\n${textContent}`
         : textContent;
     }
 
@@ -248,6 +255,8 @@ ${userQuery}
         let result = "";
         if (tb.name === "search_game") {
           const { game_name, topic } = tb.input as { game_name: string; topic: string };
+          // 검색 대상을 스트림에 실시간 출력 — 어떤 게임/주제를 검색했는지 육안 확인 가능
+          onProgress?.(`   📌 **${game_name}** — ${topic} 검색 중...\n`);
           result = await searchGameInfo(game_name, topic);
         } else if (tb.name === "search_general") {
           const { query } = tb.input as { query: string };
@@ -370,8 +379,9 @@ async function runMultiAgentPipeline(
 ): Promise<string> {
 
   // ── 검색 + 분석 (롤링 카드 + 직전 2개로 맥락 파악)
-  onChunk(`\n🔍 **검색 중** — 주요 커뮤니티 포함 검색 중...\n`);
-  const analysisResult = await analyzeAgent(userQuery, contextCard, recentMessages);
+  onChunk(`\n🔍 **검색 중** — 나무위키, 디시, 공식 커뮤니티 검색 중...\n`);
+  // onChunk를 onProgress로 전달 → 검색 대상(게임명/주제)이 스트림에 실시간 노출됨
+  const analysisResult = await analyzeAgent(userQuery, contextCard, recentMessages, onChunk);
   onChunk(`✅ 검색 완료\n\n---\n\n`);
 
   // ── 조던 말투로 최종 답변 생성
