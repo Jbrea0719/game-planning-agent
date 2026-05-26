@@ -4,25 +4,41 @@ import { supabase } from "@/lib/supabase";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// ── 게임별 공식 커뮤니티 도메인 매핑 ──
+// ── 게임별 커뮤니티 설정 ──
+// officialDomains: Tavily includeDomains에 넘길 공식 커뮤니티 도메인
+// dcQueryHint: DC 마이너갤 검색 시 쿼리에 추가할 갤러리 식별 키워드 (정확도 향상)
 // 긴 이름(정확한 게임명)이 앞에 위치해야 매칭 우선순위가 올바르게 동작함
-const GAME_OFFICIAL_DOMAINS: Record<string, string[]> = {
-  "세븐나이츠 리버스": ["cafe.naver.com/7knightsrv", "m.cafe.naver.com/7knightsrv"],
-  "세나리":            ["cafe.naver.com/7knightsrv", "m.cafe.naver.com/7knightsrv"],
-  "seven knights reverse": ["cafe.naver.com/7knightsrv"],
-  "세븐나이츠2":       ["cafe.naver.com/7knights2", "7knights2.nexon.com"],
-  "세븐나이츠":        ["cafe.naver.com/7knights", "7knights.nexon.com"],
-  "afk arena":         ["afkarena.fandom.com", "lilith.com"],
-  "afk2":              ["afkarena.fandom.com", "lilith.com"],
-  "서머너즈워":        ["cafe.naver.com/summonerswar", "summonerswar.com"],
-  "니케":              ["cafe.naver.com/nikkegg", "nikke.nexon.com"],
-  "에픽세븐":          ["cafe.naver.com/epicseven", "epic7global.com"],
-  "원신":              ["cafe.naver.com/genshinkr", "genshin.hoyoverse.com"],
-  "붕괴 스타레일":     ["cafe.naver.com/starrailkr", "hsr.hoyoverse.com"],
-  "스타레일":          ["cafe.naver.com/starrailkr", "hsr.hoyoverse.com"],
-  "아크나이츠":        ["cafe.naver.com/arknightskr", "arknights.global"],
-  "fgo":               ["cafe.naver.com/fategrandorder", "fate-go.jp"],
-  "블루아카이브":      ["cafe.naver.com/bluearchivekorea", "bluearchive.nexon.com"],
+type GameCommunity = { officialDomains: string[]; dcQueryHint?: string };
+const GAME_COMMUNITIES: Record<string, GameCommunity> = {
+  "세븐나이츠 리버스": {
+    officialDomains: ["forum.netmarble.com"],
+    dcQueryHint: "세나리 마이너갤 sevennightsrebirth",
+  },
+  "세나리":  {
+    officialDomains: ["forum.netmarble.com"],
+    dcQueryHint: "세나리 마이너갤 sevennightsrebirth",
+  },
+  "세반리":  {
+    officialDomains: ["forum.netmarble.com"],
+    dcQueryHint: "세나리 마이너갤 sevennightsrebirth",
+  },
+  "seven knights reverse": {
+    officialDomains: ["forum.netmarble.com"],
+    dcQueryHint: "세나리 마이너갤 sevennightsrebirth",
+  },
+  "세븐나이츠2":   { officialDomains: ["cafe.naver.com/7knights2", "7knights2.nexon.com"] },
+  "세븐나이츠":    { officialDomains: ["cafe.naver.com/7knights", "7knights.nexon.com"] },
+  "afk arena":     { officialDomains: ["afkarena.fandom.com", "lilith.com"] },
+  "afk2":          { officialDomains: ["afkarena.fandom.com", "lilith.com"] },
+  "서머너즈워":    { officialDomains: ["cafe.naver.com/summonerswar", "summonerswar.com"] },
+  "니케":          { officialDomains: ["cafe.naver.com/nikkegg", "nikke.nexon.com"] },
+  "에픽세븐":      { officialDomains: ["cafe.naver.com/epicseven", "epic7global.com"] },
+  "원신":          { officialDomains: ["cafe.naver.com/genshinkr", "genshin.hoyoverse.com"] },
+  "붕괴 스타레일": { officialDomains: ["cafe.naver.com/starrailkr", "hsr.hoyoverse.com"] },
+  "스타레일":      { officialDomains: ["cafe.naver.com/starrailkr", "hsr.hoyoverse.com"] },
+  "아크나이츠":    { officialDomains: ["cafe.naver.com/arknightskr", "arknights.global"] },
+  "fgo":           { officialDomains: ["cafe.naver.com/fategrandorder", "fate-go.jp"] },
+  "블루아카이브":  { officialDomains: ["cafe.naver.com/bluearchivekorea", "bluearchive.nexon.com"] },
 };
 
 // Tavily 인스턴스 생성 (API key 없으면 null)
@@ -49,12 +65,20 @@ async function searchGameInfo(gameName: string, topic: string): Promise<string> 
 
   const query = `${gameName} ${topic}`;
 
-  // 공식 도메인 찾기 — 긴 키(정확한 게임명) 우선 매칭
+  // 게임 커뮤니티 설정 찾기 — 긴 키(정확한 게임명) 우선 매칭
   const lowerGame = gameName.toLowerCase().trim();
-  const officialDomains = Object.entries(GAME_OFFICIAL_DOMAINS)
+  const community = Object.entries(GAME_COMMUNITIES)
     .filter(([key]) => lowerGame.includes(key) || key.includes(lowerGame))
     .sort((a, b) => b[0].length - a[0].length) // 더 긴(정확한) 키 우선
-    [0]?.[1] ?? [];
+    [0]?.[1] ?? null;
+
+  const officialDomains = community?.officialDomains ?? [];
+
+  // DC 검색 쿼리: 갤러리 식별 힌트가 있으면 추가해 정확도 향상
+  // 예) "세나리 마이너갤 sevennightsrebirth 최근 업데이트"
+  const dcQuery = community?.dcQueryHint
+    ? `${community.dcQueryHint} ${topic}`
+    : query;
 
   // 3개 소스 병렬 검색
   const [namuResult, dcResult, officialResult] = await Promise.allSettled([
@@ -65,8 +89,8 @@ async function searchGameInfo(gameName: string, topic: string): Promise<string> 
       includeDomains: ["namu.wiki"],
     }).then(r => formatResults("나무위키", r)),
 
-    // 2. 디시인사이드 마이너갤
-    tv.search(query, {
+    // 2. 디시인사이드 마이너갤 (갤러리 힌트 포함 쿼리로 정확도 향상)
+    tv.search(dcQuery, {
       maxResults: 3,
       searchDepth: "basic",
       includeDomains: ["gall.dcinside.com"],
