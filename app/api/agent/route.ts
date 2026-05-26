@@ -137,6 +137,52 @@ async function searchNaverFiltered(
   };
 }
 
+// 네이버 검색으로 URL 발견 → Tavily Extract로 본문 추출 (하이브리드)
+// 네이버는 짧은 description만 주므로, Tavily Extract로 실제 본문을 받아 정확도 향상
+async function searchNaverWithExtract(
+  query: string,
+  domainKeyword: string,
+  tv: ReturnType<typeof getTavily>,
+  maxResults: number = 3
+): Promise<TavilyResult> {
+  // 1단계: 네이버로 URL 발견
+  const naverResult = await searchNaverFiltered(query, domainKeyword, "webkr", maxResults);
+  if (naverResult.results.length === 0 || !tv) return naverResult;
+
+  // 2단계: Tavily Extract로 각 URL의 본문 추출
+  const urls = naverResult.results.map(r => r.url);
+  try {
+    type ExtractResult = { results: Array<{ url: string; rawContent?: string; raw_content?: string }> };
+    const extractRes = await (tv as unknown as {
+      extract: (urls: string[], opts?: { extractDepth?: string }) => Promise<ExtractResult>
+    }).extract(urls, { extractDepth: "basic" });
+
+    // URL을 키로 본문 매핑
+    const extractedMap = new Map<string, string>();
+    for (const item of extractRes.results ?? []) {
+      const content = item.rawContent ?? item.raw_content ?? "";
+      if (content) extractedMap.set(item.url, content);
+    }
+
+    // 네이버 결과의 content를 추출된 본문으로 교체 (실패한 항목은 네이버 description 유지)
+    return {
+      results: naverResult.results.map(r => {
+        const extracted = extractedMap.get(r.url);
+        return {
+          title: r.title,
+          url: r.url,
+          content: extracted
+            ? extracted.slice(0, 2500)  // 본문 2500자까지 (긴 본문 절단)
+            : r.content,                  // 추출 실패 시 네이버 description 폴백
+        };
+      }),
+    };
+  } catch (err) {
+    console.error(`[tavily extract] 본문 추출 실패:`, err);
+    return naverResult; // 추출 실패 시 네이버 결과 그대로 반환
+  }
+}
+
 // 검색 결과 포맷팅 (AI에게 넘길 상세 텍스트)
 // includeAnswer 요약은 사용하지 않음 — 여러 게시글을 합산 요약하면 날짜/이름이 섞임
 function formatResults(source: string, res: TavilyResult): string {
@@ -228,6 +274,21 @@ async function searchGameInfo(
   const off  = sourceStatus(officialRes.status === "fulfilled" ? officialRes.value : null, officialRes.status === "rejected");
   onProgress?.(`  **${gameName}** · ${topic}   나무위키 ${namu}  디시 ${dc}  공식 ${off}\n`);
 
+  // URL 진단 출력 — 실제로 어떤 페이지의 본문을 읽었는지 확인용 (한 줄당 1 URL, 최대 2개)
+  const collectUrls = (r: PromiseSettledResult<TavilyResult>, label: string): string => {
+    if (r.status !== "fulfilled" || r.value.results.length === 0) return "";
+    return r.value.results
+      .slice(0, 2)
+      .map(item => `    └ [${label}] ${item.url}`)
+      .join("\n");
+  };
+  const urlLines = [
+    collectUrls(namuRes, "나무위키"),
+    collectUrls(dcRes, "디시"),
+    collectUrls(officialRes, "공식"),
+  ].filter(Boolean).join("\n");
+  if (urlLines) onProgress?.(`${urlLines}\n`);
+
   const namuResult = namuRes.status === "fulfilled" ? formatResults("나무위키", namuRes.value) : `[나무위키] 검색 오류`;
   const dcResult = dcRes.status === "fulfilled" ? formatResults("디시인사이드 마이너갤", dcRes.value) : `[디시인사이드] 검색 오류`;
   const officialResult = officialRes.status === "fulfilled" ? formatResults("공식 커뮤니티/홈페이지", officialRes.value) : `[공식 커뮤니티] 검색 오류`;
@@ -235,7 +296,8 @@ async function searchGameInfo(
   return `=== ${gameName} — ${topic} ===\n\n${[namuResult, dcResult, officialResult].join("\n\n")}`;
 }
 
-// 네이버 우선 + Tavily 폴백 헬퍼
+// 하이브리드 검색: 네이버로 URL 발견 → Tavily Extract로 본문 추출
+// 둘 다 없으면 Tavily 일반 검색으로 폴백
 async function searchWithFallback(opts: {
   naverQuery: string;
   naverFilter: string;
@@ -244,13 +306,13 @@ async function searchWithFallback(opts: {
   tavilyDomains: string[];
   hasNaver: boolean;
 }): Promise<TavilyResult> {
-  // 1순위: 네이버 검색 (한국 웹 인덱싱 최강)
+  // 1순위: 네이버 검색(URL 발견) + Tavily Extract(본문 추출) 조합
   if (opts.hasNaver && opts.naverFilter) {
-    const naverResult = await searchNaverFiltered(opts.naverQuery, opts.naverFilter, "webkr", 5);
-    if (naverResult.results.length > 0) return naverResult;
+    const hybrid = await searchNaverWithExtract(opts.naverQuery, opts.naverFilter, opts.tavily, 3);
+    if (hybrid.results.length > 0) return hybrid;
   }
 
-  // 2순위: Tavily 폴백 (네이버 결과 없거나 키 미설정 시)
+  // 2순위: Tavily 일반 검색 폴백 (네이버 결과 없거나 키 미설정 시)
   if (opts.tavily && opts.tavilyDomains.length > 0) {
     return await opts.tavily.search(opts.tavilyQuery, {
       maxResults: 5,
