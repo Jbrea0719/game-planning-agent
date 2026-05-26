@@ -61,13 +61,13 @@ function getTavily() {
 type TavilyResult = { answer?: string; results: Array<{ title: string; url: string; content?: string }> };
 
 // 검색 결과 포맷팅 (AI에게 넘길 상세 텍스트)
+// includeAnswer 요약은 사용하지 않음 — 여러 게시글을 합산 요약하면 날짜/이름이 섞임
 function formatResults(source: string, res: TavilyResult): string {
   if (!res.results || res.results.length === 0) return `[${source}] 검색 결과 없음`;
-  const answer = res.answer ? `요약: ${res.answer}\n` : "";
   const items = res.results
-    .map((r, i) => `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.content?.slice(0, 250) ?? ""}`)
+    .map((r, i) => `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.content?.slice(0, 600) ?? ""}`)
     .join("\n\n");
-  return `[${source}]\n${answer}${items}`;
+  return `[${source}]\n${items}`;
 }
 
 // 소스별 결과 유무를 아이콘으로 요약 (스트림 노출용)
@@ -113,30 +113,29 @@ async function searchGameInfo(
   const [namuRes, dcRes, officialRes] = await Promise.allSettled([
     // 1. 나무위키
     tv.search(query, {
-      maxResults: 3,
-      searchDepth: "basic",
+      maxResults: 5,
+      searchDepth: "advanced",
       includeDomains: ["namu.wiki"],
     }),
 
     // 2. 디시인사이드 마이너갤 (갤러리 ID 포함 쿼리)
     tv.search(dcQuery, {
-      maxResults: 3,
-      searchDepth: "basic",
+      maxResults: 5,
+      searchDepth: "advanced",
       includeDomains: ["gall.dcinside.com"],
     }),
 
     // 3. 공식 커뮤니티 (경로 힌트 포함 쿼리 + 도메인 필터)
+    // includeAnswer 제거 — Tavily AI 요약이 날짜/이름을 혼재시키는 원인
     officialDomains.length > 0
       ? tv.search(officialQuery, {
-          maxResults: 3,
+          maxResults: 5,
           searchDepth: "advanced",
-          includeAnswer: true,
           includeDomains: officialDomains,
         })
       : tv.search(`${gameName} 공식 ${topic}`, {
-          maxResults: 3,
+          maxResults: 5,
           searchDepth: "advanced",
-          includeAnswer: true,
         }),
   ]);
 
@@ -254,7 +253,12 @@ ${userQuery}
 - 게임명은 반드시 원래 이름 그대로 사용 (예: "세븐나이츠 리버스" → "세븐나이츠 리버스"로 검색, "세븐나이츠"로 축약 금지)
 - 비교 분석이 명시적으로 필요한 경우만 여러 게임 검색
 - 나무위키(개요/시스템), 디시 마이너갤(실유저 반응), 공식 커뮤니티(최신 정보) 순으로 참고
-- 검색 결과가 없거나 부족하면 search_general로 보완`;
+- 검색 결과가 없거나 부족하면 search_general로 보완
+
+날짜·수치 정확성 원칙:
+- 각 검색 결과의 제목(title)과 URL을 먼저 확인해 게시 날짜를 파악할 것
+- 여러 게시글의 날짜·캐릭터명을 절대 혼재하지 말 것 (A 날짜의 정보 → A 날짜로만 기술)
+- 확인되지 않은 날짜나 이름은 "검색 결과에서 확인되지 않음"으로 명시할 것`;
 
   // 도구 호출 루프 (최대 4턴 — 게임당 1번씩 여러 게임 검색 가능)
   for (let turn = 0; turn < 4; turn++) {
