@@ -118,6 +118,7 @@ export default function ChatPage() {
   const [showAnswerCompleteBtn, setShowAnswerCompleteBtn] = useState(false);
   // 롤링 맥락 카드 — 항상 3줄, 새 답변마다 백그라운드로 교체
   const [agentContext, setAgentContext] = useState("");
+  const [showContextModal, setShowContextModal] = useState(false);
   const [docContent, setDocContent] = useState("");
   const [docLoading, setDocLoading] = useState(false);
   const [showDocModal, setShowDocModal] = useState(false);
@@ -631,6 +632,44 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* 맥락 카드 팝업 */}
+      {showContextModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-start justify-end z-50 p-4 pt-16" onClick={() => setShowContextModal(false)}>
+          <div className="rounded-2xl w-72 shadow-2xl" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+              <div className="flex items-center gap-2">
+                <span style={{ color: "rgba(100,220,160,0.9)", fontSize: "12px" }}>🧠</span>
+                <p className="text-xs font-bold" style={{ color: SILVER }}>현재 맥락 카드</p>
+              </div>
+              <button onClick={() => setShowContextModal(false)} className="text-xs px-2 py-1 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>
+            </div>
+            <div className="px-4 py-4">
+              {agentContext ? (
+                <div className="space-y-2">
+                  {agentContext.split("\n").filter(Boolean).map((line, i) => {
+                    const [label, ...rest] = line.split(":");
+                    const value = rest.join(":").trim();
+                    return (
+                      <div key={i} className="flex flex-col gap-0.5">
+                        <span className="text-xs font-semibold" style={{ color: SILVER_DIM }}>{label}</span>
+                        <span className="text-xs" style={{ color: "#e0e8f0" }}>{value}</span>
+                      </div>
+                    );
+                  })}
+                  <p className="text-xs mt-3 pt-3" style={{ color: SILVER_DIM, borderTop: `1px solid ${SILVER_FAINT}` }}>
+                    매 답변 후 자동 갱신 · 항상 이 크기 유지
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-center py-4" style={{ color: SILVER_DIM }}>
+                  아직 대화 기록이 없어요.<br />첫 질문 후 자동으로 생성돼요.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 참고 게임 팝업 */}
       {showGameModal && (
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4" onClick={() => setShowGameModal(false)}>
@@ -817,6 +856,17 @@ export default function ChatPage() {
               </button>
             </>
           )}
+          {/* 맥락 카드 버튼 — 카드가 있으면 초록 점 표시 */}
+          <button
+            onClick={() => setShowContextModal(true)}
+            className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0 relative"
+            style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
+          >
+            🧠 맥락 카드
+            {agentContext && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ backgroundColor: "rgba(100,220,160,0.9)" }} />
+            )}
+          </button>
           <button
             onClick={() => setShowGameModal(true)}
             className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
