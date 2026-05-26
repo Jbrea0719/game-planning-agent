@@ -335,8 +335,7 @@ AFK Arena/AFK2, 세븐나이츠 시리즈, 서머너즈워, 니케, 에픽세븐
 }
 
 // ════════════════════════════════════════
-// 멀티 에이전트 파이프라인
-// 분석(실시간 검색) → 설계 → 검토 → 조던 최종 답변
+// 파이프라인: 검색 + 분석 → 조던 최종 답변
 // ════════════════════════════════════════
 async function runMultiAgentPipeline(
   userQuery: string,
@@ -345,28 +344,16 @@ async function runMultiAgentPipeline(
   onChunk: (text: string) => void,
   detailed = false
 ): Promise<string> {
-  const criticHistory: { round: number; approved: boolean; feedback: string }[] = [];
 
-  // ── 에이전트 1: 검색 + 분석 (롤링 카드 + 직전 2개로 맥락 파악)
-  onChunk(`\n🔍 **분석 에이전트** — 주요 커뮤니티 포함 검색 중...\n`);
+  // ── 검색 + 분석 (롤링 카드 + 직전 2개로 맥락 파악)
+  onChunk(`\n🔍 **검색 중** — 주요 커뮤니티 포함 검색 중...\n`);
   const analysisResult = await analyzeAgent(userQuery, contextCard, recentMessages);
-  onChunk(`✅ 분석 완료\n\n`);
-
-  // ── 에이전트 2: 설계
-  onChunk(`📐 **설계 에이전트** 작동 중...\n`);
-  const designResult = await designAgent(userQuery, analysisResult);
-  onChunk(`✅ 설계 완료\n\n`);
-
-  // ── 에이전트 3: 검토
-  onChunk(`🔎 **검토 에이전트** 검토 중...\n`);
-  const { approved, feedback } = await criticAgent(userQuery, designResult);
-  criticHistory.push({ round: 1, approved, feedback });
-  onChunk(approved ? `✅ 검토 통과!\n\n---\n\n` : `📋 검토 완료 (피드백은 아래 버튼에서 확인)\n\n---\n\n`);
+  onChunk(`✅ 검색 완료\n\n---\n\n`);
 
   // ── 조던 말투로 최종 답변 생성
-  onChunk(`💬 **조던의 최종 답변:**\n\n__JORDAN_ANSWER_START__`);
+  onChunk(`__JORDAN_ANSWER_START__`);
 
-  const combinedContext = `[분석 (실시간 데이터 기반)]\n${analysisResult}\n\n[설계안]\n${designResult}`;
+  const combinedContext = `[실시간 검색 데이터]\n${analysisResult}`;
 
   const finalRes = await client.messages.create({
     model: "claude-sonnet-4-5",
@@ -422,9 +409,6 @@ async function runMultiAgentPipeline(
   if (finalRes.stop_reason === "max_tokens") {
     onChunk("__TRUNCATED__");
   }
-
-  // 검토 에이전트 피드백 메타데이터를 스트림 끝에 첨부
-  onChunk(`\n__JORDAN_CRITIC_START__${JSON.stringify(criticHistory)}__JORDAN_CRITIC_END__`);
 
   return finalText;
 }
