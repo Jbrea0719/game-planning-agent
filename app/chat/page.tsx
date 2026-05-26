@@ -114,6 +114,7 @@ export default function ChatPage() {
   const [nicknameInput, setNicknameInput] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
+  const [showGameModal, setShowGameModal] = useState(false);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [showAnswerCompleteBtn, setShowAnswerCompleteBtn] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -480,6 +481,145 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* 참고 게임 팝업 */}
+      {showGameModal && (
+        <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4" onClick={() => setShowGameModal(false)}>
+          <div className="rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }} onClick={(e) => e.stopPropagation()}>
+            {/* 팝업 헤더 */}
+            <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+              <div>
+                <p className="text-sm font-bold" style={{ color: SILVER }}>🎮 참고 게임 데이터베이스</p>
+                <p className="text-xs mt-0.5" style={{ color: SILVER_DIM }}>에이전트가 분석에 활용하는 실제 게임 데이터</p>
+              </div>
+              <button onClick={() => setShowGameModal(false)} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>
+            </div>
+            {/* 팝업 내용 */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4" style={{ scrollbarWidth: "thin", scrollbarColor: `${SILVER_DIM} transparent` }}>
+              {[
+                {
+                  name: "AFK Arena / AFK2", studio: "릴리스 게임즈",
+                  tags: ["방치형", "수익화", "영웅 등급"],
+                  items: [
+                    "AFK 메카닉: 오프라인 방치 수익 시스템 — 접속 빈도 낮은 유저 잔존율 극대화",
+                    "영웅 등급: E~A~S~SS~SSS급 상향 구조, 등급별 스킬 해금",
+                    "수익화: 월정액(문라이트 케이크), 시즌 패스, 영웅 소환(배너), 성유물 가챠",
+                    "핵심 루프: 방치 → 재화 수집 → 영웅 강화 → 스테이지 진행 → 반복",
+                  ],
+                },
+                {
+                  name: "세븐나이츠 시리즈", studio: "넷마블넥서스",
+                  tags: ["콜라보", "PvP", "성장 단계"],
+                  items: [
+                    "콜라보 전략: 마블, 원피스, DC 등 IP 콜라보로 신규 유입",
+                    "PvP 구조: 아레나(실시간 PvP), 길드전(7v7)",
+                    "성장 단계: 각성 → 초월 → 럭키 각성 (장기 성장 곡선 설계)",
+                    "수익화: 루비 가챠, 패스 상품, 코스튬",
+                  ],
+                },
+                {
+                  name: "서머너즈워", studio: "컴투스",
+                  tags: ["룬 시스템", "메타 사이클", "길드"],
+                  items: [
+                    "던전 시스템: 카이로스 던전 13종 (다양한 성장 재화 분산)",
+                    "룬 시스템: 6부위 장비, 세트 효과, 전략 다양성의 핵심",
+                    "레이드: 길드 콘텐츠, 협력 보상",
+                    "메타 사이클: 분기별 신규 몬스터 → 메타 교란 → 과금 유도",
+                  ],
+                },
+                {
+                  name: "니케: 승리의 여신", studio: "시프트업",
+                  tags: ["캐릭터 정체성", "세계관", "수집 동기"],
+                  items: [
+                    "세계관: 포스트 아포칼립스, 기계 적군 \"랩처\"와의 전쟁",
+                    "캐릭터 정체성: 각 니케별 개별 스토리, 관계성, 배경 서사",
+                    "수집 동기: 캐릭터 스킨, 우정도 시스템, 오디오 콘텐츠",
+                    "수익화: 가챠(SSR 2%), 아웃포스트 패스, 프리미엄 패스",
+                  ],
+                },
+                {
+                  name: "에픽세븐", studio: "슈퍼크리에이티브",
+                  tags: ["아트 퀄리티", "장기 운영", "스토리"],
+                  items: [
+                    "아트 퀄리티: 라이브 2D 애니메이션, 고퀄 일러스트",
+                    "스토리 활용: 챕터별 메인 스토리, 각 캐릭터 사이드 스토리",
+                    "장기 운영: 시즌 콘텐츠, 이벤트 스토리로 월드 빌딩 확장",
+                    "전투: 턴제 + 속도 스탯 기반 선공 시스템",
+                  ],
+                },
+                {
+                  name: "원신", studio: "호요버스",
+                  tags: ["가챠 구조", "PLC 설계", "오픈 월드"],
+                  items: [
+                    "오픈 월드: 지역별 스토리, 탐험, 수집 요소",
+                    "가챠 구조: 소프트 천장(74번), 하드 천장(90번), 보장 시스템",
+                    "PLC 설계: 버전 6주 업데이트 사이클, 신규 캐릭터/지역 추가",
+                    "수익화: 결정(가챠재화), 배틀패스, 웰킨문 월정액",
+                  ],
+                },
+                {
+                  name: "붕괴: 스타레일", studio: "호요버스",
+                  tags: ["턴제 전략", "메타 사이클", "광추 시스템"],
+                  items: [
+                    "턴제 전략: 원소 상성, 카운터 시스템",
+                    "메타 사이클: 이고현전(PvE 도전) 중심 콘텐츠 순환",
+                    "캐릭터 설계: 패스(스킬 트리), 광추(전용 장비) 시스템",
+                  ],
+                },
+                {
+                  name: "아크나이츠", studio: "하이퍼그리프",
+                  tags: ["타워 디펜스", "니치 타겟팅", "전략"],
+                  items: [
+                    "타워 디펜스 전략: 오퍼레이터 배치, 라인 설계",
+                    "니치 타겟팅: 전략 게이머, 로어 덕후 특화",
+                    "수익화: 가챠(6성 2%), 스킨, 이벤트 패스",
+                  ],
+                },
+                {
+                  name: "FGO", studio: "딜라이트웍스 / 아니플렉스",
+                  tags: ["IP 활용", "스토리 몰입도"],
+                  items: [
+                    "IP 활용: 타입문 세계관, 역사/신화 영웅 의인화",
+                    "스토리 몰입도: 중편 소설 수준의 챕터 스토리",
+                    "수익화: 성배(재화) 가챠, 이벤트 파밍",
+                  ],
+                },
+                {
+                  name: "블루아카이브", studio: "넥슨게임즈",
+                  tags: ["세계관 구축", "총력전", "스토리"],
+                  items: [
+                    "IP 구축: 고유 세계관 \"키보토스\", 학원 배경",
+                    "스토리 몰입도: 코믹+시리어스 혼합 서사",
+                    "수익화: 가챠(3%), 학교 방문 이벤트, 총력전(레이드) 중심",
+                  ],
+                },
+              ].map((game) => (
+                <div key={game.name} className="rounded-xl p-4" style={{ backgroundColor: "rgba(192,200,216,0.05)", border: `1px solid ${SILVER_FAINT}` }}>
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="text-sm font-bold" style={{ color: SILVER }}>{game.name}</p>
+                      <p className="text-xs" style={{ color: SILVER_DIM }}>{game.studio}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-1 justify-end ml-2">
+                      {game.tags.map((tag) => (
+                        <span key={tag} className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(192,200,216,0.1)", border: `1px solid ${SILVER_FAINT}`, color: SILVER_DIM }}>{tag}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <ul className="space-y-1">
+                    {game.items.map((item, i) => (
+                      <li key={i} className="text-xs flex gap-2" style={{ color: "#b8c4d4" }}>
+                        <span style={{ color: SILVER_DIM, flexShrink: 0 }}>•</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 헤더 */}
       <header className="px-6 py-4 flex items-center gap-4" style={{ backgroundColor: "rgba(0,0,0,0.4)", borderBottom: `1px solid ${SILVER_FAINT}` }}>
         <div className="w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0" style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, boxShadow: `0 0 15px rgba(192,200,216,0.2)` }}>
@@ -493,13 +633,20 @@ export default function ChatPage() {
             <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.3)", color: "#34d399" }}>🔍 게임 분석 기반</span>
           </div>
           {/* 헤더 설명 */}
-          <p className="text-xs" style={{ color: SILVER_DIM }}>영웅수집형 게임 기획 전문가 · AFK Arena · 세븐나이츠 · 서머너즈워 · 니케 · 에픽세븐 · 원신 외 10개 게임 분석 기반</p>
+          <p className="text-xs" style={{ color: SILVER_DIM }}>영웅수집형 게임 기획 전문가 · 다양한 영웅수집형 게임 분석 기반</p>
         </div>
-        {sessionId && (
-          <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setShowGameModal(true)}
+            className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
+            style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
+          >
+            🎮 참고 게임
+          </button>
+          {sessionId && (
             <span className="text-xs px-3 py-1 rounded-full" style={{ backgroundColor: SILVER_FAINT, border: `1px solid rgba(192,200,216,0.3)`, color: SILVER }}>{sessionId.replace(/^agent:/, "")}</span>
-          </div>
-        )}
+          )}
+        </div>
       </header>
 
       {/* 대화 영역 */}
