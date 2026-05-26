@@ -114,27 +114,68 @@ async function naverFetch(
   }
 }
 
-// 네이버 검색 + 특정 도메인 필터 → TavilyResult 형태로 통일
+// 네이버 검색 + 다단계 도메인 필터 → TavilyResult 형태로 통일
+// 엄격한 필터(전체 경로)로 결과 없으면 점진적으로 느슨하게 (도메인만 → 필터 없음)
 async function searchNaverFiltered(
   query: string,
-  domainKeyword: string,        // 결과 URL에 포함돼야 할 키워드 (예: "namu.wiki", "gall.dcinside.com", "game.naver.com/lounge")
+  domainKeyword: string,
   type: NaverSearchType = "webkr",
   maxResults: number = 5
 ): Promise<TavilyResult> {
-  const items = await naverFetch(query, type, maxResults * 3); // 필터링 여유분 확보
-  if (!items) return { results: [] };
+  const items = await naverFetch(query, type, 20); // 필터링 여유분 확보 (최대 20개)
+  if (!items || items.length === 0) return { results: [] };
 
-  const filtered = items
-    .filter(item => item.link.toLowerCase().includes(domainKeyword.toLowerCase()))
-    .slice(0, maxResults);
+  // 도메인만 추출 (예: "game.naver.com/lounge/sena_rebirth" → "game.naver.com")
+  const domainOnly = domainKeyword.split("/")[0];
+  const keywordLower = domainKeyword.toLowerCase();
+  const domainOnlyLower = domainOnly.toLowerCase();
 
+  // 1차: 엄격 필터 (전체 키워드 포함)
+  let filtered = items.filter(item => item.link.toLowerCase().includes(keywordLower));
+
+  // 2차: 느슨 필터 (도메인만 포함) — 1차에서 결과 없을 때
+  if (filtered.length === 0 && domainOnly !== domainKeyword) {
+    filtered = items.filter(item => item.link.toLowerCase().includes(domainOnlyLower));
+  }
+
+  const top = filtered.slice(0, maxResults);
   return {
-    results: filtered.map(item => ({
+    results: top.map(item => ({
       title: stripHtml(item.title),
       url: item.link,
       content: stripHtml(item.description) + (item.postdate ? ` [작성일: ${item.postdate}]` : ""),
     })),
   };
+}
+
+// 네이버 다중 타입 검색 (webkr + cafearticle + news) — 한 도메인을 여러 각도에서 찾기
+async function searchNaverMultiType(
+  query: string,
+  domainKeyword: string,
+  maxResults: number = 5
+): Promise<TavilyResult> {
+  // 3개 타입 병렬 검색
+  const [webRes, cafeRes, newsRes] = await Promise.allSettled([
+    searchNaverFiltered(query, domainKeyword, "webkr", maxResults),
+    searchNaverFiltered(query, domainKeyword, "cafearticle", maxResults),
+    searchNaverFiltered(query, domainKeyword, "news", maxResults),
+  ]);
+
+  // 모든 결과 통합 (URL 중복 제거)
+  const seen = new Set<string>();
+  const merged: TavilyResult["results"] = [];
+  for (const r of [webRes, cafeRes, newsRes]) {
+    if (r.status !== "fulfilled") continue;
+    for (const item of r.value.results) {
+      if (seen.has(item.url)) continue;
+      seen.add(item.url);
+      merged.push(item);
+      if (merged.length >= maxResults) break;
+    }
+    if (merged.length >= maxResults) break;
+  }
+
+  return { results: merged };
 }
 
 // 네이버 검색으로 URL 발견 → Tavily Extract로 본문 추출 (하이브리드)
@@ -145,8 +186,8 @@ async function searchNaverWithExtract(
   tv: ReturnType<typeof getTavily>,
   maxResults: number = 3
 ): Promise<TavilyResult> {
-  // 1단계: 네이버로 URL 발견
-  const naverResult = await searchNaverFiltered(query, domainKeyword, "webkr", maxResults);
+  // 1단계: 네이버 다중 타입(webkr + cafearticle + news)으로 URL 발견
+  const naverResult = await searchNaverMultiType(query, domainKeyword, maxResults);
   if (naverResult.results.length === 0 || !tv) return naverResult;
 
   // 2단계: Tavily Extract로 각 URL의 본문 추출
