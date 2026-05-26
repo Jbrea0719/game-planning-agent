@@ -70,10 +70,11 @@ function formatResults(source: string, res: TavilyResult): string {
   return `[${source}]\n${answer}${items}`;
 }
 
-// 검색 결과 URL 요약 (스트림 노출용 — 어떤 페이지를 찾았는지 육안 확인)
-function summarizeUrls(source: string, res: TavilyResult): string {
-  if (!res.results || res.results.length === 0) return `  ⚠️ ${source}: 결과 없음`;
-  return res.results.map(r => `  ✓ [${source}] ${r.url}`).join("\n");
+// 소스별 결과 유무를 아이콘으로 요약 (스트림 노출용)
+function sourceStatus(res: TavilyResult | null, error: boolean): string {
+  if (error) return "❌";
+  if (!res || !res.results || res.results.length === 0) return "⚠️";
+  return "✓";
 }
 
 // ── 게임별 3채널 병렬 검색 (나무위키 + 디시 마이너갤 + 공식 커뮤니티) ──
@@ -139,13 +140,11 @@ async function searchGameInfo(
         }),
   ]);
 
-  // 찾은 URL을 스트림에 출력 — 실제로 맞는 페이지를 가져오는지 즉시 확인 가능
-  const urlLines = [
-    namuRes.status === "fulfilled" ? summarizeUrls("나무위키", namuRes.value) : `  ⚠️ 나무위키: 오류`,
-    dcRes.status === "fulfilled" ? summarizeUrls("디시", dcRes.value) : `  ⚠️ 디시: 오류`,
-    officialRes.status === "fulfilled" ? summarizeUrls("공식", officialRes.value) : `  ⚠️ 공식: 오류`,
-  ].join("\n");
-  onProgress?.(`\n${urlLines}\n`);
+  // 한 줄 요약: "  세나리 · 최신 업데이트   나무위키 ✓  디시 ⚠️  공식 ✓"
+  const namu = sourceStatus(namuRes.status === "fulfilled" ? namuRes.value : null, namuRes.status === "rejected");
+  const dc   = sourceStatus(dcRes.status === "fulfilled" ? dcRes.value : null, dcRes.status === "rejected");
+  const off  = sourceStatus(officialRes.status === "fulfilled" ? officialRes.value : null, officialRes.status === "rejected");
+  onProgress?.(`  **${gameName}** · ${topic}   나무위키 ${namu}  디시 ${dc}  공식 ${off}\n`);
 
   const namuResult = namuRes.status === "fulfilled" ? formatResults("나무위키", namuRes.value) : `[나무위키] 검색 오류`;
   const dcResult = dcRes.status === "fulfilled" ? formatResults("디시인사이드 마이너갤", dcRes.value) : `[디시인사이드] 검색 오류`;
@@ -290,7 +289,6 @@ ${userQuery}
         if (tb.name === "search_game") {
           const { game_name, topic } = tb.input as { game_name: string; topic: string };
           // 검색 대상을 스트림에 실시간 출력 — 어떤 게임/주제를 검색했는지 육안 확인 가능
-          onProgress?.(`   📌 **${game_name}** — ${topic} 검색 중...\n`);
           result = await searchGameInfo(game_name, topic, onProgress);
         } else if (tb.name === "search_general") {
           const { query } = tb.input as { query: string };
