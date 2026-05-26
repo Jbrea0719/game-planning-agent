@@ -214,56 +214,30 @@ async function searchNaverMultiType(
   return { results: merged };
 }
 
-// 직접 fetch + HTML 파싱으로 본문 추출 (Tavily Extract 대체)
-// 비용 없음, API 한도 없음. SSR 페이지(나무위키·DC·카페·인벤 등)에 효과적
-// SPA(네이버 라운지 등)는 본문 추출이 어려울 수 있음
+// Jina AI Reader로 본문 추출 (SPA·봇 차단 모두 우회)
+// https://r.jina.ai/{URL} 호출 시 헤드리스 브라우저로 렌더링 후 깔끔한 마크다운 반환
+// 무료, API 키 불필요. 네이버 라운지·나무위키·인벤·카페 모두 처리 가능
 async function fetchAndExtractText(url: string): Promise<string> {
   try {
-    const res = await fetch(url, {
+    // Jina Reader는 URL을 그대로 path에 붙임 (인코딩하면 오히려 안 됨)
+    const jinaUrl = `https://r.jina.ai/${url}`;
+    const res = await fetch(jinaUrl, {
       headers: {
-        // 일반 브라우저로 위장 — 일부 사이트는 봇 차단
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+        "Accept": "text/plain",  // 마크다운 텍스트로 받기
+        // 옵션: 빠른 응답을 위해 캐시 허용
+        "X-No-Cache": "false",
       },
-      // 10초 타임아웃
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(15000), // SPA 렌더링은 시간이 더 걸릴 수 있음
     });
-    if (!res.ok) return "";
+    if (!res.ok) {
+      console.error(`[jina reader] ${url} HTTP ${res.status}`);
+      return "";
+    }
 
-    const html = await res.text();
-
-    // <body> 안의 내용만 추출 (없으면 전체 HTML 사용)
-    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-    let content = bodyMatch ? bodyMatch[1] : html;
-
-    // 노이즈 태그 통째로 제거
-    content = content
-      .replace(/<script[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?<\/style>/gi, " ")
-      .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
-      .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
-      .replace(/<header[\s\S]*?<\/header>/gi, " ")
-      .replace(/<footer[\s\S]*?<\/footer>/gi, " ")
-      .replace(/<aside[\s\S]*?<\/aside>/gi, " ")
-      .replace(/<iframe[\s\S]*?<\/iframe>/gi, " ");
-
-    // 나머지 HTML 태그 제거
-    content = content
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;/g, " ")
-      .replace(/&quot;/g, '"')
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&#39;/g, "'")
-      .replace(/&[a-z#0-9]+;/gi, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    return content;
+    const text = await res.text();
+    return text.trim();
   } catch (err) {
-    console.error(`[fetch extract] ${url} 추출 실패:`, err);
+    console.error(`[jina reader] ${url} 추출 실패:`, err);
     return "";
   }
 }
