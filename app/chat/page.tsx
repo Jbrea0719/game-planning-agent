@@ -24,7 +24,6 @@ type MessagePair = {
   critic_history?: CriticEntry[];
   critic_shown?: boolean;
   feedback_summary?: string;
-  feedback_summary_loading?: boolean;
   feedback_summary_shown?: boolean;
 };
 
@@ -352,58 +351,25 @@ export default function ChatPage() {
     }
   }
 
-  async function loadFeedbackSummary(pairId: string) {
+  // 피드백 원문을 바로 표시 (재요약 없이 — 검토 에이전트 출력이 이미 디렉터 말투로 완성됨)
+  function loadFeedbackSummary(pairId: string) {
     const pair = pairs.find(p => p.pair_id === pairId);
     if (!pair || !pair.critic_history || pair.critic_history.length === 0) return;
     if (pair.feedback_summary) {
+      // 이미 로드됨 → 접기/펼치기만
       setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, feedback_summary_shown: !p.feedback_summary_shown } : p));
       return;
     }
-    isSubLoadingRef.current = true;
-    userScrolledUpRef.current = false;
-    setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, feedback_summary_loading: true, feedback_summary_shown: true } : p));
-    try {
-      const feedbackText = pair.critic_history
-        .map(c => `[${c.approved ? "통과" : "보완 요청"}]\n${c.feedback.replace(/^(APPROVED|NEEDS_IMPROVEMENT)[^\n]*/i, "").trim()}`)
-        .join("\n\n");
-      // 피드백 요약 요청 — 조던 말투로
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [{
-            role: "user",
-            content: `다음 기획 검토 피드백을 500자 이내로 요약해줘.\n통과된 항목, 지적된 문제, 핵심 보완 포인트를 간결하게 정리해줘.\n반드시 500자를 초과하지 마. 조던 말투로.\n\n${feedbackText}`,
-          }],
-          detailed: true,
-        }),
-      });
-      if (!response.ok || !response.body) throw new Error("오류");
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let text = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        text += decoder.decode(value);
-        setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, feedback_summary: text.replace("__TRUNCATED__", "") } : p));
-        if (!userScrolledUpRef.current) scrollToBottom();
-      }
-      const hadScrolledUp = userScrolledUpRef.current;
-      const finalFeedbackText = text.includes("__TRUNCATED__") ? cleanTruncated(text) : text;
-      setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, feedback_summary: finalFeedbackText } : p));
-      if (hadScrolledUp) {
-        setShowAnswerCompleteBtn(true);
-      } else {
-        scrollToBottom();
-      }
-    } catch {
-      setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, feedback_summary: "요약을 불러오지 못했어요." } : p));
-    } finally {
-      isSubLoadingRef.current = false;
-      userScrolledUpRef.current = false;
-      setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, feedback_summary_loading: false } : p));
-    }
+    // APPROVED/NEEDS_IMPROVEMENT 첫 줄 제거 후 본문만 추출
+    const feedbackText = pair.critic_history
+      .map(c => c.feedback.replace(/^(APPROVED|NEEDS_IMPROVEMENT)[^\n]*/i, "").trim())
+      .join("\n\n");
+    setPairs(prev => prev.map(p =>
+      p.pair_id === pairId
+        ? { ...p, feedback_summary: feedbackText, feedback_summary_shown: true }
+        : p
+    ));
+    scrollToBottom();
   }
 
   async function deletePair(pairId: string) {
@@ -696,7 +662,7 @@ export default function ChatPage() {
                     {/* 설계 피드백 버튼 — critic_history가 있을 때만 표시 */}
                     {pair.critic_history && pair.critic_history.length > 0 && (
                       <button onClick={() => loadFeedbackSummary(pair.pair_id)} className="text-xs flex items-center gap-1 w-fit" style={{ color: "rgba(100,180,255,0.7)" }}>
-                        {pair.feedback_summary_loading ? "⏳ 불러오는 중..." : pair.feedback_summary_shown ? "▲ 피드백 접기" : "📋 설계 피드백 내용"}
+                        {pair.feedback_summary_shown ? "▲ 검토 의견 접기" : "📋 디렉터 검토 의견"}
                       </button>
                     )}
                   </div>
@@ -704,7 +670,7 @@ export default function ChatPage() {
                   {/* 설계 피드백 요약 패널 — 피드백 색상: rgba(100,180,255,...) */}
                   {pair.feedback_summary_shown && pair.feedback_summary && (
                     <div className="px-4 py-3 rounded-2xl text-sm prose prose-sm max-w-none" style={{ backgroundColor: "rgba(100,180,255,0.06)", border: "1px solid rgba(100,180,255,0.2)", color: "#e0e8f0" }}>
-                      <p className="text-xs font-semibold mb-2 not-prose" style={{ color: "rgba(100,180,255,0.85)" }}>📋 설계 피드백 요약</p>
+                      <p className="text-xs font-semibold mb-2 not-prose" style={{ color: "rgba(100,180,255,0.85)" }}>📋 디렉터 검토 의견</p>
                       <ReactMarkdown>{pair.feedback_summary}</ReactMarkdown>
                     </div>
                   )}
