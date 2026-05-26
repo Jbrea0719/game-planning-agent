@@ -214,50 +214,86 @@ async function searchNaverMultiType(
   return { results: merged };
 }
 
-// 네이버 검색으로 URL 발견 → Tavily Extract로 본문 추출 (하이브리드)
-// 네이버는 짧은 description만 주므로, Tavily Extract로 실제 본문을 받아 정확도 향상
+// 직접 fetch + HTML 파싱으로 본문 추출 (Tavily Extract 대체)
+// 비용 없음, API 한도 없음. SSR 페이지(나무위키·DC·카페·인벤 등)에 효과적
+// SPA(네이버 라운지 등)는 본문 추출이 어려울 수 있음
+async function fetchAndExtractText(url: string): Promise<string> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        // 일반 브라우저로 위장 — 일부 사이트는 봇 차단
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+      },
+      // 10초 타임아웃
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return "";
+
+    const html = await res.text();
+
+    // <body> 안의 내용만 추출 (없으면 전체 HTML 사용)
+    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    let content = bodyMatch ? bodyMatch[1] : html;
+
+    // 노이즈 태그 통째로 제거
+    content = content
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+      .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
+      .replace(/<header[\s\S]*?<\/header>/gi, " ")
+      .replace(/<footer[\s\S]*?<\/footer>/gi, " ")
+      .replace(/<aside[\s\S]*?<\/aside>/gi, " ")
+      .replace(/<iframe[\s\S]*?<\/iframe>/gi, " ");
+
+    // 나머지 HTML 태그 제거
+    content = content
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&#39;/g, "'")
+      .replace(/&[a-z#0-9]+;/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return content;
+  } catch (err) {
+    console.error(`[fetch extract] ${url} 추출 실패:`, err);
+    return "";
+  }
+}
+
+// 네이버 검색으로 URL 발견 → 직접 fetch로 본문 추출 (하이브리드)
 async function searchNaverWithExtract(
   query: string,
   filterKeywords: string[],
-  tv: ReturnType<typeof getTavily>,
+  _tv: ReturnType<typeof getTavily>,  // 미사용 (시그니처 호환용)
   maxResults: number = 3
 ): Promise<TavilyResult> {
   // 1단계: 네이버 다중 타입(webkr + cafearticle + news)으로 URL 발견
   const naverResult = await searchNaverMultiType(query, filterKeywords, maxResults);
-  if (naverResult.results.length === 0 || !tv) return naverResult;
+  if (naverResult.results.length === 0) return naverResult;
 
-  // 2단계: Tavily Extract로 각 URL의 본문 추출
-  const urls = naverResult.results.map(r => r.url);
-  try {
-    type ExtractResult = { results: Array<{ url: string; rawContent?: string; raw_content?: string }> };
-    const extractRes = await (tv as unknown as {
-      extract: (urls: string[], opts?: { extractDepth?: string }) => Promise<ExtractResult>
-    }).extract(urls, { extractDepth: "basic" });
+  // 2단계: 직접 fetch + HTML 파싱으로 본문 추출 (병렬 처리)
+  const extracted = await Promise.all(
+    naverResult.results.map(async r => {
+      const fullText = await fetchAndExtractText(r.url);
+      return {
+        title: r.title,
+        url: r.url,
+        content: fullText && fullText.length > 200
+          ? fullText.slice(0, 2500)        // 본문 충분히 추출됐으면 2500자
+          : r.content,                       // 추출 실패/짧으면 네이버 description 폴백
+      };
+    })
+  );
 
-    // URL을 키로 본문 매핑
-    const extractedMap = new Map<string, string>();
-    for (const item of extractRes.results ?? []) {
-      const content = item.rawContent ?? item.raw_content ?? "";
-      if (content) extractedMap.set(item.url, content);
-    }
-
-    // 네이버 결과의 content를 추출된 본문으로 교체 (실패한 항목은 네이버 description 유지)
-    return {
-      results: naverResult.results.map(r => {
-        const extracted = extractedMap.get(r.url);
-        return {
-          title: r.title,
-          url: r.url,
-          content: extracted
-            ? extracted.slice(0, 2500)  // 본문 2500자까지 (긴 본문 절단)
-            : r.content,                  // 추출 실패 시 네이버 description 폴백
-        };
-      }),
-    };
-  } catch (err) {
-    console.error(`[tavily extract] 본문 추출 실패:`, err);
-    return naverResult; // 추출 실패 시 네이버 결과 그대로 반환
-  }
+  return { results: extracted };
 }
 
 // 검색 결과 포맷팅 (AI에게 넘길 상세 텍스트)
