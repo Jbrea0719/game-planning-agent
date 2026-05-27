@@ -613,11 +613,24 @@ export default function DocumentView({
                 style={{ backgroundColor: "#0a0e1a", borderRight: `1px solid ${SILVER_FAINT}` }}
               >
                 {/* 오버레이 헤더 */}
-                <div className="flex items-center justify-between px-3 py-2.5 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
-                  <p className="text-xs font-bold" style={{ color: "rgba(180,210,255,1)" }}>📚 기획서 리스트</p>
+                <div className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 gap-2" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+                  <p className="text-xs font-bold flex-1 min-w-0" style={{ color: "rgba(180,210,255,1)" }}>📚 기획서 리스트</p>
+                  <button
+                    onClick={() => setShowCatManager(true)}
+                    title="카테고리 관리 — 대/중/소 카테고리 추가·수정·삭제"
+                    className="flex items-center justify-center w-7 h-7 rounded flex-shrink-0"
+                    style={{
+                      backgroundColor: "rgba(255,200,100,0.15)",
+                      border: "1px solid rgba(255,200,100,0.4)",
+                      color: "rgba(255,220,150,1)",
+                      fontSize: "13px",
+                    }}
+                  >
+                    ⚙️
+                  </button>
                   <button
                     onClick={() => setShowDocList(false)}
-                    className="text-xs px-2 py-0.5 rounded"
+                    className="text-xs px-2 py-0.5 rounded flex-shrink-0"
                     style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}
                   >
                     ✕
