@@ -18,6 +18,7 @@ interface DocMeta {
   created_by_nickname: string | null;
   category_main_id: string | null;
   category_area_code: string | null;
+  category_sub_id: string | null;
 }
 
 interface CategorySubItem {
@@ -81,10 +82,11 @@ export default function DocumentView({
   // family 이름 변경 인라인 편집
   const [renamingFamilyId, setRenamingFamilyId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState("");
-  // family 카테고리 변경 모달
+  // family 카테고리 변경 모달 (대 > 중 > 소)
   const [categorizingFamilyId, setCategorizingFamilyId] = useState<string | null>(null);
   const [catPickMainId, setCatPickMainId] = useState<string>("");
   const [catPickAreaCode, setCatPickAreaCode] = useState<string>("");
+  const [catPickSubId, setCatPickSubId] = useState<string>("");
   // 카테고리 트리 (DecisionPanel과 동일 소스)
   const [categories, setCategories] = useState<CategoryMainItem[]>([]);
   // 본 적 있는 doc id 추적 (per-doc 레드닷)
@@ -147,10 +149,11 @@ export default function DocumentView({
           family_id: categorizingFamilyId,
           main_id: catPickMainId || null,
           area_code: catPickAreaCode || null,
+          sub_id: catPickSubId || null,
         }),
       });
       setCategorizingFamilyId(null);
-      setCatPickMainId(""); setCatPickAreaCode("");
+      setCatPickMainId(""); setCatPickAreaCode(""); setCatPickSubId("");
       await loadVersions();
     } catch (err) {
       console.error("[doc-view] 카테고리 변경 실패:", err);
@@ -225,7 +228,9 @@ export default function DocumentView({
     setExpandedCats(prev => {
       const n = new Set(prev);
       for (const v of versions) {
-        const key = v.category_main_id ? `${v.category_main_id}::${v.category_area_code ?? ""}` : "__none__";
+        const key = v.category_main_id
+          ? `${v.category_main_id}::${v.category_area_code ?? ""}::${v.category_sub_id ?? ""}`
+          : "__none__";
         n.add(key);
       }
       return n;
@@ -583,26 +588,47 @@ export default function DocumentView({
                       name: docs[0].title,
                       mainId: docs[0].category_main_id,
                       areaCode: docs[0].category_area_code,
+                      subId: docs[0].category_sub_id,
                     }));
 
-                    // 2. 카테고리(Main > Area) 단위로 그룹핑
-                    // 키: `${mainId}::${areaCode ?? ""}` / 미분류는 "__none__"
+                    // 2. 카테고리(대 > 중 > 소) 단위로 그룹핑
+                    // 키: `${mainId}::${areaCode ?? ""}::${subId ?? ""}` / 미분류는 "__none__"
                     type Family = typeof families[number];
-                    const catMap = new Map<string, { mainId: string | null; areaCode: string | null; families: Family[] }>();
+                    const catMap = new Map<string, { mainId: string | null; areaCode: string | null; subId: string | null; families: Family[] }>();
                     for (const f of families) {
-                      const key = f.mainId ? `${f.mainId}::${f.areaCode ?? ""}` : "__none__";
+                      const key = f.mainId
+                        ? `${f.mainId}::${f.areaCode ?? ""}::${f.subId ?? ""}`
+                        : "__none__";
                       if (!catMap.has(key)) {
-                        catMap.set(key, { mainId: f.mainId, areaCode: f.areaCode, families: [] });
+                        catMap.set(key, { mainId: f.mainId, areaCode: f.areaCode, subId: f.subId, families: [] });
                       }
                       catMap.get(key)!.families.push(f);
                     }
-                    // 카테고리 정렬: main → area 순, 미분류는 맨 뒤
+                    // 카테고리 라벨: 대 > 중 > 소 형태로 표시
                     const catEntries = Array.from(catMap.entries()).map(([key, val]) => {
                       const main = categories.find(m => m.id === val.mainId) ?? null;
                       const areaName = main?.areas?.find(a => a.code === val.areaCode)?.name ?? null;
-                      const label = main
-                        ? (areaName ? `${main.icon ?? ""} ${main.name_ko} > ${areaName}` : `${main.icon ?? ""} ${main.name_ko}`)
-                        : "📂 분류 안 됨";
+                      // 소카테고리 이름 찾기 — area가 있으면 area 안에서, 없으면 main 직속에서
+                      let subName: string | null = null;
+                      if (val.subId && main) {
+                        if (main.areas && main.areas.length > 0) {
+                          for (const a of main.areas) {
+                            const found = a.sub_categories.find(s => s.id === val.subId);
+                            if (found) { subName = found.name_ko; break; }
+                          }
+                        } else if (main.sub_categories) {
+                          subName = main.sub_categories.find(s => s.id === val.subId)?.name_ko ?? null;
+                        }
+                      }
+                      let label: string;
+                      if (!main) label = "📂 분류 안 됨";
+                      else {
+                        const parts: string[] = [];
+                        parts.push(`${main.icon ?? ""} ${main.name_ko}`.trim());
+                        if (areaName) parts.push(areaName);
+                        if (subName) parts.push(subName);
+                        label = parts.join(" > ");
+                      }
                       val.families.sort((a, b) => (a.latestAt < b.latestAt ? 1 : -1));
                       return { key, label, val };
                     });
@@ -695,6 +721,7 @@ export default function DocumentView({
                                     setCategorizingFamilyId(fam.familyId);
                                     setCatPickMainId(fam.mainId ?? "");
                                     setCatPickAreaCode(fam.areaCode ?? "");
+                                    setCatPickSubId(fam.subId ?? "");
                                   }}
                                   title="카테고리 분류 변경"
                                   className="text-xs px-1 py-0.5 rounded hover:bg-white/10"
@@ -823,12 +850,12 @@ export default function DocumentView({
               <p className="text-sm font-bold" style={{ color: SILVER }}>카테고리 분류</p>
             </div>
             <div className="px-5 py-4 flex flex-col gap-3">
-              {/* Main 선택 */}
+              {/* 대카테고리 (Main) */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs" style={{ color: SILVER_DIM }}>대카테고리</label>
                 <select
                   value={catPickMainId}
-                  onChange={(e) => { setCatPickMainId(e.target.value); setCatPickAreaCode(""); }}
+                  onChange={(e) => { setCatPickMainId(e.target.value); setCatPickAreaCode(""); setCatPickSubId(""); }}
                   className="px-3 py-2 rounded-lg text-xs outline-none"
                   style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
                 >
@@ -840,22 +867,52 @@ export default function DocumentView({
                   ))}
                 </select>
               </div>
-              {/* Area 선택 (areas가 있는 main만 표시) */}
+              {/* 중카테고리 (Area) — areas가 있는 main만 표시 */}
               {(() => {
                 const currentMain = categories.find(m => m.id === catPickMainId);
                 if (!currentMain?.areas || currentMain.areas.length === 0) return null;
                 return (
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs" style={{ color: SILVER_DIM }}>영역</label>
+                    <label className="text-xs" style={{ color: SILVER_DIM }}>중카테고리</label>
                     <select
                       value={catPickAreaCode}
-                      onChange={(e) => setCatPickAreaCode(e.target.value)}
+                      onChange={(e) => { setCatPickAreaCode(e.target.value); setCatPickSubId(""); }}
                       className="px-3 py-2 rounded-lg text-xs outline-none"
                       style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
                     >
-                      <option value="">(영역 선택 안 함)</option>
+                      <option value="">(중카테고리 선택 안 함)</option>
                       {currentMain.areas.map(a => (
                         <option key={a.code} value={a.code}>{a.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })()}
+              {/* 소카테고리 (Sub) */}
+              {(() => {
+                const currentMain = categories.find(m => m.id === catPickMainId);
+                if (!currentMain) return null;
+                // areas가 있으면 선택된 area의 sub, 없으면 main 직속 sub
+                let subOptions: CategorySubItem[] = [];
+                if (currentMain.areas && currentMain.areas.length > 0) {
+                  if (!catPickAreaCode) return null;
+                  subOptions = currentMain.areas.find(a => a.code === catPickAreaCode)?.sub_categories ?? [];
+                } else {
+                  subOptions = currentMain.sub_categories ?? [];
+                }
+                if (subOptions.length === 0) return null;
+                return (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs" style={{ color: SILVER_DIM }}>소카테고리</label>
+                    <select
+                      value={catPickSubId}
+                      onChange={(e) => setCatPickSubId(e.target.value)}
+                      className="px-3 py-2 rounded-lg text-xs outline-none"
+                      style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+                    >
+                      <option value="">(소카테고리 선택 안 함)</option>
+                      {subOptions.map(s => (
+                        <option key={s.id} value={s.id}>{s.name_ko}</option>
                       ))}
                     </select>
                   </div>

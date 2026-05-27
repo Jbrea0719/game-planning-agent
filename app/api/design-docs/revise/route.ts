@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     // 1. 원본 doc 로드 (family_id + 카테고리 포함)
     const { data: orig, error: loadErr } = await supabase
       .from("design_docs")
-      .select("id, project_id, doc_family_id, title, content_markdown, version_no, category_main_id, category_area_code")
+      .select("id, project_id, doc_family_id, title, content_markdown, version_no, category_main_id, category_area_code, category_sub_id")
       .eq("id", doc_id)
       .maybeSingle();
 
@@ -115,6 +115,7 @@ export async function POST(request: Request) {
         doc_family_id: familyId,  // 부모와 같은 family 유지
         category_main_id: orig.category_main_id ?? null,  // 카테고리도 상속
         category_area_code: orig.category_area_code ?? null,
+        category_sub_id: orig.category_sub_id ?? null,
         version_no: nextVersion,
         title: newTitle,
         content_markdown: revisedMd,

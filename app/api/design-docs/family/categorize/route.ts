@@ -6,10 +6,11 @@ import { supabase } from "@/lib/supabase";
 
 export async function PATCH(request: Request) {
   try {
-    const { family_id, main_id, area_code } = (await request.json()) as {
+    const { family_id, main_id, area_code, sub_id } = (await request.json()) as {
       family_id: string;
       main_id?: string | null;
       area_code?: string | null;
+      sub_id?: string | null;
     };
 
     if (!family_id) return Response.json({ error: "family_id 필수" }, { status: 400 });
@@ -20,6 +21,7 @@ export async function PATCH(request: Request) {
         {
           category_main_id: main_id ?? null,
           category_area_code: area_code ?? null,
+          category_sub_id: sub_id ?? null,
         },
         { count: "exact" }
       )

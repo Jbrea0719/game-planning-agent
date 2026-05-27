@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     // 본문(content_markdown)은 제외하고 메타만 조회 (목록 화면 빠르게)
     const { data, error } = await supabase
       .from("design_docs")
-      .select("id, project_id, doc_family_id, version_no, title, status, changes_summary, created_by_nickname, created_at, archived_at, category_main_id, category_area_code")
+      .select("id, project_id, doc_family_id, version_no, title, status, changes_summary, created_by_nickname, created_at, archived_at, category_main_id, category_area_code, category_sub_id")
       .eq("project_id", projectId)
       .order("version_no", { ascending: false });
 
