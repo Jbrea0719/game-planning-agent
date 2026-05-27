@@ -1362,19 +1362,23 @@ export async function POST(request: Request) {
 
           // ─── 자동 결정사항 추출 (Phase A.5) ──────────────────────
           // 답변 완료 후 Haiku로 결정사항 추출·자동 저장
-          // 동기 처리 (1~2초 추가) — 추출 완료 후 클라이언트에 마커로 알림
+          // 조던이 반대·우려한 결정은 등록 보류 (사용자 강제 요청 시만 등록)
           try {
             const nickname = session_id?.replace(/^agent:/, "") ?? undefined;
-            const extractedCount = await extractAndSaveDecisions({
+            const result = await extractAndSaveDecisions({
               userQuery: userMessage.content,
               jordanAnswer: assistantText,
               sessionId: session_id,
               pairId: pair_id,
               nickname,
             });
-            if (extractedCount > 0) {
+            if (result.saved > 0) {
               // 클라이언트에 결정사항 추가됨 신호 — 트래커 자동 reload
-              encode(`__DECISIONS_EXTRACTED__${extractedCount}`);
+              encode(`__DECISIONS_EXTRACTED__${result.saved}`);
+            }
+            if (result.held > 0) {
+              // 보류된 결정 알림 — "조던 우려로 등록 안 됨" 같은 안내
+              encode(`__DECISIONS_HELD__${result.held}`);
             }
           } catch (err) {
             console.error("[agent] 결정사항 자동 추출 실패:", err);

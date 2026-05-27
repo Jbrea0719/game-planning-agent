@@ -205,6 +205,8 @@ export default function ChatPage() {
   const [decisionReloadKey, setDecisionReloadKey] = useState(0);
   // 자동 추출 알림 (사용자에게 잠시 노출)
   const [extractedNotice, setExtractedNotice] = useState<number | null>(null);
+  // 보류된 결정 알림 (조던이 반대·우려)
+  const [heldNotice, setHeldNotice] = useState<number | null>(null);
   // 답변 피드백 상태 — pair_id별로 'accurate' | 'inaccurate' | undefined
   const [feedbacks, setFeedbacks] = useState<Record<string, "accurate" | "inaccurate">>({});
   // 부정확 사유 입력 모달 (열린 pair_id)
@@ -441,6 +443,17 @@ export default function ChatPage() {
           setTimeout(() => setExtractedNotice(null), 5000);  // 5초 후 자동 숨김
         }
         cleanText = cleanText.replace(/__DECISIONS_EXTRACTED__\d+/, "");
+      }
+
+      // 보류 마커 감지 — 조던 반대·우려로 등록 안 된 결정
+      const heldMatch = assistantText.match(/__DECISIONS_HELD__(\d+)/);
+      if (heldMatch) {
+        const cnt = parseInt(heldMatch[1], 10);
+        if (cnt > 0) {
+          setHeldNotice(cnt);
+          setTimeout(() => setHeldNotice(null), 7000);  // 7초 표시 (좀 더 길게)
+        }
+        cleanText = cleanText.replace(/__DECISIONS_HELD__\d+/, "");
       }
       // 진행 상태 텍스트 제거: __JORDAN_ANSWER_START__ 이후만 답변으로 사용
       const answerStartIdx = cleanText.indexOf("__JORDAN_ANSWER_START__");
@@ -912,6 +925,33 @@ export default function ChatPage() {
             style={{ backgroundColor: "rgba(100,220,160,0.2)", border: "1px solid rgba(100,220,160,0.5)" }}
           >
             확인하기 →
+          </button>
+        </div>
+      )}
+
+      {/* 보류 알림 (조던 반대·우려로 등록 안 됨, 7초) */}
+      {heldNotice !== null && (
+        <div
+          className="fixed bottom-40 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-lg shadow-lg flex items-center gap-2 text-sm"
+          style={{
+            backgroundColor: "rgba(15,25,40,0.95)",
+            border: "1px solid rgba(255,200,100,0.6)",
+            color: "rgba(255,220,150,1)",
+            backdropFilter: "blur(10px)",
+            maxWidth: "min(540px, 92vw)",
+          }}
+        >
+          <span>⚠️</span>
+          <span>
+            <b>{heldNotice}개</b>의 결정이 조던 의견과 충돌해서 <b>등록 보류</b>됐어요.
+            그래도 등록하려면 메시지에서 "그래도 등록해줘"라고 요청하세요.
+          </span>
+          <button
+            onClick={() => setHeldNotice(null)}
+            className="ml-2 text-xs px-2 py-0.5 rounded"
+            style={{ backgroundColor: "rgba(255,200,100,0.2)", border: "1px solid rgba(255,200,100,0.4)" }}
+          >
+            확인
           </button>
         </div>
       )}
