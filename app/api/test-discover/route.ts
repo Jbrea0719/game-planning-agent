@@ -20,6 +20,8 @@ const MANUAL_CURATION: Record<string, { officialUrlFilters: string[]; officialDo
       "trees.gamemeca.com",
       "sports.naver.com/esports",
       "newsworks.co.kr/news",
+      "namu.wiki/w/세븐나이츠%20리버스",
+      "namu.wiki/w/세븐나이츠 리버스",
     ],
     dcGalleryId: "sevennightsrebirth",
   },
