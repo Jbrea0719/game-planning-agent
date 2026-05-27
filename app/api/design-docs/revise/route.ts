@@ -86,15 +86,8 @@ export async function POST(request: Request) {
       return Response.json({ error: "수정 결과가 비어 있어요" }, { status: 500 });
     }
 
-    // 4. 다음 버전 번호 산출 — 같은 family 내에서만 max + 1
-    const familyId = orig.doc_family_id ?? orig.id;
-    const { data: lastVer } = await supabase
-      .from("design_docs")
-      .select("version_no")
-      .eq("doc_family_id", familyId)
-      .order("version_no", { ascending: false })
-      .limit(1);
-    const nextVersion = ((lastVer?.[0]?.version_no as number | undefined) ?? orig.version_no) + 1;
+    // 4. 버전 개념 제거 — 원본 doc을 UPDATE로 갱신 (히스토리 보존 X)
+    //    family_id, version_no는 그대로 유지
 
     // 새 제목: 본문 첫 H1에서 추출 (없으면 원본 제목 유지)
     const titleMatch = revisedMd.match(/^#\s+(.+?)$/m);
@@ -106,31 +99,22 @@ export async function POST(request: Request) {
           .trim() || orig.title
       : orig.title;
 
-    // 5. INSERT
+    // 5. UPDATE — 기존 doc을 새 내용으로 덮어씀
     const shortInstr = instruction.trim().slice(0, 120);
     const { data: saved, error: saveErr } = await supabase
       .from("design_docs")
-      .insert({
-        project_id: orig.project_id,
-        doc_family_id: familyId,  // 부모와 같은 family 유지
-        category_main_id: orig.category_main_id ?? null,  // 카테고리도 상속
-        category_area_code: orig.category_area_code ?? null,
-        category_sub_id: orig.category_sub_id ?? null,
-        version_no: nextVersion,
+      .update({
         title: newTitle,
         content_markdown: revisedMd,
-        status: "draft",
         decision_snapshot: {
           source: "revision",
-          parent_doc_id: orig.id,
-          parent_version_no: orig.version_no,
-          instruction: shortInstr,
+          last_instruction: shortInstr,
           revised_at: new Date().toISOString(),
         },
-        source_decision_ids: [],
         created_by_nickname: nickname ?? null,
-        changes_summary: `v${orig.version_no} → v${nextVersion} 수정 요청: ${shortInstr}`,
+        changes_summary: `수정 요청: ${shortInstr}`,
       })
+      .eq("id", doc_id)
       .select()
       .single();
 

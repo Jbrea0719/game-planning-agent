@@ -232,21 +232,22 @@ export default function DocumentView({
   // 마운트·열림·reloadKey 변경 시 갱신
   useEffect(() => { if (open) void loadVersions(); }, [open, loadVersions]);
 
-  // versions 로드되면 모든 family + 카테고리를 기본 펼침으로
+  // versions 로드되면 모든 카테고리 노드(대/중/소)를 기본 펼침
   useEffect(() => {
     if (versions.length === 0) return;
-    setExpandedFamilies(prev => {
-      const n = new Set(prev);
-      for (const v of versions) n.add(v.doc_family_id ?? v.id);
-      return n;
-    });
     setExpandedCats(prev => {
       const n = new Set(prev);
+      const NONE = "__none__";
       for (const v of versions) {
-        const key = v.category_main_id
-          ? `${v.category_main_id}::${v.category_area_code ?? ""}::${v.category_sub_id ?? ""}`
-          : "__none__";
-        n.add(key);
+        const mainKey = v.category_main_id ?? NONE;
+        n.add(mainKey);
+        if (v.category_area_code) {
+          const areaKey = `${mainKey}::${v.category_area_code}`;
+          n.add(areaKey);
+          if (v.category_sub_id) {
+            n.add(`${areaKey}::${v.category_sub_id}`);
+          }
+        }
       }
       return n;
     });
@@ -546,14 +547,9 @@ export default function DocumentView({
             {/* 현재 보고 있는 기획서 제목 — 리스트 버튼과 목차 사이 */}
             {currentDoc && (
               <div className="px-3 py-2.5 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
-                <div className="flex items-baseline gap-2 min-w-0">
-                  <span className="text-xs font-bold flex-shrink-0" style={{ color: "rgba(180,210,255,1)" }}>
-                    v{currentDoc.version_no}
-                  </span>
-                  <span className="text-sm font-bold truncate" style={{ color: SILVER }} title={currentDoc.title}>
-                    {currentDoc.title}
-                  </span>
-                </div>
+                <p className="text-sm font-bold truncate" style={{ color: SILVER }} title={currentDoc.title}>
+                  📄 {currentDoc.title}
+                </p>
               </div>
             )}
 
@@ -632,227 +628,314 @@ export default function DocumentView({
                     </p>
                   )}
                   {(() => {
-                    // 1. family 단위 그룹핑
-                    const familyMap = new Map<string, DocMeta[]>();
+                    // 1. family 단위로 dedupe — 같은 family에서 최신만 (version_no 최대) 보임
+                    const familyMap = new Map<string, DocMeta>();
                     for (const v of versions) {
                       const fid = v.doc_family_id ?? v.id;
-                      if (!familyMap.has(fid)) familyMap.set(fid, []);
-                      familyMap.get(fid)!.push(v);
+                      const cur = familyMap.get(fid);
+                      if (!cur || v.version_no > cur.version_no) familyMap.set(fid, v);
                     }
-                    for (const arr of familyMap.values()) {
-                      arr.sort((a, b) => b.version_no - a.version_no);
-                    }
-                    const families = Array.from(familyMap.entries()).map(([fid, docs]) => ({
-                      familyId: fid,
-                      docs,
-                      latestAt: docs.reduce((m, d) => (d.created_at > m ? d.created_at : m), docs[0].created_at),
-                      name: docs[0].title,
-                      mainId: docs[0].category_main_id,
-                      areaCode: docs[0].category_area_code,
-                      subId: docs[0].category_sub_id,
-                    }));
+                    const docs = Array.from(familyMap.values());
 
-                    // 2. 카테고리(대 > 중 > 소) 단위로 그룹핑
-                    // 키: `${mainId}::${areaCode ?? ""}::${subId ?? ""}` / 미분류는 "__none__"
-                    type Family = typeof families[number];
-                    const catMap = new Map<string, { mainId: string | null; areaCode: string | null; subId: string | null; families: Family[] }>();
-                    for (const f of families) {
-                      const key = f.mainId
-                        ? `${f.mainId}::${f.areaCode ?? ""}::${f.subId ?? ""}`
-                        : "__none__";
-                      if (!catMap.has(key)) {
-                        catMap.set(key, { mainId: f.mainId, areaCode: f.areaCode, subId: f.subId, families: [] });
+                    // 2. 대(main) > 중(area) > 소(sub) 3단계 트리 구축
+                    type MainNode = {
+                      key: string; mainId: string | null; label: string; icon: string;
+                      areas: Map<string, AreaNode>;
+                      directDocs: DocMeta[];   // 영역 없는 소카테고리 또는 미분류
+                    };
+                    type AreaNode = {
+                      key: string; code: string; label: string;
+                      subs: Map<string, SubNode>;
+                      directDocs: DocMeta[];   // 소카테고리 없는 doc
+                    };
+                    type SubNode = {
+                      key: string; subId: string; label: string;
+                      docs: DocMeta[];
+                    };
+
+                    const tree = new Map<string, MainNode>();
+                    const NONE_KEY = "__none__";
+
+                    function ensureMain(mainId: string | null): MainNode {
+                      const key = mainId ?? NONE_KEY;
+                      if (!tree.has(key)) {
+                        const main = mainId ? categories.find(m => m.id === mainId) ?? null : null;
+                        tree.set(key, {
+                          key,
+                          mainId,
+                          label: main ? main.name_ko : "분류 안 됨",
+                          icon: main?.icon ?? "📂",
+                          areas: new Map(),
+                          directDocs: [],
+                        });
                       }
-                      catMap.get(key)!.families.push(f);
+                      return tree.get(key)!;
                     }
-                    // 카테고리 라벨: 대 > 중 > 소 형태로 표시
-                    const catEntries = Array.from(catMap.entries()).map(([key, val]) => {
-                      const main = categories.find(m => m.id === val.mainId) ?? null;
-                      const areaName = main?.areas?.find(a => a.code === val.areaCode)?.name ?? null;
-                      // 소카테고리 이름 찾기 — area가 있으면 area 안에서, 없으면 main 직속에서
-                      let subName: string | null = null;
-                      if (val.subId && main) {
-                        if (main.areas && main.areas.length > 0) {
-                          for (const a of main.areas) {
-                            const found = a.sub_categories.find(s => s.id === val.subId);
-                            if (found) { subName = found.name_ko; break; }
-                          }
-                        } else if (main.sub_categories) {
-                          subName = main.sub_categories.find(s => s.id === val.subId)?.name_ko ?? null;
+                    function ensureArea(main: MainNode, areaCode: string): AreaNode {
+                      if (!main.areas.has(areaCode)) {
+                        const mainObj = categories.find(m => m.id === main.mainId);
+                        const areaName = mainObj?.areas?.find(a => a.code === areaCode)?.name ?? areaCode;
+                        main.areas.set(areaCode, { key: `${main.key}::${areaCode}`, code: areaCode, label: areaName, subs: new Map(), directDocs: [] });
+                      }
+                      return main.areas.get(areaCode)!;
+                    }
+                    function ensureSub(area: AreaNode, subId: string, mainId: string | null, areaCode: string): SubNode {
+                      if (!area.subs.has(subId)) {
+                        const mainObj = mainId ? categories.find(m => m.id === mainId) : null;
+                        let subName = subId;
+                        if (mainObj) {
+                          const subItem = mainObj.areas?.find(a => a.code === areaCode)?.sub_categories.find(s => s.id === subId)
+                            ?? mainObj.sub_categories?.find(s => s.id === subId);
+                          if (subItem) subName = subItem.name_ko;
                         }
+                        area.subs.set(subId, { key: `${area.key}::${subId}`, subId, label: subName, docs: [] });
                       }
-                      let label: string;
-                      if (!main) label = "📂 분류 안 됨";
-                      else {
-                        const parts: string[] = [];
-                        parts.push(`${main.icon ?? ""} ${main.name_ko}`.trim());
-                        if (areaName) parts.push(areaName);
-                        if (subName) parts.push(subName);
-                        label = parts.join(" > ");
+                      return area.subs.get(subId)!;
+                    }
+
+                    for (const d of docs) {
+                      const main = ensureMain(d.category_main_id);
+                      if (d.category_area_code) {
+                        const area = ensureArea(main, d.category_area_code);
+                        if (d.category_sub_id) {
+                          const sub = ensureSub(area, d.category_sub_id, d.category_main_id, d.category_area_code);
+                          sub.docs.push(d);
+                        } else {
+                          area.directDocs.push(d);
+                        }
+                      } else {
+                        main.directDocs.push(d);
                       }
-                      val.families.sort((a, b) => (a.latestAt < b.latestAt ? 1 : -1));
-                      return { key, label, val };
-                    });
-                    catEntries.sort((a, b) => {
-                      if (a.key === "__none__") return 1;
-                      if (b.key === "__none__") return -1;
+                    }
+
+                    // 정렬: 한국어 라벨 알파벳, 미분류는 맨 뒤
+                    const mainArr = Array.from(tree.values()).sort((a, b) => {
+                      if (a.key === NONE_KEY) return 1;
+                      if (b.key === NONE_KEY) return -1;
                       return a.label.localeCompare(b.label, "ko");
                     });
 
-                    return catEntries.map(({ key: catKey, label: catLabel, val: catVal }) => {
-                      const catOpen = expandedCats.has(catKey);
-                      const totalDocs = catVal.families.reduce((s, f) => s + f.docs.length, 0);
+                    // 4단계 (대 > 중 > 소 > 기획서) 색상·스타일
+                    const STYLE = {
+                      MAIN_BG: "rgba(100,180,255,0.18)",
+                      MAIN_BORDER: "rgba(100,180,255,0.45)",
+                      AREA_BG: "rgba(100,180,255,0.08)",
+                      AREA_BORDER: "rgba(100,180,255,0.25)",
+                      SUB_BG: "rgba(255,255,255,0.03)",
+                      SUB_BORDER: "rgba(192,200,216,0.20)",
+                    };
+
+                    // 기획서 하나 렌더링 (leaf)
+                    const renderDoc = (d: DocMeta, depth: number) => {
+                      const active = d.id === currentDoc?.id;
+                      const isUnviewed = !viewedDocIds.has(d.id);
                       return (
-                        <div key={catKey} className="mb-2">
-                          {/* 카테고리 헤더 (Main > Area) */}
+                        <div key={d.id} className="flex items-center gap-1" style={{ paddingLeft: `${depth * 12}px` }}>
+                          <button
+                            onClick={() => { void loadDoc(d.id); setShowDocList(false); }}
+                            className="flex-1 text-left text-xs px-2 py-1.5 rounded flex items-center gap-1.5 transition-colors"
+                            style={{
+                              backgroundColor: active ? "rgba(100,180,255,0.25)" : "transparent",
+                              border: active ? "1px solid rgba(100,180,255,0.6)" : "1px solid transparent",
+                              color: active ? "rgba(180,210,255,1)" : "#d0d8e0",
+                            }}
+                          >
+                            <span style={{ color: SILVER_DIM, fontSize: "9px", flexShrink: 0 }}>📄</span>
+                            <span className="truncate font-medium">{d.title}</span>
+                            {isUnviewed && (
+                              <span
+                                className="w-2 h-2 rounded-full ml-auto flex-shrink-0 animate-pulse"
+                                title="아직 열어보지 않은 새 기획서"
+                                style={{ backgroundColor: "rgba(255,80,80,0.95)", boxShadow: "0 0 4px rgba(255,80,80,0.6)" }}
+                              />
+                            )}
+                          </button>
+                          {/* 액션: 이름 변경 + 카테고리 변경 */}
+                          <button
+                            onClick={() => { setRenamingFamilyId(d.doc_family_id ?? d.id); setRenameInput(d.title); }}
+                            title="이름 변경"
+                            className="text-xs px-1 py-1 rounded hover:bg-white/10 flex-shrink-0"
+                            style={{ color: SILVER_DIM }}
+                          >✏️</button>
+                          <button
+                            onClick={() => {
+                              setCategorizingFamilyId(d.doc_family_id ?? d.id);
+                              setCatPickMainId(d.category_main_id ?? "");
+                              setCatPickAreaCode(d.category_area_code ?? "");
+                              setCatPickSubId(d.category_sub_id ?? "");
+                            }}
+                            title="카테고리 분류 변경"
+                            className="text-xs px-1 py-1 rounded hover:bg-white/10 flex-shrink-0"
+                            style={{ color: SILVER_DIM }}
+                          >📂</button>
+                        </div>
+                      );
+                    };
+
+                    // 인라인 rename input (기획서 이름 수정 중일 때 doc 렌더 위에 표시)
+                    const renderDocWithRename = (d: DocMeta, depth: number) => {
+                      const fid = d.doc_family_id ?? d.id;
+                      if (renamingFamilyId !== fid) return renderDoc(d, depth);
+                      return (
+                        <div key={d.id} className="flex items-center gap-1" style={{ paddingLeft: `${depth * 12}px` }}>
+                          <input
+                            value={renameInput}
+                            onChange={(e) => setRenameInput(e.target.value)}
+                            onBlur={() => submitRename(fid)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") submitRename(fid);
+                              if (e.key === "Escape") { setRenamingFamilyId(null); setRenameInput(""); }
+                            }}
+                            className="flex-1 text-xs font-medium px-2 py-1.5 rounded outline-none"
+                            style={{ backgroundColor: "rgba(0,0,0,0.5)", border: "1px solid rgba(100,180,255,0.6)", color: "#e0e8f0" }}
+                            autoFocus
+                          />
+                        </div>
+                      );
+                    };
+
+                    return mainArr.map(main => {
+                      const mainOpen = expandedCats.has(main.key);
+                      const mainTotalDocs =
+                        main.directDocs.length +
+                        Array.from(main.areas.values()).reduce((s, a) =>
+                          s + a.directDocs.length + Array.from(a.subs.values()).reduce((ss, sub) => ss + sub.docs.length, 0),
+                        0);
+
+                      return (
+                        <div key={main.key} className="mb-2">
+                          {/* 대카테고리 헤더 — 가장 강조 */}
                           <button
                             onClick={() =>
                               setExpandedCats(prev => {
                                 const n = new Set(prev);
-                                if (n.has(catKey)) n.delete(catKey); else n.add(catKey);
+                                if (n.has(main.key)) n.delete(main.key); else n.add(main.key);
                                 return n;
                               })
                             }
-                            className="w-full text-left text-xs px-2 py-1.5 rounded flex items-center justify-between font-bold"
-                            style={{ backgroundColor: "rgba(192,200,216,0.18)", color: SILVER }}
+                            className="w-full text-left px-3 py-2 rounded-md flex items-center justify-between font-bold transition-colors"
+                            style={{
+                              backgroundColor: STYLE.MAIN_BG,
+                              border: `1px solid ${STYLE.MAIN_BORDER}`,
+                              color: SILVER,
+                              fontSize: "13px",
+                            }}
                           >
-                            <span className="truncate">{catLabel}</span>
+                            <span className="flex items-center gap-1.5 min-w-0">
+                              <span style={{ flexShrink: 0 }}>{main.icon}</span>
+                              <span className="truncate">{main.label}</span>
+                            </span>
                             <span className="flex items-center gap-1.5 flex-shrink-0">
-                              <span style={{ color: SILVER_DIM, fontWeight: 400 }}>{totalDocs}개</span>
-                              <span className="inline-flex items-center justify-center w-5 h-5 rounded text-base leading-none" style={{ backgroundColor: "rgba(255,255,255,0.06)", color: SILVER_DIM }}>
-                                {catOpen ? "−" : "+"}
+                              <span className="text-[10px]" style={{ color: SILVER_DIM, fontWeight: 500 }}>{mainTotalDocs}</span>
+                              <span className="inline-flex items-center justify-center w-4 h-4 rounded text-sm leading-none" style={{ color: SILVER_DIM }}>
+                                {mainOpen ? "−" : "+"}
                               </span>
                             </span>
                           </button>
 
-                          {/* 카테고리 안의 family들 */}
-                          {catOpen && catVal.families.map(fam => {
-                      const isOpen = expandedFamilies.has(fam.familyId);
-                      const isRenaming = renamingFamilyId === fam.familyId;
-                      return (
-                        <div key={fam.familyId} className="mb-2">
-                          {/* family 헤더 */}
-                          <div
-                            className="flex items-center gap-1 px-2 py-1.5 rounded font-bold"
-                            style={{ backgroundColor: SILVER_FAINT, color: SILVER }}
-                          >
-                            {isRenaming ? (
-                              <input
-                                value={renameInput}
-                                onChange={(e) => setRenameInput(e.target.value)}
-                                onBlur={() => submitRename(fam.familyId)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") submitRename(fam.familyId);
-                                  if (e.key === "Escape") { setRenamingFamilyId(null); setRenameInput(""); }
-                                }}
-                                className="flex-1 text-xs px-1.5 py-0.5 rounded outline-none"
-                                style={{ backgroundColor: "rgba(0,0,0,0.4)", border: "1px solid rgba(100,180,255,0.5)", color: "#e0e8f0" }}
-                                autoFocus
-                              />
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() =>
-                                    setExpandedFamilies(prev => {
-                                      const n = new Set(prev);
-                                      if (n.has(fam.familyId)) n.delete(fam.familyId);
-                                      else n.add(fam.familyId);
-                                      return n;
-                                    })
-                                  }
-                                  className="flex-1 text-left text-xs flex items-center gap-1.5 min-w-0"
-                                >
-                                  <span className="truncate">{fam.name}</span>
-                                  <span style={{ color: SILVER_DIM, fontWeight: 400, flexShrink: 0 }}>
-                                    ({fam.docs.length})
-                                  </span>
-                                </button>
-                                {/* 이름 수정 아이콘 */}
-                                <button
-                                  onClick={() => { setRenamingFamilyId(fam.familyId); setRenameInput(fam.name); }}
-                                  title="기획서 이름 변경 (같은 family의 모든 버전에 적용)"
-                                  className="text-xs px-1 py-0.5 rounded hover:bg-white/10"
-                                  style={{ color: SILVER_DIM }}
-                                >
-                                  ✏️
-                                </button>
-                                {/* 카테고리 변경 아이콘 */}
-                                <button
-                                  onClick={() => {
-                                    setCategorizingFamilyId(fam.familyId);
-                                    setCatPickMainId(fam.mainId ?? "");
-                                    setCatPickAreaCode(fam.areaCode ?? "");
-                                    setCatPickSubId(fam.subId ?? "");
-                                  }}
-                                  title="카테고리 분류 변경"
-                                  className="text-xs px-1 py-0.5 rounded hover:bg-white/10"
-                                  style={{ color: SILVER_DIM }}
-                                >
-                                  📂
-                                </button>
-                                {/* +/− 토글 */}
-                                <button
-                                  onClick={() =>
-                                    setExpandedFamilies(prev => {
-                                      const n = new Set(prev);
-                                      if (n.has(fam.familyId)) n.delete(fam.familyId);
-                                      else n.add(fam.familyId);
-                                      return n;
-                                    })
-                                  }
-                                  className="inline-flex items-center justify-center w-5 h-5 rounded text-base leading-none flex-shrink-0"
-                                  style={{ backgroundColor: "rgba(255,255,255,0.06)", color: SILVER_DIM }}
-                                >
-                                  {isOpen ? "−" : "+"}
-                                </button>
-                              </>
-                            )}
-                          </div>
+                          {mainOpen && (
+                            <div className="mt-1 flex flex-col gap-1">
+                              {/* 대카테고리 직속 (영역 없음) */}
+                              {main.directDocs.length > 0 && (
+                                <div className="flex flex-col gap-0.5 pl-2">
+                                  {main.directDocs.map(d => renderDocWithRename(d, 0))}
+                                </div>
+                              )}
 
-                          {/* 버전 리스트 */}
-                          {isOpen && (
-                            <div className="mt-1 ml-2 flex flex-col gap-0.5">
-                              {fam.docs.map(d => {
-                                const active = d.id === currentDoc?.id;
-                                const isUnviewed = !viewedDocIds.has(d.id);
-                                return (
-                                  <button
-                                    key={d.id}
-                                    onClick={() => {
-                                      void loadDoc(d.id);
-                                      setShowDocList(false);
-                                    }}
-                                    className="text-left text-xs px-2 py-1.5 rounded relative"
-                                    style={{
-                                      backgroundColor: active ? "rgba(100,180,255,0.18)" : "transparent",
-                                      border: active ? "1px solid rgba(100,180,255,0.5)" : "1px solid transparent",
-                                      color: active ? "rgba(180,210,255,1)" : "#b8c4d4",
-                                    }}
-                                  >
-                                    <div className="flex items-center gap-1.5">
-                                      <span style={{ color: active ? "rgba(180,210,255,1)" : SILVER_DIM, flexShrink: 0, fontWeight: 600 }}>
-                                        v{d.version_no}
-                                      </span>
-                                      <span className="text-[10px]" style={{ color: SILVER_DIM }}>
-                                        {new Date(d.created_at).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })}
-                                        {d.created_by_nickname && ` · ${d.created_by_nickname}`}
-                                      </span>
-                                      {isUnviewed && (
-                                        <span
-                                          className="w-2 h-2 rounded-full ml-auto flex-shrink-0 animate-pulse"
-                                          title="아직 열어보지 않은 새 기획서"
-                                          style={{ backgroundColor: "rgba(255,80,80,0.95)", boxShadow: "0 0 4px rgba(255,80,80,0.6)" }}
-                                        />
+                              {/* 중카테고리(영역) */}
+                              {Array.from(main.areas.values())
+                                .sort((a, b) => a.label.localeCompare(b.label, "ko"))
+                                .map(area => {
+                                  const areaOpen = expandedCats.has(area.key);
+                                  const areaTotal = area.directDocs.length + Array.from(area.subs.values()).reduce((s, sub) => s + sub.docs.length, 0);
+                                  return (
+                                    <div key={area.key} className="ml-2">
+                                      <button
+                                        onClick={() =>
+                                          setExpandedCats(prev => {
+                                            const n = new Set(prev);
+                                            if (n.has(area.key)) n.delete(area.key); else n.add(area.key);
+                                            return n;
+                                          })
+                                        }
+                                        className="w-full text-left px-2.5 py-1.5 rounded flex items-center justify-between font-semibold transition-colors"
+                                        style={{
+                                          backgroundColor: STYLE.AREA_BG,
+                                          border: `1px solid ${STYLE.AREA_BORDER}`,
+                                          color: "rgba(220,228,240,1)",
+                                          fontSize: "12px",
+                                        }}
+                                      >
+                                        <span className="flex items-center gap-1.5 min-w-0">
+                                          <span style={{ flexShrink: 0, fontSize: "10px" }}>📂</span>
+                                          <span className="truncate">{area.label}</span>
+                                        </span>
+                                        <span className="flex items-center gap-1.5 flex-shrink-0">
+                                          <span className="text-[10px]" style={{ color: SILVER_DIM }}>{areaTotal}</span>
+                                          <span className="inline-flex items-center justify-center w-4 h-4 rounded text-sm leading-none" style={{ color: SILVER_DIM }}>
+                                            {areaOpen ? "−" : "+"}
+                                          </span>
+                                        </span>
+                                      </button>
+
+                                      {areaOpen && (
+                                        <div className="mt-1 ml-2 flex flex-col gap-1">
+                                          {/* 영역 직속 (소카테고리 없음) */}
+                                          {area.directDocs.length > 0 && (
+                                            <div className="flex flex-col gap-0.5">
+                                              {area.directDocs.map(d => renderDocWithRename(d, 0))}
+                                            </div>
+                                          )}
+
+                                          {/* 소카테고리 */}
+                                          {Array.from(area.subs.values())
+                                            .sort((a, b) => a.label.localeCompare(b.label, "ko"))
+                                            .map(sub => {
+                                              const subOpen = expandedCats.has(sub.key);
+                                              return (
+                                                <div key={sub.key}>
+                                                  <button
+                                                    onClick={() =>
+                                                      setExpandedCats(prev => {
+                                                        const n = new Set(prev);
+                                                        if (n.has(sub.key)) n.delete(sub.key); else n.add(sub.key);
+                                                        return n;
+                                                      })
+                                                    }
+                                                    className="w-full text-left px-2 py-1 rounded flex items-center justify-between transition-colors"
+                                                    style={{
+                                                      backgroundColor: STYLE.SUB_BG,
+                                                      borderLeft: `2px solid ${STYLE.SUB_BORDER}`,
+                                                      color: SILVER_DIM,
+                                                      fontSize: "11px",
+                                                    }}
+                                                  >
+                                                    <span className="flex items-center gap-1 min-w-0">
+                                                      <span style={{ flexShrink: 0, fontSize: "8px" }}>▸</span>
+                                                      <span className="truncate">{sub.label}</span>
+                                                    </span>
+                                                    <span className="flex items-center gap-1 flex-shrink-0">
+                                                      <span className="text-[9px]">{sub.docs.length}</span>
+                                                      <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded text-xs leading-none">
+                                                        {subOpen ? "−" : "+"}
+                                                      </span>
+                                                    </span>
+                                                  </button>
+                                                  {subOpen && (
+                                                    <div className="mt-0.5 flex flex-col gap-0.5 ml-2">
+                                                      {sub.docs.map(d => renderDocWithRename(d, 0))}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              );
+                                            })}
+                                        </div>
                                       )}
                                     </div>
-                                  </button>
-                                );
-                              })}
+                                  );
+                                })}
                             </div>
                           )}
-                        </div>
-                      );
-                    })}
                         </div>
                       );
                     });
