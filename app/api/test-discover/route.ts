@@ -40,10 +40,15 @@ export async function GET(request: Request) {
     }, { status: 400 });
   }
 
-  const manual = forceAuto ? null : (MANUAL_CURATION[gameId] ?? null);
+  const manual = MANUAL_CURATION[gameId] ?? null;
 
   const startTime = Date.now();
-  const result = await ensureGameDomains(gameId, [gameName], manual);
+  // force_auto=true면 수동 + 캐시 둘 다 건너뛰고 자동 발견 강제
+  const result = await ensureGameDomains(gameId, [gameName], {
+    manualCuration: manual,
+    skipManual: forceAuto,
+    skipCache: forceAuto,
+  });
   const elapsed = Date.now() - startTime;
 
   return Response.json({

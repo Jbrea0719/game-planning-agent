@@ -209,20 +209,28 @@ export function manualToDiscovered(manual: ManualCuration | null | undefined): D
 export async function ensureGameDomains(
   gameId: string,
   gameNames: string[],
-  manualCuration?: ManualCuration | null  // GAME_COMMUNITIES의 매칭 결과
+  options?: {
+    manualCuration?: ManualCuration | null;  // GAME_COMMUNITIES의 매칭 결과
+    skipManual?: boolean;                     // true면 수동 큐레이션 무시
+    skipCache?: boolean;                      // true면 캐시 무시 (강제 재발견)
+  }
 ): Promise<{ domains: DiscoveredDomain[]; source: "manual" | "cache" | "auto" | "empty" }> {
+  const { manualCuration, skipManual = false, skipCache = false } = options ?? {};
+
   // 0. 수동 큐레이션 우선 (가장 신뢰도 높음)
-  if (manualCuration && (manualCuration.officialUrlFilters?.length ?? 0) > 0) {
+  if (!skipManual && manualCuration && (manualCuration.officialUrlFilters?.length ?? 0) > 0) {
     const manualDomains = manualToDiscovered(manualCuration);
     if (manualDomains.length > 0) {
       return { domains: manualDomains, source: "manual" };
     }
   }
 
-  // 1. 캐시 조회
-  const cached = await getGameRegistry(gameId);
-  if (cached && cached.discovered_domains.length > 0) {
-    return { domains: cached.discovered_domains, source: "cache" };
+  // 1. 캐시 조회 (skipCache면 건너뜀)
+  if (!skipCache) {
+    const cached = await getGameRegistry(gameId);
+    if (cached && cached.discovered_domains.length > 0) {
+      return { domains: cached.discovered_domains, source: "cache" };
+    }
   }
 
   // 2. 자동 발견 (첫 이름을 대표로 사용)
@@ -233,7 +241,7 @@ export async function ensureGameDomains(
     return { domains: [], source: "empty" };
   }
 
-  // 3. 캐시 저장
+  // 3. 캐시 저장 (upsert이므로 옛 캐시도 덮어쓰임)
   await saveGameRegistry({
     game_id: gameId,
     game_names: gameNames,
