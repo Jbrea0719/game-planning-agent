@@ -273,13 +273,48 @@ export default function ChatPage() {
     if (savedAnchorTime) setContextAnchorTimestamp(savedAnchorTime);
   }, [sessionId]);
 
-  // anchor 설정·해제 함수
+  // 맥락 카드 재생성 (특정 페어 범위 기준)
+  async function rebuildContextCard(forPairs: MessagePair[]) {
+    if (!sessionId) return;
+    if (forPairs.length === 0) return;
+    const lastPair = forPairs[forPairs.length - 1];
+    if (!lastPair.user?.content || !lastPair.assistant?.content) return;
+    try {
+      const res = await fetch("/api/context", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: lastPair.user.content,
+          answer: lastPair.assistant.content,
+          existingContext: "",  // anchor 변경 후 빈 상태에서 시작
+        }),
+      });
+      const data = await res.json();
+      if (data.context && sessionId) {
+        setAgentContext(data.context);
+        localStorage.setItem(`jordan_agent_context:${sessionId}`, data.context);
+      }
+    } catch (err) {
+      console.error("[맥락 카드 재생성] 실패:", err);
+    }
+  }
+
+  // anchor 설정·해제 함수 — 맥락 카드도 함께 재생성
   function setContextAnchor(pairId: string, timestamp: string) {
     if (!sessionId) return;
     setContextAnchorPairId(pairId);
     setContextAnchorTimestamp(timestamp);
     localStorage.setItem(`jordan_context_anchor_pair:${sessionId}`, pairId);
     localStorage.setItem(`jordan_context_anchor_time:${sessionId}`, timestamp);
+
+    // 맥락 카드 리셋 + anchor 이후 페어 기준으로 재생성
+    setAgentContext("");
+    localStorage.removeItem(`jordan_agent_context:${sessionId}`);
+    const anchorIdx = pairs.findIndex(p => p.pair_id === pairId);
+    if (anchorIdx >= 0) {
+      const afterAnchor = pairs.slice(anchorIdx).filter(p => !p.is_deleted);
+      void rebuildContextCard(afterAnchor);
+    }
   }
   function clearContextAnchor() {
     if (!sessionId) return;
@@ -287,6 +322,12 @@ export default function ChatPage() {
     setContextAnchorTimestamp(null);
     localStorage.removeItem(`jordan_context_anchor_pair:${sessionId}`);
     localStorage.removeItem(`jordan_context_anchor_time:${sessionId}`);
+
+    // 맥락 카드 리셋 + 전체 활성 페어 기준으로 재생성
+    setAgentContext("");
+    localStorage.removeItem(`jordan_agent_context:${sessionId}`);
+    const allActive = pairs.filter(p => !p.is_deleted);
+    void rebuildContextCard(allActive);
   }
 
   // 스트리밍 중 + 사용자가 스크롤 올리지 않았을 때만 자동 하단 이동
