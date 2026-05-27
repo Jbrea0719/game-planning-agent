@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import React from "react";
 import ReactMarkdown from "react-markdown";
 import DecisionPanel from "@/components/DecisionPanel";
+import DocumentView from "@/components/DocumentView";
 
 // 단일 프로젝트 고정 ID (Phase A — 추후 다중 프로젝트 지원 시 변경)
 const DEFAULT_PROJECT_ID = "00000000-0000-0000-0000-000000000001";
@@ -207,6 +208,10 @@ export default function ChatPage() {
   const [extractedNotice, setExtractedNotice] = useState<number | null>(null);
   // 보류된 결정 알림 (조던이 반대·우려)
   const [heldNotice, setHeldNotice] = useState<number | null>(null);
+  // 기획서 뷰
+  const [showDocumentView, setShowDocumentView] = useState(false);
+  const [docReloadKey, setDocReloadKey] = useState(0);
+  const [generatingDoc, setGeneratingDoc] = useState(false);
   // 답변 피드백 상태 — pair_id별로 'accurate' | 'inaccurate' | undefined
   const [feedbacks, setFeedbacks] = useState<Record<string, "accurate" | "inaccurate">>({});
   // 부정확 사유 입력 모달 (열린 pair_id)
@@ -738,6 +743,36 @@ export default function ChatPage() {
     setReasonInputText("");
   }
 
+  // ── 기획서 새 버전 생성 ────────────────────────────────────────────
+  async function handleGenerateDoc() {
+    if (generatingDoc) return;
+    setGeneratingDoc(true);
+    try {
+      const res = await fetch("/api/design-docs/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_id: DEFAULT_PROJECT_ID,
+          nickname: sessionId?.replace(/^agent:/, "") ?? null,
+        }),
+      });
+      const data = await res.json();
+      if (data.doc) {
+        // 트래커 닫고 기획서 뷰 열기 + reloadKey 갱신
+        setShowDecisionPanel(false);
+        setDocReloadKey(k => k + 1);
+        setShowDocumentView(true);
+      } else if (data.error) {
+        alert(`생성 실패: ${data.error}`);
+      }
+    } catch (err) {
+      console.error("[기획서 생성] 실패:", err);
+      alert("기획서 생성 중 오류가 발생했어요.");
+    } finally {
+      setGeneratingDoc(false);
+    }
+  }
+
   // 기획서 다운로드 (TXT — 마크다운 기호 제거)
   async function downloadDocTxt(content: string) {
     const clean = content
@@ -904,7 +939,29 @@ export default function ChatPage() {
         nickname={sessionId?.replace(/^agent:/, "") ?? ""}
         onCountChange={setDecisionCount}
         reloadKey={decisionReloadKey}
+        onGenerateDoc={handleGenerateDoc}
       />
+
+      {/* 기획서 보기 모드 (전체 화면) */}
+      <DocumentView
+        open={showDocumentView}
+        onClose={() => setShowDocumentView(false)}
+        projectId={DEFAULT_PROJECT_ID}
+        nickname={sessionId?.replace(/^agent:/, "") ?? ""}
+        reloadKey={docReloadKey}
+      />
+
+      {/* 기획서 생성 중 오버레이 */}
+      {generatingDoc && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>
+          <div className="px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3" style={{ backgroundColor: "#0f1628", border: "1px solid rgba(100,180,255,0.5)" }}>
+            <div className="w-5 h-5 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(100,180,255,0.3)", borderTopColor: "rgba(180,210,255,1)" }} />
+            <p className="text-sm" style={{ color: "rgba(180,210,255,1)" }}>
+              📄 기획서 생성 중... (10~30초 소요)
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* 자동 추출 알림 (5초 자동 사라짐) */}
       {extractedNotice !== null && (
@@ -1234,6 +1291,19 @@ export default function ChatPage() {
             }}
           >
             📋 결정사항 ({decisionCount})
+          </button>
+          {/* 기획서 보기 토글 */}
+          <button
+            onClick={() => setShowDocumentView(v => !v)}
+            className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
+            title="기획서 보기 — 결정사항으로 생성된 기획서 버전 열람·편집"
+            style={{
+              backgroundColor: showDocumentView ? "rgba(100,180,255,0.18)" : SILVER_FAINT,
+              border: `1px solid ${showDocumentView ? "rgba(100,180,255,0.6)" : SILVER_DIM}`,
+              color: showDocumentView ? "rgba(180,210,255,1)" : SILVER,
+            }}
+          >
+            📄 기획서
           </button>
           {/* 맥락 카드 버튼 — 카드가 있으면 초록 점 표시 */}
           <button

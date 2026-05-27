@@ -46,13 +46,15 @@ export default function DecisionPanel({
   nickname,
   onCountChange,
   reloadKey,
+  onGenerateDoc,
 }: {
   open: boolean;
   onClose: () => void;
   projectId: string;
   nickname: string;
   onCountChange?: (total: number) => void;
-  reloadKey?: number;  // 변경 시 결정사항 다시 fetch (외부 트리거)
+  reloadKey?: number;
+  onGenerateDoc?: () => void;   // 기획서 제작 버튼 클릭 시 호출 (부모가 실제 생성 처리)
 }) {
   const [categories, setCategories] = useState<MainCategoryItem[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
@@ -254,6 +256,22 @@ export default function DecisionPanel({
         >
           {showAddForm ? "취소" : "+ 새 결정"}
         </button>
+        {onGenerateDoc && (
+          <button
+            onClick={onGenerateDoc}
+            disabled={decisions.length === 0}
+            title={decisions.length === 0 ? "결정사항이 1개 이상 있어야 기획서 제작 가능" : "현재 누적된 결정사항으로 기획서 새 버전을 만듭니다"}
+            className="text-xs px-3 py-1.5 rounded-lg font-medium ml-auto"
+            style={{
+              backgroundColor: decisions.length === 0 ? SILVER_FAINT : "rgba(100,180,255,0.18)",
+              border: `1px solid ${decisions.length === 0 ? SILVER_DIM : "rgba(100,180,255,0.6)"}`,
+              color: decisions.length === 0 ? SILVER_DIM : "rgba(180,210,255,1)",
+              opacity: decisions.length === 0 ? 0.5 : 1,
+            }}
+          >
+            📄 기획서 제작
+          </button>
+        )}
       </div>
 
       {/* 추가 폼 */}
