@@ -237,9 +237,9 @@ export default function DecisionPanel({
       {/* 헤더 */}
       <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
         <div>
-          <p className="text-sm font-bold" style={{ color: SILVER }}>📋 결정사항 트래커</p>
+          <p className="text-sm font-bold" style={{ color: SILVER }}>📚 기획 바이블</p>
           <p className="text-xs mt-0.5" style={{ color: SILVER_DIM }}>
-            총 {decisions.length}개 누적{loading ? " (로딩 중...)" : ""}
+            총 {decisions.length}개 누적{loading ? " (로딩 중...)" : ""} · 모든 기획에 참고되는 기준 자산
           </p>
         </div>
         <button onClick={onClose} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>
@@ -254,24 +254,9 @@ export default function DecisionPanel({
           className="text-xs px-3 py-1.5 rounded-lg font-medium"
           style={{ backgroundColor: showAddForm ? SILVER_FAINT : "rgba(100,220,160,0.18)", border: `1px solid ${showAddForm ? SILVER_DIM : "rgba(100,220,160,0.5)"}`, color: showAddForm ? SILVER_DIM : "rgba(150,255,200,1)" }}
         >
-          {showAddForm ? "취소" : "+ 새 결정"}
+          {showAddForm ? "취소" : "+ 새 항목 추가"}
         </button>
-        {onGenerateDoc && (
-          <button
-            onClick={onGenerateDoc}
-            disabled={decisions.length === 0}
-            title={decisions.length === 0 ? "결정사항이 1개 이상 있어야 기획서 제작 가능" : "현재 누적된 결정사항으로 기획서 새 버전을 만듭니다"}
-            className="text-xs px-3 py-1.5 rounded-lg font-medium ml-auto"
-            style={{
-              backgroundColor: decisions.length === 0 ? SILVER_FAINT : "rgba(100,180,255,0.18)",
-              border: `1px solid ${decisions.length === 0 ? SILVER_DIM : "rgba(100,180,255,0.6)"}`,
-              color: decisions.length === 0 ? SILVER_DIM : "rgba(180,210,255,1)",
-              opacity: decisions.length === 0 ? 0.5 : 1,
-            }}
-          >
-            📄 기획서 제작
-          </button>
-        )}
+        {/* 기획서 제작 버튼은 헤더로 이동 — 트래커 안에서는 제거 (옵션 B) */}
       </div>
 
       {/* 추가 폼 */}
@@ -314,8 +299,8 @@ export default function DecisionPanel({
       <div className="flex-1 overflow-y-auto px-3 py-3" style={{ scrollbarWidth: "thin", scrollbarColor: `${SILVER_DIM} transparent` }}>
         {decisions.length === 0 && (
           <p className="text-xs text-center mt-6" style={{ color: SILVER_DIM }}>
-            아직 누적된 결정사항이 없어요.<br />
-            상단의 [+ 새 결정] 버튼으로 추가하세요.
+            아직 누적된 기획 바이블이 없어요.<br />
+            상단의 [+ 새 항목 추가] 버튼으로 추가하세요.
           </p>
         )}
 

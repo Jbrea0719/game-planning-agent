@@ -199,9 +199,13 @@ export default function ChatPage() {
   const [showContextModal, setShowContextModal] = useState(false);
   // 인라인 신뢰도 라벨 토글 (기본 OFF — 가독성 우선, localStorage에 저장)
   const [showCitations, setShowCitations] = useState(false);
-  // 결정사항 트래커 패널
+  // 결정사항 트래커 패널 (UI 명칭: 기획 바이블)
   const [showDecisionPanel, setShowDecisionPanel] = useState(false);
   const [decisionCount, setDecisionCount] = useState(0);
+  // 신규 항목 알림용 빨간 점 — 클릭 시 또는 2분 후 자동 사라짐
+  const [bibleNewBadge, setBibleNewBadge] = useState(false);
+  const prevDecisionCountRef = useRef(0);
+  const bibleBadgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 맥락 시작점 anchor — 이 시점 이후의 대화·결정사항만 조던에게 전달
   const [contextAnchorPairId, setContextAnchorPairId] = useState<string | null>(null);
   const [contextAnchorTimestamp, setContextAnchorTimestamp] = useState<string | null>(null);
@@ -233,6 +237,18 @@ export default function ChatPage() {
     if (typeof window === "undefined") return;
     localStorage.setItem("jordan_show_citations", String(showCitations));
   }, [showCitations]);
+
+  // 기획 바이블 카운트 증가 감지 → 빨간 점 ON + 2분 자동 해제
+  useEffect(() => {
+    const prev = prevDecisionCountRef.current;
+    if (decisionCount > prev && prev !== 0) {
+      // 첫 로드(0→N)는 제외, 실제 증가만 알림
+      setBibleNewBadge(true);
+      if (bibleBadgeTimerRef.current) clearTimeout(bibleBadgeTimerRef.current);
+      bibleBadgeTimerRef.current = setTimeout(() => setBibleNewBadge(false), 2 * 60 * 1000);
+    }
+    prevDecisionCountRef.current = decisionCount;
+  }, [decisionCount]);
   const [docContent, setDocContent] = useState("");
   const [docLoading, setDocLoading] = useState(false);
   const [showDocModal, setShowDocModal] = useState(false);
@@ -704,9 +720,22 @@ export default function ChatPage() {
   // ── 기획서 작성 관련 함수 ──
 
   function enterSelectMode() {
-    // 선택 모드 진입 시 활성 대화 전체 기본 선택
-    const allIds = new Set(activePairs.map((p) => p.pair_id));
-    setSelectedPairIds(allIds);
+    // 선택 모드 진입 시 기본 선택값:
+    // - 맥락선(anchor) 있으면 → 맥락선 이후(포함)만 체크, 윗쪽은 체크 해제
+    // - 맥락선 없으면 → 전체 체크
+    // 사용자는 윗쪽 추가/아랫쪽 제거를 자유롭게 조정 가능
+    let defaultIds: string[];
+    if (contextAnchorPairId) {
+      const anchorIdx = activePairs.findIndex(p => p.pair_id === contextAnchorPairId);
+      if (anchorIdx >= 0) {
+        defaultIds = activePairs.slice(anchorIdx).map(p => p.pair_id);
+      } else {
+        defaultIds = activePairs.map(p => p.pair_id);
+      }
+    } else {
+      defaultIds = activePairs.map(p => p.pair_id);
+    }
+    setSelectedPairIds(new Set(defaultIds));
     setSelectMode(true);
   }
 
@@ -742,7 +771,10 @@ export default function ChatPage() {
       const response = await fetch("/api/document", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: selectedMsgs }),
+        body: JSON.stringify({
+          messages: selectedMsgs,
+          project_id: DEFAULT_PROJECT_ID,  // 서버에서 기획 바이블 전체를 불러와 교차 검증
+        }),
       });
       if (!response.ok || !response.body) throw new Error("오류");
       const reader = response.body.getReader();
@@ -1050,7 +1082,7 @@ export default function ChatPage() {
           }}
         >
           <span>🤖</span>
-          <span><b>{extractedNotice}개</b>의 결정사항이 자동 추출됐어요</span>
+          <span><b>{extractedNotice}개</b> 항목이 기획 바이블에 자동 추가됐어요</span>
           <button
             onClick={() => { setExtractedNotice(null); setShowDecisionPanel(true); }}
             className="ml-2 text-xs px-2 py-0.5 rounded"
@@ -1323,17 +1355,30 @@ export default function ChatPage() {
           <p className="text-xs" style={{ color: SILVER_DIM }}>영웅수집형 게임 기획 전문가 · 다양한 영웅수집형 게임 분석 기반</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          {/* 기획서 작성 버튼 — 활성 대화가 있을 때만 표시 */}
+          {/* ① 대화 맥락 — 헤더 맨 앞 */}
+          <button
+            onClick={() => setShowContextModal(true)}
+            className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0 relative"
+            style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
+          >
+            🧠 대화 맥락
+            {agentContext && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ backgroundColor: "rgba(100,220,160,0.9)" }} />
+            )}
+          </button>
+
+          {/* ② 기획서 작성 + ③ 기획서 — 나란히 */}
           {activePairs.length > 0 && !selectMode && (
             <button
               onClick={enterSelectMode}
               className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
+              title="맥락 시작점 이하 대화를 중심으로, 기획 바이블도 교차 검증해서 기획서 생성"
               style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
             >
               📄 기획서 작성
             </button>
           )}
-          {/* 선택 모드 */}
+          {/* 선택 모드 (기획서 작성 위치) */}
           {selectMode && (
             <>
               <span className="text-xs" style={{ color: SILVER_DIM }}>{selectedPairIds.size}개 선택됨</span>
@@ -1354,12 +1399,25 @@ export default function ChatPage() {
               </button>
             </>
           )}
-          {/* 맥락 시작점 표시 — anchor 설정돼 있을 때만 */}
+          <button
+            onClick={() => setShowDocumentView(v => !v)}
+            className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
+            title="기획서 보기 — 생성된 기획서 버전 열람·편집"
+            style={{
+              backgroundColor: showDocumentView ? "rgba(100,180,255,0.18)" : SILVER_FAINT,
+              border: `1px solid ${showDocumentView ? "rgba(100,180,255,0.6)" : SILVER_DIM}`,
+              color: showDocumentView ? "rgba(180,210,255,1)" : SILVER,
+            }}
+          >
+            📄 기획서
+          </button>
+
+          {/* ④ 맥락 시작점 (anchor 있을 때) */}
           {contextAnchorPairId && (
             <button
               onClick={clearContextAnchor}
               className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
-              title="맥락 시작점 해제 — 전체 대화·결정사항을 다시 사용"
+              title="맥락 시작점 해제 — 전체 대화·기획 바이블을 다시 사용"
               style={{
                 backgroundColor: "rgba(255,200,100,0.15)",
                 border: "1px solid rgba(255,200,100,0.5)",
@@ -1369,48 +1427,12 @@ export default function ChatPage() {
               📌 맥락 시작점 ✕
             </button>
           )}
-          {/* 결정사항 트래커 토글 — 누적 개수 배지 */}
-          <button
-            onClick={() => setShowDecisionPanel(v => !v)}
-            className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
-            title="결정사항 트래커 — 대화에서 정해진 기획 결정을 누적 관리"
-            style={{
-              backgroundColor: showDecisionPanel ? "rgba(100,220,160,0.18)" : SILVER_FAINT,
-              border: `1px solid ${showDecisionPanel ? "rgba(100,220,160,0.6)" : SILVER_DIM}`,
-              color: showDecisionPanel ? "rgba(150,255,200,1)" : SILVER,
-            }}
-          >
-            📋 결정사항 ({decisionCount})
-          </button>
-          {/* 기획서 보기 토글 */}
-          <button
-            onClick={() => setShowDocumentView(v => !v)}
-            className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
-            title="기획서 보기 — 결정사항으로 생성된 기획서 버전 열람·편집"
-            style={{
-              backgroundColor: showDocumentView ? "rgba(100,180,255,0.18)" : SILVER_FAINT,
-              border: `1px solid ${showDocumentView ? "rgba(100,180,255,0.6)" : SILVER_DIM}`,
-              color: showDocumentView ? "rgba(180,210,255,1)" : SILVER,
-            }}
-          >
-            📄 기획서
-          </button>
-          {/* 맥락 카드 버튼 — 카드가 있으면 초록 점 표시 */}
-          <button
-            onClick={() => setShowContextModal(true)}
-            className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0 relative"
-            style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
-          >
-            🧠 대화 맥락
-            {agentContext && (
-              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ backgroundColor: "rgba(100,220,160,0.9)" }} />
-            )}
-          </button>
-          {/* 출처 라벨 토글 — 답변에 [공식 인용 — N개 일치] 같은 라벨 표시 여부 */}
+
+          {/* ⑤ 출처 표시 */}
           <button
             onClick={() => setShowCitations(v => !v)}
             className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
-            title="답변 문장에 출처·신뢰도 라벨 표시 여부 (예: '...추가됐어요 [언론 인용 — 4개 일치]')"
+            title="답변 문장에 출처·신뢰도 라벨 표시 여부"
             style={{
               backgroundColor: showCitations ? "rgba(100,220,160,0.18)" : SILVER_FAINT,
               border: `1px solid ${showCitations ? "rgba(100,220,160,0.7)" : SILVER_DIM}`,
@@ -1419,6 +1441,8 @@ export default function ChatPage() {
           >
             {showCitations ? "✅ 출처 표시 ON" : "🏷️ 출처 표시 OFF"}
           </button>
+
+          {/* ⑥ 참고 게임 */}
           <button
             onClick={() => setShowGameModal(true)}
             className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
@@ -1426,7 +1450,40 @@ export default function ChatPage() {
           >
             🎮 참고 게임
           </button>
-          {/* 관리자 전용: 정민만 게임 도메인 큐레이션 페이지 접근 가능 */}
+
+          {/* ⑦ 기획 바이블 — 책 아이콘, 텍스트 없음, (N) 개수, 신규 항목 빨간 점 */}
+          <button
+            onClick={() => {
+              setShowDecisionPanel(v => !v);
+              // 클릭 시 빨간 점 즉시 해제
+              if (bibleNewBadge) {
+                setBibleNewBadge(false);
+                if (bibleBadgeTimerRef.current) {
+                  clearTimeout(bibleBadgeTimerRef.current);
+                  bibleBadgeTimerRef.current = null;
+                }
+              }
+            }}
+            className="text-xs px-2.5 py-1.5 rounded-lg font-medium flex-shrink-0 relative flex items-center gap-1"
+            title="기획 바이블 — 결정·검토된 기획 자산을 누적 관리. 모든 기획서 작성 시 교차 참조"
+            style={{
+              backgroundColor: showDecisionPanel ? "rgba(100,220,160,0.18)" : SILVER_FAINT,
+              border: `1px solid ${showDecisionPanel ? "rgba(100,220,160,0.6)" : SILVER_DIM}`,
+              color: showDecisionPanel ? "rgba(150,255,200,1)" : SILVER,
+            }}
+          >
+            <span style={{ fontSize: "14px" }}>📚</span>
+            <span>({decisionCount})</span>
+            {bibleNewBadge && (
+              <span
+                className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full animate-pulse"
+                style={{ backgroundColor: "rgba(255,80,80,0.95)", boxShadow: "0 0 6px rgba(255,80,80,0.7)" }}
+                title="신규 항목 추가됨"
+              />
+            )}
+          </button>
+
+          {/* ⑧ 큐레이션 (관리자 전용) */}
           {sessionId?.replace(/^agent:/, "") === "정민" && (
             <button
               onClick={() => window.open("/admin/curation", "_blank")}
