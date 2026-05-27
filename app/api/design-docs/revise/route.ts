@@ -39,10 +39,10 @@ export async function POST(request: Request) {
       return Response.json({ error: "수정 요청 내용을 입력하세요" }, { status: 400 });
     }
 
-    // 1. 원본 doc 로드 (family_id 포함)
+    // 1. 원본 doc 로드 (family_id + 카테고리 포함)
     const { data: orig, error: loadErr } = await supabase
       .from("design_docs")
-      .select("id, project_id, doc_family_id, title, content_markdown, version_no")
+      .select("id, project_id, doc_family_id, title, content_markdown, version_no, category_main_id, category_area_code")
       .eq("id", doc_id)
       .maybeSingle();
 
@@ -113,6 +113,8 @@ export async function POST(request: Request) {
       .insert({
         project_id: orig.project_id,
         doc_family_id: familyId,  // 부모와 같은 family 유지
+        category_main_id: orig.category_main_id ?? null,  // 카테고리도 상속
+        category_area_code: orig.category_area_code ?? null,
         version_no: nextVersion,
         title: newTitle,
         content_markdown: revisedMd,

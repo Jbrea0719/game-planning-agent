@@ -16,6 +16,27 @@ interface DocMeta {
   changes_summary: string | null;
   created_at: string;
   created_by_nickname: string | null;
+  category_main_id: string | null;
+  category_area_code: string | null;
+}
+
+interface CategorySubItem {
+  id: string;
+  name_ko: string;
+  area_code: string | null;
+  area_name: string | null;
+}
+interface CategoryAreaItem {
+  code: string;
+  name: string;
+  sub_categories: CategorySubItem[];
+}
+interface CategoryMainItem {
+  id: string;
+  name_ko: string;
+  icon: string | null;
+  sub_categories?: CategorySubItem[];
+  areas?: CategoryAreaItem[];
 }
 
 interface DocFull extends DocMeta {
@@ -52,13 +73,89 @@ export default function DocumentView({
   const [showReviseModal, setShowReviseModal] = useState(false);
   const [reviseInstruction, setReviseInstruction] = useState("");
   const [revising, setRevising] = useState(false);
-  // 기획서 리스트 오버레이 패널 + family 펼침 상태
-  const [showDocList, setShowDocList] = useState(false);
+  // 기획서 리스트 오버레이 패널 — 진입 시 기본 ON
+  const [showDocList, setShowDocList] = useState(true);
+  // 카테고리 그룹 + family 펼침 상태 (둘 다 +/- 토글)
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
   const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
   // family 이름 변경 인라인 편집
   const [renamingFamilyId, setRenamingFamilyId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState("");
+  // family 카테고리 변경 모달
+  const [categorizingFamilyId, setCategorizingFamilyId] = useState<string | null>(null);
+  const [catPickMainId, setCatPickMainId] = useState<string>("");
+  const [catPickAreaCode, setCatPickAreaCode] = useState<string>("");
+  // 카테고리 트리 (DecisionPanel과 동일 소스)
+  const [categories, setCategories] = useState<CategoryMainItem[]>([]);
+  // 본 적 있는 doc id 추적 (per-doc 레드닷)
+  const [viewedDocIds, setViewedDocIds] = useState<Set<string>>(new Set());
   const bodyRef = useRef<HTMLDivElement>(null);
+
+  // 카테고리 트리 로드 (한 번)
+  useEffect(() => {
+    fetch("/api/categories")
+      .then(r => r.json())
+      .then(d => setCategories(d.main_categories ?? []))
+      .catch(err => console.error("[doc-view] 카테고리 로드 실패:", err));
+  }, []);
+
+  // viewedDocIds — localStorage 복원 (없으면 현재 전체 버전을 초기 viewed로)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = localStorage.getItem("jordan_doc_viewed_ids");
+    if (saved) {
+      try {
+        const arr = JSON.parse(saved) as string[];
+        setViewedDocIds(new Set(arr));
+      } catch { /* 무시 */ }
+    }
+  }, []);
+  // versions 로드된 직후, viewed가 비어있으면 (= 최초 사용자) 전부 viewed로 초기화
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (versions.length === 0) return;
+    const saved = localStorage.getItem("jordan_doc_viewed_ids");
+    if (!saved) {
+      const ids = versions.map(v => v.id);
+      const set = new Set(ids);
+      setViewedDocIds(set);
+      localStorage.setItem("jordan_doc_viewed_ids", JSON.stringify(ids));
+    }
+  }, [versions]);
+
+  // doc를 본 것으로 마킹
+  function markViewed(id: string) {
+    setViewedDocIds(prev => {
+      if (prev.has(id)) return prev;
+      const n = new Set(prev);
+      n.add(id);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("jordan_doc_viewed_ids", JSON.stringify(Array.from(n)));
+      }
+      return n;
+    });
+  }
+
+  // ── family 카테고리 변경 ─────────────────────────────────────────
+  async function submitCategorize() {
+    if (!categorizingFamilyId) return;
+    try {
+      await fetch("/api/design-docs/family/categorize", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          family_id: categorizingFamilyId,
+          main_id: catPickMainId || null,
+          area_code: catPickAreaCode || null,
+        }),
+      });
+      setCategorizingFamilyId(null);
+      setCatPickMainId(""); setCatPickAreaCode("");
+      await loadVersions();
+    } catch (err) {
+      console.error("[doc-view] 카테고리 변경 실패:", err);
+    }
+  }
 
   // ── family 이름 변경 ─────────────────────────────────────────────
   async function submitRename(familyId: string) {
@@ -105,7 +202,10 @@ export default function DocumentView({
     try {
       const res = await fetch(`/api/design-docs/${id}`);
       const data = await res.json();
-      if (data.doc) setCurrentDoc(data.doc as DocFull);
+      if (data.doc) {
+        setCurrentDoc(data.doc as DocFull);
+        markViewed(id);   // 본 것으로 기록 (레드닷 해제)
+      }
     } catch (err) {
       console.error("[doc-view] 단건 로드 실패:", err);
     }
@@ -114,12 +214,20 @@ export default function DocumentView({
   // 마운트·열림·reloadKey 변경 시 갱신
   useEffect(() => { if (open) void loadVersions(); }, [open, loadVersions]);
 
-  // versions 로드되면 모든 family를 기본 펼침으로
+  // versions 로드되면 모든 family + 카테고리를 기본 펼침으로
   useEffect(() => {
     if (versions.length === 0) return;
     setExpandedFamilies(prev => {
       const n = new Set(prev);
       for (const v of versions) n.add(v.doc_family_id ?? v.id);
+      return n;
+    });
+    setExpandedCats(prev => {
+      const n = new Set(prev);
+      for (const v of versions) {
+        const key = v.category_main_id ? `${v.category_main_id}::${v.category_area_code ?? ""}` : "__none__";
+        n.add(key);
+      }
       return n;
     });
   }, [versions]);
@@ -452,29 +560,80 @@ export default function DocumentView({
                     </p>
                   )}
                   {(() => {
-                    // family 단위로 그룹핑
-                    // 같은 doc_family_id를 가진 버전들끼리 묶음
+                    // 1. family 단위 그룹핑
                     const familyMap = new Map<string, DocMeta[]>();
                     for (const v of versions) {
                       const fid = v.doc_family_id ?? v.id;
                       if (!familyMap.has(fid)) familyMap.set(fid, []);
                       familyMap.get(fid)!.push(v);
                     }
-                    // 각 family의 버전을 version_no 내림차순으로
                     for (const arr of familyMap.values()) {
                       arr.sort((a, b) => b.version_no - a.version_no);
                     }
-                    // family 정렬: 최신 활동(가장 큰 created_at) 기준 내림차순
                     const families = Array.from(familyMap.entries()).map(([fid, docs]) => ({
                       familyId: fid,
                       docs,
                       latestAt: docs.reduce((m, d) => (d.created_at > m ? d.created_at : m), docs[0].created_at),
-                      // family 이름 = 최신 버전의 title
                       name: docs[0].title,
+                      mainId: docs[0].category_main_id,
+                      areaCode: docs[0].category_area_code,
                     }));
-                    families.sort((a, b) => (a.latestAt < b.latestAt ? 1 : -1));
 
-                    return families.map(fam => {
+                    // 2. 카테고리(Main > Area) 단위로 그룹핑
+                    // 키: `${mainId}::${areaCode ?? ""}` / 미분류는 "__none__"
+                    type Family = typeof families[number];
+                    const catMap = new Map<string, { mainId: string | null; areaCode: string | null; families: Family[] }>();
+                    for (const f of families) {
+                      const key = f.mainId ? `${f.mainId}::${f.areaCode ?? ""}` : "__none__";
+                      if (!catMap.has(key)) {
+                        catMap.set(key, { mainId: f.mainId, areaCode: f.areaCode, families: [] });
+                      }
+                      catMap.get(key)!.families.push(f);
+                    }
+                    // 카테고리 정렬: main → area 순, 미분류는 맨 뒤
+                    const catEntries = Array.from(catMap.entries()).map(([key, val]) => {
+                      const main = categories.find(m => m.id === val.mainId) ?? null;
+                      const areaName = main?.areas?.find(a => a.code === val.areaCode)?.name ?? null;
+                      const label = main
+                        ? (areaName ? `${main.icon ?? ""} ${main.name_ko} > ${areaName}` : `${main.icon ?? ""} ${main.name_ko}`)
+                        : "📂 분류 안 됨";
+                      val.families.sort((a, b) => (a.latestAt < b.latestAt ? 1 : -1));
+                      return { key, label, val };
+                    });
+                    catEntries.sort((a, b) => {
+                      if (a.key === "__none__") return 1;
+                      if (b.key === "__none__") return -1;
+                      return a.label.localeCompare(b.label, "ko");
+                    });
+
+                    return catEntries.map(({ key: catKey, label: catLabel, val: catVal }) => {
+                      const catOpen = expandedCats.has(catKey);
+                      const totalDocs = catVal.families.reduce((s, f) => s + f.docs.length, 0);
+                      return (
+                        <div key={catKey} className="mb-2">
+                          {/* 카테고리 헤더 (Main > Area) */}
+                          <button
+                            onClick={() =>
+                              setExpandedCats(prev => {
+                                const n = new Set(prev);
+                                if (n.has(catKey)) n.delete(catKey); else n.add(catKey);
+                                return n;
+                              })
+                            }
+                            className="w-full text-left text-xs px-2 py-1.5 rounded flex items-center justify-between font-bold"
+                            style={{ backgroundColor: "rgba(192,200,216,0.18)", color: SILVER }}
+                          >
+                            <span className="truncate">{catLabel}</span>
+                            <span className="flex items-center gap-1.5 flex-shrink-0">
+                              <span style={{ color: SILVER_DIM, fontWeight: 400 }}>{totalDocs}개</span>
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded text-base leading-none" style={{ backgroundColor: "rgba(255,255,255,0.06)", color: SILVER_DIM }}>
+                                {catOpen ? "−" : "+"}
+                              </span>
+                            </span>
+                          </button>
+
+                          {/* 카테고리 안의 family들 */}
+                          {catOpen && catVal.families.map(fam => {
                       const isOpen = expandedFamilies.has(fam.familyId);
                       const isRenaming = renamingFamilyId === fam.familyId;
                       return (
@@ -524,6 +683,19 @@ export default function DocumentView({
                                 >
                                   ✏️
                                 </button>
+                                {/* 카테고리 변경 아이콘 */}
+                                <button
+                                  onClick={() => {
+                                    setCategorizingFamilyId(fam.familyId);
+                                    setCatPickMainId(fam.mainId ?? "");
+                                    setCatPickAreaCode(fam.areaCode ?? "");
+                                  }}
+                                  title="카테고리 분류 변경"
+                                  className="text-xs px-1 py-0.5 rounded hover:bg-white/10"
+                                  style={{ color: SILVER_DIM }}
+                                >
+                                  📂
+                                </button>
                                 {/* +/− 토글 */}
                                 <button
                                   onClick={() =>
@@ -548,6 +720,7 @@ export default function DocumentView({
                             <div className="mt-1 ml-2 flex flex-col gap-0.5">
                               {fam.docs.map(d => {
                                 const active = d.id === currentDoc?.id;
+                                const isUnviewed = !viewedDocIds.has(d.id);
                                 return (
                                   <button
                                     key={d.id}
@@ -555,7 +728,7 @@ export default function DocumentView({
                                       void loadDoc(d.id);
                                       setShowDocList(false);
                                     }}
-                                    className="text-left text-xs px-2 py-1.5 rounded"
+                                    className="text-left text-xs px-2 py-1.5 rounded relative"
                                     style={{
                                       backgroundColor: active ? "rgba(100,180,255,0.18)" : "transparent",
                                       border: active ? "1px solid rgba(100,180,255,0.5)" : "1px solid transparent",
@@ -570,12 +743,22 @@ export default function DocumentView({
                                         {new Date(d.created_at).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })}
                                         {d.created_by_nickname && ` · ${d.created_by_nickname}`}
                                       </span>
+                                      {isUnviewed && (
+                                        <span
+                                          className="w-2 h-2 rounded-full ml-auto flex-shrink-0 animate-pulse"
+                                          title="아직 열어보지 않은 새 기획서"
+                                          style={{ backgroundColor: "rgba(255,80,80,0.95)", boxShadow: "0 0 4px rgba(255,80,80,0.6)" }}
+                                        />
+                                      )}
                                     </div>
                                   </button>
                                 );
                               })}
                             </div>
                           )}
+                        </div>
+                      );
+                    })}
                         </div>
                       );
                     });
@@ -616,6 +799,82 @@ export default function DocumentView({
           )}
         </div>
       </div>
+
+      {/* 카테고리 변경 모달 */}
+      {categorizingFamilyId && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(0,0,0,0.7)" }}
+          onClick={() => setCategorizingFamilyId(null)}
+        >
+          <div
+            className="rounded-2xl w-full max-w-sm shadow-2xl"
+            style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+              <span style={{ fontSize: "16px" }}>📂</span>
+              <p className="text-sm font-bold" style={{ color: SILVER }}>카테고리 분류</p>
+            </div>
+            <div className="px-5 py-4 flex flex-col gap-3">
+              {/* Main 선택 */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs" style={{ color: SILVER_DIM }}>대카테고리</label>
+                <select
+                  value={catPickMainId}
+                  onChange={(e) => { setCatPickMainId(e.target.value); setCatPickAreaCode(""); }}
+                  className="px-3 py-2 rounded-lg text-xs outline-none"
+                  style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+                >
+                  <option value="">(분류 안 됨)</option>
+                  {categories.map(m => (
+                    <option key={m.id} value={m.id}>
+                      {m.icon} {m.name_ko}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {/* Area 선택 (areas가 있는 main만 표시) */}
+              {(() => {
+                const currentMain = categories.find(m => m.id === catPickMainId);
+                if (!currentMain?.areas || currentMain.areas.length === 0) return null;
+                return (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs" style={{ color: SILVER_DIM }}>영역</label>
+                    <select
+                      value={catPickAreaCode}
+                      onChange={(e) => setCatPickAreaCode(e.target.value)}
+                      className="px-3 py-2 rounded-lg text-xs outline-none"
+                      style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+                    >
+                      <option value="">(영역 선택 안 함)</option>
+                      {currentMain.areas.map(a => (
+                        <option key={a.code} value={a.code}>{a.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })()}
+              <div className="flex gap-2 justify-end mt-1">
+                <button
+                  onClick={() => setCategorizingFamilyId(null)}
+                  className="text-xs px-4 py-2 rounded-lg"
+                  style={{ backgroundColor: SILVER_FAINT, color: SILVER }}
+                >
+                  취소
+                </button>
+                <button
+                  onClick={submitCategorize}
+                  className="text-xs px-4 py-2 rounded-lg font-bold"
+                  style={{ backgroundColor: "rgba(100,220,160,0.25)", border: "1px solid rgba(100,220,160,0.6)", color: "rgba(150,255,200,1)" }}
+                >
+                  적용
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 수정 요청 모달 */}
       {showReviseModal && (
