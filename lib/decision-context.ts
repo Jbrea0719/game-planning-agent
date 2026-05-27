@@ -32,14 +32,19 @@ interface MainCategoryInfo {
 // 토큰 비용 관리: 최대 80개까지만 포함 (최신순)
 export async function buildDecisionContext(
   projectId: string = DEFAULT_PROJECT_ID,
-  maxItems: number = 80
+  maxItems: number = 200,
+  anchorTime: string | null = null   // 이 시간 이후 created_at만 포함 (맥락 시작점)
 ): Promise<string> {
   try {
-    // 1. 결정사항 조회 (최신순)
-    const { data: decRaw } = await supabase
+    // 1. 결정사항 조회 (anchor 이후만, 최신순)
+    let query = supabase
       .from("decisions")
       .select("id, sub_category_id, content, confidence, created_at")
-      .eq("project_id", projectId)
+      .eq("project_id", projectId);
+    if (anchorTime) {
+      query = query.gte("created_at", anchorTime);
+    }
+    const { data: decRaw } = await query
       .order("created_at", { ascending: false })
       .limit(maxItems);
 

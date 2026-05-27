@@ -202,6 +202,9 @@ export default function ChatPage() {
   // 결정사항 트래커 패널
   const [showDecisionPanel, setShowDecisionPanel] = useState(false);
   const [decisionCount, setDecisionCount] = useState(0);
+  // 맥락 시작점 anchor — 이 시점 이후의 대화·결정사항만 조던에게 전달
+  const [contextAnchorPairId, setContextAnchorPairId] = useState<string | null>(null);
+  const [contextAnchorTimestamp, setContextAnchorTimestamp] = useState<string | null>(null);
   // reloadKey 증가 → DecisionPanel이 결정사항 다시 fetch (자동 추출 후 갱신)
   const [decisionReloadKey, setDecisionReloadKey] = useState(0);
   // 자동 추출 알림 (사용자에게 잠시 노출)
@@ -263,7 +266,28 @@ export default function ChatPage() {
     // 저장된 맥락 카드 복원 (세션별로 관리)
     const savedCtx = localStorage.getItem(`jordan_agent_context:${sessionId}`);
     if (savedCtx) setAgentContext(savedCtx);
+    // 저장된 맥락 anchor 복원
+    const savedAnchorPair = localStorage.getItem(`jordan_context_anchor_pair:${sessionId}`);
+    const savedAnchorTime = localStorage.getItem(`jordan_context_anchor_time:${sessionId}`);
+    if (savedAnchorPair) setContextAnchorPairId(savedAnchorPair);
+    if (savedAnchorTime) setContextAnchorTimestamp(savedAnchorTime);
   }, [sessionId]);
+
+  // anchor 설정·해제 함수
+  function setContextAnchor(pairId: string, timestamp: string) {
+    if (!sessionId) return;
+    setContextAnchorPairId(pairId);
+    setContextAnchorTimestamp(timestamp);
+    localStorage.setItem(`jordan_context_anchor_pair:${sessionId}`, pairId);
+    localStorage.setItem(`jordan_context_anchor_time:${sessionId}`, timestamp);
+  }
+  function clearContextAnchor() {
+    if (!sessionId) return;
+    setContextAnchorPairId(null);
+    setContextAnchorTimestamp(null);
+    localStorage.removeItem(`jordan_context_anchor_pair:${sessionId}`);
+    localStorage.removeItem(`jordan_context_anchor_time:${sessionId}`);
+  }
 
   // 스트리밍 중 + 사용자가 스크롤 올리지 않았을 때만 자동 하단 이동
   useEffect(() => {
@@ -381,8 +405,17 @@ export default function ChatPage() {
     if (!trimmed || isLoading) return;
     const pairId = crypto.randomUUID();
     const time = getTime();
+
+    // 맥락 anchor 적용 — 설정돼 있으면 그 시점 이후 pair만 컨텍스트로 전달
+    const visiblePairs = pairs.filter(p => !p.is_deleted);
+    let relevantPairs = visiblePairs;
+    if (contextAnchorPairId) {
+      const anchorIdx = visiblePairs.findIndex(p => p.pair_id === contextAnchorPairId);
+      if (anchorIdx >= 0) relevantPairs = visiblePairs.slice(anchorIdx);
+    }
+
     const allMessages = [
-      ...pairs.filter(p => !p.is_deleted).flatMap(p => [
+      ...relevantPairs.flatMap(p => [
         { role: p.user.role, content: p.user.content },
         { role: p.assistant.role, content: p.assistant.content },
       ]),
@@ -407,6 +440,7 @@ export default function ChatPage() {
           pair_id: pairId,
           agentContext,  // 롤링 맥락 카드 전달
           show_citations: showCitations,  // 인라인 신뢰도 라벨 토글
+          context_anchor_time: contextAnchorTimestamp,  // 결정사항 cutoff (이후 created_at만 사용)
         }),
         signal: controller.signal,
       });
@@ -1279,6 +1313,21 @@ export default function ChatPage() {
               </button>
             </>
           )}
+          {/* 맥락 시작점 표시 — anchor 설정돼 있을 때만 */}
+          {contextAnchorPairId && (
+            <button
+              onClick={clearContextAnchor}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
+              title="맥락 시작점 해제 — 전체 대화·결정사항을 다시 사용"
+              style={{
+                backgroundColor: "rgba(255,200,100,0.15)",
+                border: "1px solid rgba(255,200,100,0.5)",
+                color: "rgba(255,220,150,1)",
+              }}
+            >
+              📌 맥락 시작점 ✕
+            </button>
+          )}
           {/* 결정사항 트래커 토글 — 누적 개수 배지 */}
           <button
             onClick={() => setShowDecisionPanel(v => !v)}
@@ -1375,12 +1424,49 @@ export default function ChatPage() {
           )}
 
           {/* 활성 대화 쌍 */}
-          {activePairs.map((pair) => (
+          {(() => {
+            const anchorIdx = contextAnchorPairId
+              ? activePairs.findIndex(p => p.pair_id === contextAnchorPairId)
+              : -1;
+            return activePairs.map((pair, idx) => {
+              const isAnchor = pair.pair_id === contextAnchorPairId;
+              const isBeforeAnchor = anchorIdx >= 0 && idx < anchorIdx;
+              return (
             <div
               key={pair.pair_id}
               className={`space-y-3 group relative ${selectMode ? "cursor-pointer" : ""}`}
               onClick={selectMode ? () => togglePairSelect(pair.pair_id) : undefined}
+              style={{ opacity: isBeforeAnchor ? 0.4 : 1 }}
             >
+              {/* anchor 표시선 */}
+              {isAnchor && (
+                <div className="flex items-center gap-2 py-1" style={{ color: "rgba(255,200,100,0.9)" }}>
+                  <div className="flex-1" style={{ borderTop: "1px dashed rgba(255,200,100,0.6)" }} />
+                  <span className="text-xs font-medium flex items-center gap-1.5">
+                    📌 맥락 시작점 (이 시점부터 조던에게 전달됨)
+                    <button
+                      onClick={(e) => { e.stopPropagation(); clearContextAnchor(); }}
+                      className="text-xs px-1.5 py-0.5 rounded hover:bg-white/10"
+                      style={{ color: "rgba(255,200,100,0.8)" }}
+                      title="맥락 시작점 해제"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                  <div className="flex-1" style={{ borderTop: "1px dashed rgba(255,200,100,0.6)" }} />
+                </div>
+              )}
+              {/* 호버 시 anchor 설정 버튼 (이미 anchor면 표시 안 함) */}
+              {!isAnchor && !selectMode && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setContextAnchor(pair.pair_id, pair.timestamp ?? new Date().toISOString()); }}
+                  className="absolute -left-7 top-2 opacity-0 group-hover:opacity-100 transition-opacity text-xs rounded-full w-6 h-6 flex items-center justify-center"
+                  style={{ backgroundColor: "rgba(255,200,100,0.15)", border: "1px solid rgba(255,200,100,0.4)", color: "rgba(255,220,150,0.9)" }}
+                  title="이 시점부터 맥락 시작 (이전 대화·결정사항은 조던 컨텍스트에서 제외)"
+                >
+                  📌
+                </button>
+              )}
               {/* 선택 모드 체크박스 */}
               {selectMode && (
                 <div className="absolute -left-6 top-1 flex items-start">
@@ -1524,7 +1610,9 @@ export default function ChatPage() {
                 </div>
               </div>
             </div>
-          ))}
+              );
+            });
+          })()}
 
           {/* 스트리밍 중 */}
           {streamingPair && (

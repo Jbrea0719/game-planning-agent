@@ -1171,7 +1171,8 @@ async function runMultiAgentPipeline(
   recentMessages: { role: string; content: string }[],
   onChunk: (text: string) => void,
   detailed = false,
-  showCitations = false  // 인라인 신뢰도 라벨 노출 여부 (기본 OFF)
+  showCitations = false,  // 인라인 신뢰도 라벨 노출 여부 (기본 OFF)
+  contextAnchorTime: string | null = null  // 결정사항 cutoff (이후 created_at만 컨텍스트로)
 ): Promise<string> {
 
   // ── 검색 + 분석 (라우터 → 도메인 발견 → Claude 웹 검색 통합 흐름)
@@ -1181,7 +1182,8 @@ async function runMultiAgentPipeline(
   onChunk(`\n---\n\n`);
 
   // ── 누적 결정사항 컨텍스트 조회 (대화 일관성 유지)
-  const decisionContext = await buildDecisionContext();
+  // anchor 설정돼 있으면 그 시점 이후 결정만 컨텍스트로 포함
+  const decisionContext = await buildDecisionContext(undefined, 200, contextAnchorTime);
 
   // ── 조던 말투로 최종 답변 생성
   onChunk(`__JORDAN_ANSWER_START__`);
@@ -1333,13 +1335,14 @@ type Message = { role: "user" | "assistant"; content: string };
 
 export async function POST(request: Request) {
   try {
-    const { messages, session_id, pair_id, detailed, agentContext, show_citations } = (await request.json()) as {
+    const { messages, session_id, pair_id, detailed, agentContext, show_citations, context_anchor_time } = (await request.json()) as {
       messages: Message[];
       session_id?: string;
       pair_id?: string;
       detailed?: boolean;
       agentContext?: string;  // 롤링 맥락 카드 (클라이언트에서 관리)
       show_citations?: boolean;  // 인라인 신뢰도 라벨 노출 여부 (UI 토글)
+      context_anchor_time?: string | null;  // 결정사항 cutoff timestamp (맥락 시작점)
     };
 
     const userMessage = messages[messages.length - 1];
@@ -1357,7 +1360,8 @@ export async function POST(request: Request) {
             recentMessages,
             encode,
             detailed,
-            show_citations ?? false  // 기본값 OFF (가독성 우선)
+            show_citations ?? false,  // 기본값 OFF (가독성 우선)
+            context_anchor_time ?? null  // 결정사항 cutoff
           );
           // Supabase에 대화 저장
           if (session_id && pair_id) {
