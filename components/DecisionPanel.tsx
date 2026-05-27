@@ -103,6 +103,16 @@ export default function DecisionPanel({
     if (reloadKey !== undefined && reloadKey > 0) void loadDecisions();
   }, [reloadKey, loadDecisions]);
 
+  // ESC 키로 닫기
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, onClose]);
+
   // ── 결정사항 추가 ──────────────────────────────────────────────────
   async function submitNew() {
     if (!formContent.trim()) return;
@@ -206,14 +216,22 @@ export default function DecisionPanel({
   if (!open) return null;
 
   return (
-    <div
-      className="fixed top-0 right-0 h-full z-40 flex flex-col shadow-2xl"
-      style={{
-        width: "min(440px, 90vw)",
-        backgroundColor: "#0a0f1c",
-        borderLeft: `1px solid ${SILVER_FAINT}`,
-      }}
-    >
+    <>
+      {/* Backdrop — 패널 외부 클릭 시 닫힘 */}
+      <div
+        className="fixed inset-0 z-30"
+        style={{ backgroundColor: "rgba(0,0,0,0.3)" }}
+        onClick={onClose}
+      />
+
+      <div
+        className="fixed top-0 right-0 h-full z-40 flex flex-col shadow-2xl"
+        style={{
+          width: "min(440px, 90vw)",
+          backgroundColor: "#0a0f1c",
+          borderLeft: `1px solid ${SILVER_FAINT}`,
+        }}
+      >
       {/* 헤더 */}
       <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
         <div>
@@ -376,7 +394,8 @@ export default function DecisionPanel({
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
