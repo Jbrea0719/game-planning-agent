@@ -173,6 +173,33 @@ function AssistantMarkdown({ text }: { text: string }) {
   return <ReactMarkdown components={citationComponents}>{fixMarkdown(text)}</ReactMarkdown>;
 }
 
+// ── 헤더 버튼용 커스텀 툴팁 ──
+// 마우스 호버 시 버튼 아래쪽에 설명 팝업이 부드럽게 나타남
+function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
+  return (
+    <div className="relative group flex-shrink-0">
+      {children}
+      <span
+        className="pointer-events-none absolute top-full mt-2 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50"
+        style={{
+          backgroundColor: "rgba(15,25,40,0.97)",
+          border: "1px solid rgba(192,200,216,0.3)",
+          color: "#e0e8f0",
+          backdropFilter: "blur(8px)",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+          maxWidth: "240px",
+          minWidth: "max-content",
+          whiteSpace: "normal",
+          lineHeight: 1.45,
+          textAlign: "center",
+        }}
+      >
+        {text}
+      </span>
+    </div>
+  );
+}
+
 // 토큰 한도 초과로 잘린 경우 불완전한 마지막 줄 제거
 function cleanTruncated(text: string): string {
   let clean = text.replace("__TRUNCATED__", "").trimEnd();
@@ -1356,27 +1383,30 @@ export default function ChatPage() {
         </div>
         <div className="ml-auto flex items-center gap-2">
           {/* ① 대화 맥락 — 헤더 맨 앞 */}
-          <button
-            onClick={() => setShowContextModal(true)}
-            className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0 relative"
-            style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
-          >
-            🧠 대화 맥락
-            {agentContext && (
-              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ backgroundColor: "rgba(100,220,160,0.9)" }} />
-            )}
-          </button>
+          <Tooltip text="지금까지 대화의 핵심 맥락 요약. 답변마다 자동 갱신돼요">
+            <button
+              onClick={() => setShowContextModal(true)}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium relative"
+              style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
+            >
+              🧠 대화 맥락
+              {agentContext && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ backgroundColor: "rgba(100,220,160,0.9)" }} />
+              )}
+            </button>
+          </Tooltip>
 
           {/* ② 기획서 작성 + ③ 기획서 — 나란히 */}
           {activePairs.length > 0 && !selectMode && (
-            <button
-              onClick={enterSelectMode}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
-              title="맥락 시작점 이하 대화를 중심으로, 기획 바이블도 교차 검증해서 기획서 생성"
-              style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
-            >
-              📄 기획서 작성
-            </button>
+            <Tooltip text="맥락선 이하 대화를 중심으로, 기획 바이블도 교차 검증해서 새 기획서 생성">
+              <button
+                onClick={enterSelectMode}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
+              >
+                📄 기획서 작성
+              </button>
+            </Tooltip>
           )}
           {/* 선택 모드 (기획서 작성 위치) */}
           {selectMode && (
@@ -1399,105 +1429,111 @@ export default function ChatPage() {
               </button>
             </>
           )}
-          <button
-            onClick={() => setShowDocumentView(v => !v)}
-            className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
-            title="기획서 보기 — 생성된 기획서 버전 열람·편집"
-            style={{
-              backgroundColor: showDocumentView ? "rgba(100,180,255,0.18)" : SILVER_FAINT,
-              border: `1px solid ${showDocumentView ? "rgba(100,180,255,0.6)" : SILVER_DIM}`,
-              color: showDocumentView ? "rgba(180,210,255,1)" : SILVER,
-            }}
-          >
-            📄 기획서
-          </button>
+          <Tooltip text="생성된 기획서 버전을 열람·편집·내보내기">
+            <button
+              onClick={() => setShowDocumentView(v => !v)}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium"
+              style={{
+                backgroundColor: showDocumentView ? "rgba(100,180,255,0.18)" : SILVER_FAINT,
+                border: `1px solid ${showDocumentView ? "rgba(100,180,255,0.6)" : SILVER_DIM}`,
+                color: showDocumentView ? "rgba(180,210,255,1)" : SILVER,
+              }}
+            >
+              📄 기획서
+            </button>
+          </Tooltip>
 
           {/* ④ 맥락 시작점 (anchor 있을 때) */}
           {contextAnchorPairId && (
-            <button
-              onClick={clearContextAnchor}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
-              title="맥락 시작점 해제 — 전체 대화·기획 바이블을 다시 사용"
-              style={{
-                backgroundColor: "rgba(255,200,100,0.15)",
-                border: "1px solid rgba(255,200,100,0.5)",
-                color: "rgba(255,220,150,1)",
-              }}
-            >
-              📌 맥락 시작점 ✕
-            </button>
+            <Tooltip text="맥락 시작점 해제 — 전체 대화·기획 바이블을 다시 사용">
+              <button
+                onClick={clearContextAnchor}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                style={{
+                  backgroundColor: "rgba(255,200,100,0.15)",
+                  border: "1px solid rgba(255,200,100,0.5)",
+                  color: "rgba(255,220,150,1)",
+                }}
+              >
+                📌 맥락 시작점 ✕
+              </button>
+            </Tooltip>
           )}
 
           {/* ⑤ 출처 표시 */}
-          <button
-            onClick={() => setShowCitations(v => !v)}
-            className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
-            title="답변 문장에 출처·신뢰도 라벨 표시 여부"
-            style={{
-              backgroundColor: showCitations ? "rgba(100,220,160,0.18)" : SILVER_FAINT,
-              border: `1px solid ${showCitations ? "rgba(100,220,160,0.7)" : SILVER_DIM}`,
-              color: showCitations ? "rgba(150,255,200,1)" : SILVER,
-            }}
-          >
-            {showCitations ? "✅ 출처 표시 ON" : "🏷️ 출처 표시 OFF"}
-          </button>
+          <Tooltip text="답변 문장에 [공식 인용 — N개 일치] 같은 신뢰도 라벨 표시 여부">
+            <button
+              onClick={() => setShowCitations(v => !v)}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium"
+              style={{
+                backgroundColor: showCitations ? "rgba(100,220,160,0.18)" : SILVER_FAINT,
+                border: `1px solid ${showCitations ? "rgba(100,220,160,0.7)" : SILVER_DIM}`,
+                color: showCitations ? "rgba(150,255,200,1)" : SILVER,
+              }}
+            >
+              {showCitations ? "✅ 출처 표시 ON" : "🏷️ 출처 표시 OFF"}
+            </button>
+          </Tooltip>
 
           {/* ⑥ 참고 게임 */}
-          <button
-            onClick={() => setShowGameModal(true)}
-            className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
-            style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
-          >
-            🎮 참고 게임
-          </button>
-
-          {/* ⑦ 기획 바이블 — 책 아이콘, 텍스트 없음, (N) 개수, 신규 항목 빨간 점 */}
-          <button
-            onClick={() => {
-              setShowDecisionPanel(v => !v);
-              // 클릭 시 빨간 점 즉시 해제
-              if (bibleNewBadge) {
-                setBibleNewBadge(false);
-                if (bibleBadgeTimerRef.current) {
-                  clearTimeout(bibleBadgeTimerRef.current);
-                  bibleBadgeTimerRef.current = null;
-                }
-              }
-            }}
-            className="rounded-lg font-medium flex-shrink-0 relative flex items-center justify-center w-8 h-8"
-            title={`기획 바이블 (총 ${decisionCount}개) — 결정·검토된 기획 자산을 누적 관리. 모든 기획서 작성 시 교차 참조`}
-            style={{
-              backgroundColor: showDecisionPanel ? "rgba(100,220,160,0.18)" : SILVER_FAINT,
-              border: `1px solid ${showDecisionPanel ? "rgba(100,220,160,0.6)" : SILVER_DIM}`,
-              color: showDecisionPanel ? "rgba(150,255,200,1)" : SILVER,
-              fontSize: "14px",
-            }}
-          >
-            📚
-            {bibleNewBadge && (
-              <span
-                className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full animate-pulse"
-                style={{ backgroundColor: "rgba(255,80,80,0.95)", boxShadow: "0 0 6px rgba(255,80,80,0.7)" }}
-                title="신규 항목 추가됨"
-              />
-            )}
-          </button>
-
-          {/* ⑧ 큐레이션 (관리자 전용) */}
-          {sessionId?.replace(/^agent:/, "") === "정민" && (
+          <Tooltip text="조던이 분석에 활용하는 등록된 게임 라이브러리 (현재 11개)">
             <button
-              onClick={() => window.open("/admin/curation", "_blank")}
-              className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0"
-              title="게임 도메인 큐레이션 (관리자 전용)"
+              onClick={() => setShowGameModal(true)}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium"
+              style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
+            >
+              🎮 참고 게임
+            </button>
+          </Tooltip>
+
+          {/* ⑦ 기획 바이블 — 책 아이콘, 텍스트 없음, 신규 항목 빨간 점 */}
+          <Tooltip text={`기획 바이블 (현재 ${decisionCount}개) — 누적된 기획 결정 자산. 모든 기획서 작성 시 교차 참조`}>
+            <button
+              onClick={() => {
+                setShowDecisionPanel(v => !v);
+                // 클릭 시 빨간 점 즉시 해제
+                if (bibleNewBadge) {
+                  setBibleNewBadge(false);
+                  if (bibleBadgeTimerRef.current) {
+                    clearTimeout(bibleBadgeTimerRef.current);
+                    bibleBadgeTimerRef.current = null;
+                  }
+                }
+              }}
+              className="rounded-lg font-medium relative flex items-center justify-center w-8 h-8"
               style={{
-                backgroundColor: "rgba(255,200,100,0.15)",
-                border: "1px solid rgba(255,200,100,0.5)",
-                color: "rgba(255,220,150,1)",
+                backgroundColor: showDecisionPanel ? "rgba(100,220,160,0.18)" : SILVER_FAINT,
+                border: `1px solid ${showDecisionPanel ? "rgba(100,220,160,0.6)" : SILVER_DIM}`,
+                color: showDecisionPanel ? "rgba(150,255,200,1)" : SILVER,
                 fontSize: "14px",
               }}
             >
-              ⚙️
+              📚
+              {bibleNewBadge && (
+                <span
+                  className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full animate-pulse"
+                  style={{ backgroundColor: "rgba(255,80,80,0.95)", boxShadow: "0 0 6px rgba(255,80,80,0.7)" }}
+                />
+              )}
             </button>
+          </Tooltip>
+
+          {/* ⑧ 큐레이션 (관리자 전용) */}
+          {sessionId?.replace(/^agent:/, "") === "정민" && (
+            <Tooltip text="게임 도메인 큐레이션 (관리자 전용)">
+              <button
+                onClick={() => window.open("/admin/curation", "_blank")}
+                className="flex items-center justify-center w-8 h-8 rounded-lg"
+                style={{
+                  backgroundColor: "rgba(255,200,100,0.15)",
+                  border: "1px solid rgba(255,200,100,0.5)",
+                  color: "rgba(255,220,150,1)",
+                  fontSize: "14px",
+                }}
+              >
+                ⚙️
+              </button>
+            </Tooltip>
           )}
           {sessionId && (
             <span className="text-xs px-3 py-1 rounded-full" style={{ backgroundColor: SILVER_FAINT, border: `1px solid rgba(192,200,216,0.3)`, color: SILVER }}>{sessionId.replace(/^agent:/, "")}</span>
