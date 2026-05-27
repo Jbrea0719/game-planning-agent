@@ -1491,6 +1491,33 @@ export default function ChatPage() {
           <p className="text-xs" style={{ color: SILVER_DIM }}>영웅수집형 게임 기획 전문가 · 다양한 영웅수집형 게임 분석 기반</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          {/* ─── 선택 모드: 작성 컨트롤만 크게 표시, 다른 헤더 버튼은 숨김 ─── */}
+          {selectMode && (
+            <>
+              <span className="text-sm font-medium" style={{ color: SILVER }}>
+                <b style={{ color: "rgba(180,210,255,1)" }}>{selectedPairIds.size}개</b> 선택됨
+              </span>
+              <button
+                onClick={generateDocument}
+                disabled={selectedPairIds.size === 0}
+                className="text-sm px-4 py-2 rounded-lg font-bold disabled:opacity-40 whitespace-nowrap"
+                style={{ backgroundColor: SILVER, color: "#0a0e1a", boxShadow: "0 2px 8px rgba(192,200,216,0.3)" }}
+              >
+                ✓ 작성 시작
+              </button>
+              <button
+                onClick={cancelSelectMode}
+                className="text-sm px-4 py-2 rounded-lg font-medium whitespace-nowrap"
+                style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
+              >
+                취소
+              </button>
+            </>
+          )}
+
+          {/* ─── 일반 모드: 모든 헤더 버튼 표시 ─── */}
+          {!selectMode && (
+          <>
           {/* ① 맥락 시작점 — 헤더 맨 앞 (위치로 이동 / 없으면 안내) */}
           <Tooltip text={contextAnchorPairId ? "현재 맥락 시작점 위치로 이동" : "맥락 시작점이 설정돼 있지 않아요"}>
             <button
@@ -1534,8 +1561,8 @@ export default function ChatPage() {
             </button>
           </Tooltip>
 
-          {/* ② 기획서 작성 + ③ 기획서 — 나란히 */}
-          {activePairs.length > 0 && !selectMode && (
+          {/* ③ 기획서 작성 */}
+          {activePairs.length > 0 && (
             <Tooltip text="맥락선 이하 대화를 중심으로, 기획 바이블도 교차 검증해서 새 기획서 생성">
               <button
                 onClick={enterSelectMode}
@@ -1545,27 +1572,6 @@ export default function ChatPage() {
                 📄 기획서 작성
               </button>
             </Tooltip>
-          )}
-          {/* 선택 모드 (기획서 작성 위치) */}
-          {selectMode && (
-            <>
-              <span className="text-xs" style={{ color: SILVER_DIM }}>{selectedPairIds.size}개 선택됨</span>
-              <button
-                onClick={generateDocument}
-                disabled={selectedPairIds.size === 0}
-                className="text-xs px-3 py-1.5 rounded-lg font-medium disabled:opacity-40"
-                style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
-              >
-                ✓ 작성 시작
-              </button>
-              <button
-                onClick={cancelSelectMode}
-                className="text-xs px-3 py-1.5 rounded-lg"
-                style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}
-              >
-                취소
-              </button>
-            </>
           )}
           <Tooltip text="생성된 기획서 버전을 열람·편집·내보내기">
             <button
@@ -1676,6 +1682,8 @@ export default function ChatPage() {
           )}
           {sessionId && (
             <span className="text-xs px-3 py-1 rounded-full" style={{ backgroundColor: SILVER_FAINT, border: `1px solid rgba(192,200,216,0.3)`, color: SILVER }}>{sessionId.replace(/^agent:/, "")}</span>
+          )}
+          </>
           )}
         </div>
       </header>
