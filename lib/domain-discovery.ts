@@ -126,7 +126,15 @@ async function discoverDomainsViaSearch(gameName: string): Promise<DiscoveredDom
     const res = await client.messages.create({
       model: "claude-sonnet-4-5",
       max_tokens: 3000,
-      system: systemPrompt,
+      // Prompt Caching — 시스템 프롬프트가 게임마다 변하지 않으므로 캐시 효과 큼
+      // 게임 라이브러리 확장 시 연속 호출하면 첫 호출 후 90% 비용 절감
+      system: [
+        {
+          type: "text",
+          text: systemPrompt,
+          cache_control: { type: "ephemeral" },
+        },
+      ],
       tools: [
         {
           type: "web_search_20250305",
