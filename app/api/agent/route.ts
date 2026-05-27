@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { classifyQuestion, REGISTERED_GAMES, type RouteDecision } from "../router/route";
 import { ensureGameDomains, type DiscoveredDomain } from "@/lib/domain-discovery";
 import { extractAndSaveDecisions } from "@/lib/decision-extractor";
+import { buildDecisionContext } from "@/lib/decision-context";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -751,9 +752,9 @@ async function analyzeWithWebSearch(
   // 맥락 섹션 구성
   const contextSection = contextCard ? `\n\n[대화 맥락 카드]\n${contextCard}` : "";
   const recentSection = recentMessages.length > 0
-    ? `\n\n[직전 교환]\n${recentMessages.slice(-2).map(m =>
-        `${m.role === "user" ? "질문" : "조던"}: ${m.content.slice(0, 200)}`
-      ).join("\n")}`
+    ? `\n\n[직전 교환 — 최근 6개 메시지]\n${recentMessages.slice(-6).map(m =>
+        `${m.role === "user" ? "질문" : "조던"}: ${m.content.slice(0, 300)}`
+      ).join("\n\n")}`
     : "";
 
   const systemPrompt = `당신은 영웅수집형 게임 정보 수집·분석 전문 에이전트예요.
@@ -969,11 +970,11 @@ async function analyzeAgent(
     ? `\n\n[대화 맥락 카드 — 현재 무엇을 논의 중인지]\n${contextCard}\n`
     : "";
 
-  // ② 직전 메시지 2개 (즉각 follow-up 대응용 — "그게 뭐야?", "좀더 설명해줘" 등)
+  // ② 직전 메시지 6개 (대화 흐름 유지)
   const recentSection = recentMessages.length > 0
-    ? `\n[직전 교환]\n${recentMessages.slice(-2).map(m =>
-        `${m.role === "user" ? "질문" : "조던"}: ${m.content.slice(0, 200)}`
-      ).join("\n")}\n`
+    ? `\n[직전 교환 — 최근 6개]\n${recentMessages.slice(-6).map(m =>
+        `${m.role === "user" ? "질문" : "조던"}: ${m.content.slice(0, 300)}`
+      ).join("\n\n")}\n`
     : "";
 
   let messages: Anthropic.MessageParam[] = [{
@@ -1179,6 +1180,9 @@ async function runMultiAgentPipeline(
   const { analysis: analysisResult, route } = await analyzeWithWebSearch(userQuery, contextCard, recentMessages, onChunk);
   onChunk(`\n---\n\n`);
 
+  // ── 누적 결정사항 컨텍스트 조회 (대화 일관성 유지)
+  const decisionContext = await buildDecisionContext();
+
   // ── 조던 말투로 최종 답변 생성
   onChunk(`__JORDAN_ANSWER_START__`);
 
@@ -1190,12 +1194,22 @@ async function runMultiAgentPipeline(
 - 조던 자문 영역: ${route.needs_jordan_consulting}
 - 신뢰도: ${route.confidence}`;
 
-  const combinedContext = `${routeContext}\n\n[실시간 검색 데이터]\n${analysisResult}`;
+  // 누적 결정사항 + 라우터 분석 + 검색 데이터를 함께 전달
+  const decisionSection = decisionContext ? `\n\n${decisionContext}` : "";
+  const combinedContext = `${routeContext}${decisionSection}\n\n[실시간 검색 데이터]\n${analysisResult}`;
 
   // 공통 시스템 프롬프트 앞부분 (검색 결과 활용 지시 포함)
   const baseSystemPrompt = `당신의 이름은 조던(Jordan)이에요. 영웅수집형 모바일 게임 기획 전문가 AI예요.
 10년 이상 현장에서 게임을 만들어온 베테랑 디렉터의 시선으로 답변해요.
 직설적이고 실무 중심으로, "이 구조는 이래서 망합니다"처럼 솔직하게 말해줘요.
+
+[★ 매우 중요 — 누적 결정사항 일관성]
+사용자 메시지에 "[지금까지 누적된 기획 결정사항]" 섹션이 포함될 수 있어요.
+이는 사용자가 본 프로젝트에서 이미 결정·검토한 사항들이에요.
+- 이전 결정과 모순되는 답변을 하지 말 것 (예: "5등급 체계"로 결정됐는데 3등급 추천 X)
+- 이전 결정을 참조해 일관된 답변할 것 (예: "앞서 결정한 가챠 천장 90회를 고려하면...")
+- 이전 결정에 변경 의향이 있다면 사용자가 명시적으로 표명한 경우만 — 그 외에는 기존 결정 존중
+- 결정사항에 없는 영역은 자유롭게 자문 가능
 
 [중요 — 검색 데이터 활용]
 당신은 방금 Claude 네이티브 웹 검색을 통해 한국 게임 신뢰 사이트(인벤·게임메카·디스이즈게임·나무위키·디시·네이버 카페/뉴스 등)에서 실시간 정보를 수집했어요.
@@ -1329,8 +1343,8 @@ export async function POST(request: Request) {
     };
 
     const userMessage = messages[messages.length - 1];
-    // 직전 2개 메시지 (즉각 follow-up용 — 롤링 카드와 역할 구분)
-    const recentMessages = messages.slice(-3, -1);
+    // 직전 6개 메시지 (대화 흐름 유지 — 이전 2개에서 6개로 확장)
+    const recentMessages = messages.slice(-7, -1);
 
     const readable = new ReadableStream({
       async start(controller) {
