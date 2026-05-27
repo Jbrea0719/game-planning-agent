@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { tavily } from "@tavily/core";
 import { supabase } from "@/lib/supabase";
+import { classifyQuestion, REGISTERED_GAMES, type RouteDecision } from "../router/route";
+import { ensureGameDomains, type DiscoveredDomain } from "@/lib/domain-discovery";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -424,14 +426,67 @@ const KOREAN_GAME_TRUSTED_DOMAINS = [
   "bbs.ruliweb.com",
 ];
 
-// 질문 + 맥락 카드에서 매칭되는 게임 찾기
+// 질문 + 맥락 카드에서 매칭되는 게임 찾기 (정적 매칭 — 라우터 보조용)
 function findMatchingGame(userQuery: string, contextCard: string): { game: typeof GAME_COMMUNITIES[string]; gameKey: string } | null {
   const haystack = `${contextCard} ${userQuery}`.toLowerCase();
   const matched = Object.entries(GAME_COMMUNITIES)
     .filter(([key]) => haystack.includes(key.toLowerCase()))
-    .sort((a, b) => b[0].length - a[0].length); // 더 긴(정확한) 매칭 우선
+    .sort((a, b) => b[0].length - a[0].length);
   if (matched.length === 0) return null;
   return { game: matched[0][1], gameKey: matched[0][0] };
+}
+
+// 라우터가 반환한 game_id → GAME_COMMUNITIES의 수동 큐레이션 찾기
+// REGISTERED_GAMES.names를 매개로 두 데이터 구조 연결
+function getManualCurationByGameId(gameId: string): typeof GAME_COMMUNITIES[string] | null {
+  const registered = REGISTERED_GAMES.find(g => g.id === gameId);
+  if (!registered) return null;
+  for (const name of registered.names) {
+    const found = GAME_COMMUNITIES[name];
+    if (found) return found;
+  }
+  return null;
+}
+
+// 게임 ID들 → 도메인 리스트 + Discovered 객체 리스트 확보
+// 수동 큐레이션 > 캐시 > 자동 발견 순으로 처리
+async function resolveDomainsForGames(
+  gameIds: string[],
+  onProgress?: (text: string) => void
+): Promise<{ domains: string[]; discovered: DiscoveredDomain[]; sources: Record<string, string> }> {
+  const allDomains = new Set<string>();
+  const allDiscovered: DiscoveredDomain[] = [];
+  const sources: Record<string, string> = {};
+
+  for (const gameId of gameIds) {
+    const registered = REGISTERED_GAMES.find(g => g.id === gameId);
+    const gameNames = registered?.names ?? [gameId];
+    const manualCuration = getManualCurationByGameId(gameId);
+
+    const result = await ensureGameDomains(gameId, gameNames, {
+      manualCuration: manualCuration ? {
+        officialDomains: manualCuration.officialDomains,
+        officialUrlFilters: manualCuration.officialUrlFilters,
+        dcGalleryId: manualCuration.dcGalleryId,
+      } : null,
+    });
+
+    sources[gameId] = result.source;
+    onProgress?.(`  📚 **${gameNames[0]}** 도메인 확보: ${result.source} (${result.domains.length}개)\n`);
+
+    for (const d of result.domains) {
+      allDiscovered.push(d);
+      // URL의 도메인 부분만 추출
+      const domainOnly = d.url.split("/")[0];
+      if (domainOnly) allDomains.add(domainOnly);
+    }
+  }
+
+  return {
+    domains: Array.from(allDomains),
+    discovered: allDiscovered,
+    sources,
+  };
 }
 
 // ════════════════════════════════════════
@@ -443,26 +498,39 @@ async function analyzeWithWebSearch(
   contextCard: string = "",
   recentMessages: { role: string; content: string }[] = [],
   onProgress?: (text: string) => void
-): Promise<string> {
+): Promise<{ analysis: string; route: RouteDecision }> {
 
-  // 게임 매칭 → allowed_domains 구성
-  const matched = findMatchingGame(userQuery, contextCard);
-  const gameAllowed = matched
-    ? Array.from(new Set([
-        ...(matched.game.officialUrlFilters ?? []).map(f => f.split("/")[0]),  // 경로 제거하고 도메인만
-        ...matched.game.officialDomains,
-        ...KOREAN_GAME_TRUSTED_DOMAINS,
-      ]))
-    : KOREAN_GAME_TRUSTED_DOMAINS;
+  // ── Step 1: 라우터로 질문 분류 ──
+  onProgress?.(`  🧭 **라우터** 질문 분류 중...\n`);
+  // 타입 안전성: recentMessages role을 user/assistant로 캐스팅
+  const typedRecent = recentMessages.map(m => ({
+    role: (m.role === "user" ? "user" : "assistant") as "user" | "assistant",
+    content: m.content,
+  }));
+  const route = await classifyQuestion(userQuery, contextCard, typedRecent);
+  onProgress?.(`  ✅ 분류 완료 — target_games: ${JSON.stringify(route.target_games)}, web=${route.needs_web_search}, consulting=${route.needs_jordan_consulting} (신뢰도 ${route.confidence})\n`);
+  onProgress?.(`     이유: ${route.reasoning}\n`);
 
-  // 도메인 중복 제거 후 최종 리스트 (Anthropic 가이드: 너무 좁히지 말 것)
-  const allowedDomains = Array.from(new Set(gameAllowed.filter(d => d && d.length > 0)));
-
-  if (matched) {
-    onProgress?.(`  🎯 **${matched.gameKey}** 매칭 — 신뢰 도메인 ${allowedDomains.length}개로 제한\n`);
-  } else {
-    onProgress?.(`  🌐 일반 검색 — 한국 게임 신뢰 도메인 ${allowedDomains.length}개\n`);
+  // 조던 자문만 + 웹 검색 불필요 → 검색 skip, 빈 분석 반환 (Jordan이 페르소나로 답변)
+  if (!route.needs_web_search) {
+    onProgress?.(`  ⏭️ 웹 검색 불필요 — 조던 자문으로 직접 답변\n`);
+    return { analysis: "[검색 데이터 없음 — 조던 자문 영역]", route };
   }
+
+  // ── Step 2: 도메인 확보 (target_games 있으면 수동/캐시/자동 발견) ──
+  let gameDomains: string[] = [];
+  if (route.target_games.length > 0) {
+    const resolved = await resolveDomainsForGames(route.target_games, onProgress);
+    gameDomains = resolved.domains;
+  }
+
+  // 한국 게임 일반 신뢰 도메인 + 게임별 발견 도메인 통합
+  const allowedDomains = Array.from(new Set([
+    ...gameDomains,
+    ...KOREAN_GAME_TRUSTED_DOMAINS,
+  ].filter(d => d && d.length > 0)));
+
+  onProgress?.(`  🌐 검색 도메인 ${allowedDomains.length}개 확보 (게임 특화 ${gameDomains.length}개 + 일반 신뢰 ${KOREAN_GAME_TRUSTED_DOMAINS.length}개)\n`);
 
   // 맥락 섹션 구성
   const contextSection = contextCard ? `\n\n[대화 맥락 카드]\n${contextCard}` : "";
@@ -581,11 +649,11 @@ ${userQuery}`;
       .map(b => (b as Anthropic.TextBlock).text)
       .join("");
 
-    return textContent || "검색 완료 (분석 텍스트 없음)";
+    return { analysis: textContent || "검색 완료 (분석 텍스트 없음)", route };
   } catch (err) {
     console.error("[analyzeWithWebSearch] 오류:", err);
     onProgress?.(`  ❌ 웹 검색 실패: ${String(err).slice(0, 100)}\n`);
-    return `웹 검색 중 오류 발생: ${String(err)}`;
+    return { analysis: `웹 검색 중 오류 발생: ${String(err)}`, route };
   }
 }
 
@@ -844,16 +912,24 @@ async function runMultiAgentPipeline(
   detailed = false
 ): Promise<string> {
 
-  // ── 검색 + 분석 (Claude 네이티브 웹 검색)
-  onChunk(`\n🔍 **웹 검색 중** — Claude가 한국 게임 신뢰 사이트들을 검색하고 있어요...\n`);
-  // onChunk를 onProgress로 전달 → 검색 진행상황 + 출처 URL이 스트림에 실시간 노출됨
-  const analysisResult = await analyzeWithWebSearch(userQuery, contextCard, recentMessages, onChunk);
-  onChunk(`✅ 검색 완료\n\n---\n\n`);
+  // ── 검색 + 분석 (라우터 → 도메인 발견 → Claude 웹 검색 통합 흐름)
+  onChunk(`\n🔍 **통합 분석 시작**\n`);
+  // onChunk를 onProgress로 전달 → 라우팅·도메인·검색 진행상황이 스트림에 실시간 노출됨
+  const { analysis: analysisResult, route } = await analyzeWithWebSearch(userQuery, contextCard, recentMessages, onChunk);
+  onChunk(`✅ 분석 완료\n\n---\n\n`);
 
   // ── 조던 말투로 최종 답변 생성
   onChunk(`__JORDAN_ANSWER_START__`);
 
-  const combinedContext = `[실시간 검색 데이터]\n${analysisResult}`;
+  // 라우터 결정 정보를 Jordan 답변에 활용 가능하게 포함
+  const routeContext = `[라우터 분석]
+- 대상 게임: ${route.target_games.length > 0 ? route.target_games.join(", ") : "없음 (일반 질문)"}
+- 질문 유형: ${route.question_type}
+- 웹 검색 사용: ${route.needs_web_search}
+- 조던 자문 영역: ${route.needs_jordan_consulting}
+- 신뢰도: ${route.confidence}`;
+
+  const combinedContext = `${routeContext}\n\n[실시간 검색 데이터]\n${analysisResult}`;
 
   // 공통 시스템 프롬프트 앞부분 (검색 결과 활용 지시 포함)
   const baseSystemPrompt = `당신의 이름은 조던(Jordan)이에요. 영웅수집형 모바일 게임 기획 전문가 AI예요.
