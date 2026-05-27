@@ -980,7 +980,8 @@ async function runMultiAgentPipeline(
   contextCard: string,
   recentMessages: { role: string; content: string }[],
   onChunk: (text: string) => void,
-  detailed = false
+  detailed = false,
+  showCitations = false  // 인라인 신뢰도 라벨 노출 여부 (기본 OFF)
 ): Promise<string> {
 
   // ── 검색 + 분석 (라우터 → 도메인 발견 → Claude 웹 검색 통합 흐름)
@@ -1028,7 +1029,7 @@ async function runMultiAgentPipeline(
 3. 부분만 아는 사실은 → 아는 부분만 답하고 나머지는 "이 부분은 확인 안 됨" 명시
 4. 추측·일반론으로 메우지 말 것. 모르면 모른다고 할 것.
 
-[인라인 신뢰도 라벨링 — 매 사실마다 출처 표시]
+${showCitations ? `[인라인 신뢰도 라벨링 — 매 사실마다 출처 표시]
 검색 데이터에서 각 사실의 "출처 등급"과 "일치 출처 수"를 보고, 답변에 다음 형식으로 인용 라벨을 붙여요:
 
 - **공식 출처 사실**: \`[공식 인용]\` (게임 라운지·공식 홈페이지)
@@ -1052,13 +1053,25 @@ async function runMultiAgentPipeline(
 📊 **종합 신뢰도**: 사실 N건 (다중 출처 일치 N건 / 단일 출처 N건 / 미확인 N건)
 📚 **참고 출처**: {주요 출처명 나열}
 
-500자 이내 일반 답변은 푸터 생략 (대신 인라인 라벨은 유지).
+500자 이내 일반 답변은 푸터 생략 (대신 인라인 라벨은 유지).` : `[가독성 우선 모드 — 인라인 라벨 사용 안 함]
+검색 데이터의 사실은 정확히 활용하되, 답변 본문에 [공식 인용] 같은 인라인 라벨은 절대 붙이지 마세요.
+자연스러운 한국어 문장으로 작성해요. 출처가 궁금하면 사용자가 토글로 라벨 모드를 켤 수 있어요.
+
+다만 정확성 원칙은 그대로 적용:
+- 단일 출처만 있는 정보는 본문에 "한 곳에서만 확인된 정보인데요" 같이 자연스럽게 언급
+- 미확인 정보는 "이 부분은 확인되지 않았어요" 식으로 솔직히 표시
+- 답변 끝에 "참고 출처: 인벤, 게임메카, 디시 마이너갤 등" 한 줄만 간결하게 명시 (자세한 답변일 때만)
+
+예시:
+"5월 14일 1주년 업데이트로 칼 헤론이 추가됐어요. 전설 등급의 공격형 영웅이고요.
+유저들 평가는 긍정적인 편이에요. 다만 메타 의존적이라는 우려도 일부 있어요.
+
+(자세한 답변 끝부분) 참고 출처: 인벤, 게임메카, 디시 마이너갤"`}
 
 말투:
 - "~이에요", "~거든요", "~죠" 같은 친근한 말투를 사용해요
 - 핵심 단어는 **굵게** 강조해요
-- 의견 영역(조던 자문)에서는 "제 견해로는" 이라고 명시해요
-- 사실 영역에서는 라벨로 정확성을 표시 (위 가이드)`;
+- 의견 영역(조던 자문)에서는 "제 견해로는" 이라고 명시해요`;
 
   const finalRes = await client.messages.create({
     model: "claude-sonnet-4-5",
@@ -1109,12 +1122,13 @@ type Message = { role: "user" | "assistant"; content: string };
 
 export async function POST(request: Request) {
   try {
-    const { messages, session_id, pair_id, detailed, agentContext } = (await request.json()) as {
+    const { messages, session_id, pair_id, detailed, agentContext, show_citations } = (await request.json()) as {
       messages: Message[];
       session_id?: string;
       pair_id?: string;
       detailed?: boolean;
       agentContext?: string;  // 롤링 맥락 카드 (클라이언트에서 관리)
+      show_citations?: boolean;  // 인라인 신뢰도 라벨 노출 여부 (UI 토글)
     };
 
     const userMessage = messages[messages.length - 1];
@@ -1131,7 +1145,8 @@ export async function POST(request: Request) {
             agentContext ?? "",
             recentMessages,
             encode,
-            detailed
+            detailed,
+            show_citations ?? false  // 기본값 OFF (가독성 우선)
           );
           // Supabase에 대화 저장
           if (session_id && pair_id) {

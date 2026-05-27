@@ -119,6 +119,8 @@ export default function ChatPage() {
   // 롤링 맥락 카드 — 항상 3줄, 새 답변마다 백그라운드로 교체
   const [agentContext, setAgentContext] = useState("");
   const [showContextModal, setShowContextModal] = useState(false);
+  // 인라인 신뢰도 라벨 토글 (기본 OFF — 가독성 우선)
+  const [showCitations, setShowCitations] = useState(false);
   const [docContent, setDocContent] = useState("");
   const [docLoading, setDocLoading] = useState(false);
   const [showDocModal, setShowDocModal] = useState(false);
@@ -237,6 +239,7 @@ export default function ChatPage() {
           session_id: sessionId,
           pair_id: pairId,
           agentContext,  // 롤링 맥락 카드 전달
+          show_citations: showCitations,  // 인라인 신뢰도 라벨 토글
         }),
         signal: controller.signal,
       });
@@ -866,6 +869,19 @@ export default function ChatPage() {
             {agentContext && (
               <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ backgroundColor: "rgba(100,220,160,0.9)" }} />
             )}
+          </button>
+          {/* 출처 라벨 토글 — 답변에 [공식 인용 — N개 일치] 같은 라벨 표시 여부 */}
+          <button
+            onClick={() => setShowCitations(v => !v)}
+            className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
+            title="답변 문장에 출처·신뢰도 라벨 표시 여부 (예: '...추가됐어요 [언론 인용 — 4개 일치]')"
+            style={{
+              backgroundColor: showCitations ? "rgba(100,220,160,0.18)" : SILVER_FAINT,
+              border: `1px solid ${showCitations ? "rgba(100,220,160,0.7)" : SILVER_DIM}`,
+              color: showCitations ? "rgba(150,255,200,1)" : SILVER,
+            }}
+          >
+            {showCitations ? "✅ 출처 라벨 ON" : "🏷️ 출처 라벨 OFF"}
           </button>
           <button
             onClick={() => setShowGameModal(true)}
