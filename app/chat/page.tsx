@@ -1245,13 +1245,14 @@ export default function ChatPage() {
               <section>
                 <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🛠️ 헤더 도구 (좌 → 우)</p>
                 <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
+                  <p><b style={{ color: SILVER }}>📌 맥락 시작점</b> — 클릭하면 현재 설정된 맥락선 위치로 스크롤 + 노란 하이라이트. 설정 안 돼 있으면 <i>"맥락선이 없습니다"</i> 토스트. 설정/해제는 본문 안에서.</p>
                   <p><b style={{ color: SILVER }}>🧠 대화 맥락</b> — 지금까지 대화의 핵심을 3줄 요약. 답변마다 자동 갱신돼서 조던이 일관성을 유지해요.</p>
                   <p><b style={{ color: SILVER }}>📄 기획서 작성</b> — 맥락선 이하 대화를 중심으로 + 기획 바이블 전체와 교차 검증해서 새 기획서 생성. 체크박스로 대상 대화 가감 가능.</p>
                   <p><b style={{ color: SILVER }}>📄 기획서</b> — 지금까지 생성한 기획서 버전 열람·편집·다운로드 (MD/TXT).</p>
-                  <p><b style={{ color: SILVER }}>📌 맥락 시작점</b> — 답변 옆 호버 시 나타나는 압정으로 설정. 이 시점 이후 대화·바이블만 조던에게 전달돼 토큰 절약 + 새 주제 집중. 헤더 ✕로 해제.</p>
                   <p><b style={{ color: SILVER }}>🏷️ 출처 표시</b> — 답변에 [공식 인용 — 4개 일치] 같은 신뢰도 라벨 표시 ON/OFF.</p>
                   <p><b style={{ color: SILVER }}>🎮 참고 게임</b> — 조던이 검색·분석할 때 신뢰하는 등록 게임 11종과 각 게임의 신뢰 출처 목록.</p>
-                  <p><b style={{ color: SILVER }}>📚 기획 바이블</b> — 누적된 모든 기획 결정 자산. 모든 기획서 작성에 자동 참조. 신규 항목 추가 시 빨간 점.</p>
+                  <p><b style={{ color: SILVER }}>📖 가이드</b> — 지금 보고 있는 이 화면. 조던의 모든 기능을 한눈에 정리. 기능이 바뀌면 자동 갱신.</p>
+                  <p><b style={{ color: SILVER }}>📚 기획 바이블</b> — 누적된 모든 기획 결정 자산. 모든 기획서 작성에 자동 참조. 신규 항목 추가 시 빨간 점(클릭/2분 뒤 해제).</p>
                 </div>
               </section>
 
@@ -1262,7 +1263,7 @@ export default function ChatPage() {
                   <p><b style={{ color: SILVER }}>▼ 자세한 답변 보기</b> — 같은 질문에 대해 더 깊이 있는 확장 설명 요청.</p>
                   <p><b style={{ color: SILVER }}>📋 디렉터 검토 의견</b> — 검토 에이전트가 본 답변에 대해 짚은 보완점·우려 사항.</p>
                   <p><b style={{ color: SILVER }}>👍 정확함 / 👎 부정확</b> — 피드백 저장. 부정확은 사유 입력 가능 → 차후 품질 개선에 활용.</p>
-                  <p><b style={{ color: SILVER }}>📌 호버 압정</b> — 이 시점부터 맥락 시작점으로 지정.</p>
+                  <p><b style={{ color: SILVER }}>📌 호버 압정</b> — 답변 좌측에 호버 시 나타남. 이 시점부터 맥락 시작점으로 지정. 본문 내 맥락선 ✕로 해제.</p>
                   <p><b style={{ color: SILVER }}>복사·삭제</b> — 답변 우상단 ⎘ 복사 / 호버 시 삭제. 삭제된 대화는 하단에서 복원 가능.</p>
                 </div>
               </section>
