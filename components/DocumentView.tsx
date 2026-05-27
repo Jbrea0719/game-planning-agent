@@ -377,18 +377,10 @@ export default function DocumentView({
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <p className="text-sm font-bold flex-shrink-0" style={{ color: SILVER }}>📄 기획서</p>
           {currentDoc && (
-            <>
-              <span className="text-sm font-medium" style={{ color: "rgba(180,210,255,1)" }}>
-                v{currentDoc.version_no}
-              </span>
-              <span className="text-sm truncate" style={{ color: SILVER }}>
-                {currentDoc.title}
-              </span>
-              <span className="text-xs" style={{ color: SILVER_DIM }}>
-                · {new Date(currentDoc.created_at).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}
-                {currentDoc.created_by_nickname && ` · ${currentDoc.created_by_nickname}`}
-              </span>
-            </>
+            <span className="text-xs" style={{ color: SILVER_DIM }}>
+              {new Date(currentDoc.created_at).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}
+              {currentDoc.created_by_nickname && ` · ${currentDoc.created_by_nickname}`}
+            </span>
           )}
         </div>
 
@@ -497,6 +489,20 @@ export default function DocumentView({
                 <span style={{ color: SILVER_DIM, fontWeight: 400 }}>({versions.length})</span>
               </button>
             </div>
+
+            {/* 현재 보고 있는 기획서 제목 — 리스트 버튼과 목차 사이 */}
+            {currentDoc && (
+              <div className="px-3 py-2.5 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+                <div className="flex items-baseline gap-2 min-w-0">
+                  <span className="text-xs font-bold flex-shrink-0" style={{ color: "rgba(180,210,255,1)" }}>
+                    v{currentDoc.version_no}
+                  </span>
+                  <span className="text-sm font-bold truncate" style={{ color: SILVER }} title={currentDoc.title}>
+                    {currentDoc.title}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* 목차 영역 */}
             {toc.length > 0 && (
