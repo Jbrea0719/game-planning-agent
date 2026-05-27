@@ -1476,13 +1476,10 @@ export default function ChatPage() {
           <Tooltip text="지금까지 대화의 핵심 맥락 요약. 답변마다 자동 갱신돼요">
             <button
               onClick={() => setShowContextModal(true)}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium relative"
+              className="text-xs px-3 py-1.5 rounded-lg font-medium"
               style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
             >
               🧠 대화 맥락
-              {agentContext && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ backgroundColor: "rgba(100,220,160,0.9)" }} />
-              )}
             </button>
           </Tooltip>
 
