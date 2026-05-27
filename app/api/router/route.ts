@@ -11,7 +11,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // 등록된 게임 목록 (KB 보유 여부)
 // 게임 추가 시 여기에 등록 → 라우터가 인식 가능
-const REGISTERED_GAMES: { id: string; names: string[]; has_kb: boolean }[] = [
+export const REGISTERED_GAMES: { id: string; names: string[]; has_kb: boolean }[] = [
   {
     id: "sena_rebirth",
     names: ["세븐나이츠 리버스", "세나리", "세반리", "seven knights reverse"],
@@ -79,6 +79,64 @@ confidence:
 
 reasoning: "왜 이렇게 판단했는지" 한국어 한 문장`;
 
+// ════════════════════════════════════════
+// 라우팅 핵심 로직 (export — POST 핸들러 + test-router에서 공유)
+// ════════════════════════════════════════
+export async function classifyQuestion(
+  question: string,
+  contextCard?: string,
+  recentMessages?: Message[]
+): Promise<RouteDecision> {
+  // 맥락 구성
+  const contextSection = contextCard ? `\n\n[대화 맥락 카드]\n${contextCard}` : "";
+  const recentSection = recentMessages && recentMessages.length > 0
+    ? `\n\n[직전 교환]\n${recentMessages.slice(-2).map(m =>
+        `${m.role === "user" ? "질문" : "답변"}: ${m.content.slice(0, 200)}`
+      ).join("\n")}`
+    : "";
+
+  const userContent = `${contextSection}${recentSection}\n\n[현재 질문]\n${question}`;
+
+  const res = await client.messages.create({
+    model: "claude-haiku-4-5",
+    max_tokens: 500,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: "user", content: userContent }],
+  });
+
+  // JSON 추출
+  const text = res.content
+    .filter(b => b.type === "text")
+    .map(b => (b as Anthropic.TextBlock).text)
+    .join("")
+    .trim();
+
+  // JSON 파싱 (Haiku가 가끔 ```json 같은 펜스를 추가할 수 있어 정제)
+  const cleaned = text
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
+
+  try {
+    return JSON.parse(cleaned) as RouteDecision;
+  } catch (parseErr) {
+    console.error("[router] JSON 파싱 실패:", parseErr, "원문:", text);
+    // 안전한 폴백: 조던 자문 + 웹 검색
+    return {
+      target_games: [],
+      needs_web_search: true,
+      needs_jordan_consulting: true,
+      question_type: "mixed",
+      confidence: 0,
+      reasoning: "라우터 JSON 파싱 실패 — 안전 폴백",
+    };
+  }
+}
+
+// ════════════════════════════════════════
+// POST 핸들러 (HTTP 엔드포인트로 외부 호출도 가능하게)
+// ════════════════════════════════════════
 export async function POST(request: Request) {
   try {
     const { question, contextCard, recentMessages } = (await request.json()) as {
@@ -91,53 +149,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "question 필수" }, { status: 400 });
     }
 
-    // 맥락 구성
-    const contextSection = contextCard ? `\n\n[대화 맥락 카드]\n${contextCard}` : "";
-    const recentSection = recentMessages && recentMessages.length > 0
-      ? `\n\n[직전 교환]\n${recentMessages.slice(-2).map(m =>
-          `${m.role === "user" ? "질문" : "답변"}: ${m.content.slice(0, 200)}`
-        ).join("\n")}`
-      : "";
-
-    const userContent = `${contextSection}${recentSection}\n\n[현재 질문]\n${question}`;
-
-    const res = await client.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 500,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userContent }],
-    });
-
-    // JSON 추출
-    const text = res.content
-      .filter(b => b.type === "text")
-      .map(b => (b as Anthropic.TextBlock).text)
-      .join("")
-      .trim();
-
-    // JSON 파싱 (Haiku가 가끔 ```json 같은 펜스를 추가할 수 있어 정제)
-    const cleaned = text
-      .replace(/^```json\s*/i, "")
-      .replace(/^```\s*/i, "")
-      .replace(/```\s*$/i, "")
-      .trim();
-
-    let decision: RouteDecision;
-    try {
-      decision = JSON.parse(cleaned);
-    } catch (parseErr) {
-      console.error("[router] JSON 파싱 실패:", parseErr, "원문:", text);
-      // 안전한 폴백: 조던 자문 + 웹 검색
-      decision = {
-        target_games: [],
-        needs_web_search: true,
-        needs_jordan_consulting: true,
-        question_type: "mixed",
-        confidence: 0,
-        reasoning: "라우터 JSON 파싱 실패 — 안전 폴백",
-      };
-    }
-
+    const decision = await classifyQuestion(question, contextCard, recentMessages);
     return Response.json(decision);
   } catch (err) {
     console.error("[router] 오류:", err);

@@ -1,8 +1,10 @@
 // 라우터 테스트 엔드포인트 — 다양한 샘플 질문으로 라우팅 정확도 검증
 // 사용: /api/test-router  (기본 20개 샘플 질문 자동 테스트)
 //      /api/test-router?q=원하는질문  (단일 질문 테스트)
+//
+// 같은 프로세스에서 classifyQuestion을 직접 호출 (Vercel 인증 보호 우회)
 
-import type { RouteDecision } from "../router/route";
+import { classifyQuestion, type RouteDecision } from "../router/route";
 
 const TEST_CASES: { question: string; expected: string }[] = [
   // 게임 사실 질문
@@ -46,22 +48,9 @@ const TEST_CASES: { question: string; expected: string }[] = [
   { question: "세나리 1주년 업데이트 내용 + 유저들 평가", expected: "sena_rebirth + 웹 + 디시, mixed" },
 ];
 
-async function callRouter(question: string, contextCard?: string): Promise<RouteDecision | { error: string }> {
+async function runOne(question: string, contextCard?: string): Promise<RouteDecision | { error: string }> {
   try {
-    const url = new URL("/api/router", "http://localhost:3000");
-    // production에선 같은 host 호출 (Vercel)
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-    const fullUrl = `${baseUrl}/api/router`;
-
-    const res = await fetch(fullUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, contextCard }),
-    });
-    if (!res.ok) return { error: `HTTP ${res.status}` };
-    return await res.json();
+    return await classifyQuestion(question, contextCard);
   } catch (e) {
     return { error: String(e) };
   }
@@ -73,14 +62,14 @@ export async function GET(request: Request) {
 
   // 단일 질문 모드
   if (singleQuestion) {
-    const decision = await callRouter(singleQuestion);
+    const decision = await runOne(singleQuestion);
     return Response.json({ question: singleQuestion, decision });
   }
 
   // 전체 샘플 테스트 모드 (병렬 호출)
   const results = await Promise.all(
     TEST_CASES.map(async tc => {
-      const decision = await callRouter(tc.question);
+      const decision = await runOne(tc.question);
       return { question: tc.question, expected: tc.expected, decision };
     })
   );
