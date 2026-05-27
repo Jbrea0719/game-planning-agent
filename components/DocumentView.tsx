@@ -9,6 +9,7 @@ const SILVER_FAINT = "rgba(192,200,216,0.15)";
 
 interface DocMeta {
   id: string;
+  doc_family_id: string | null;
   version_no: number;
   title: string;
   status: string;
@@ -51,10 +52,33 @@ export default function DocumentView({
   const [showReviseModal, setShowReviseModal] = useState(false);
   const [reviseInstruction, setReviseInstruction] = useState("");
   const [revising, setRevising] = useState(false);
-  // 기획서 리스트 오버레이 패널 + 카테고리 펼침 상태
+  // 기획서 리스트 오버레이 패널 + family 펼침 상태
   const [showDocList, setShowDocList] = useState(false);
-  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set(["chat", "revision", "decision", "other"]));
+  const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
+  // family 이름 변경 인라인 편집
+  const [renamingFamilyId, setRenamingFamilyId] = useState<string | null>(null);
+  const [renameInput, setRenameInput] = useState("");
   const bodyRef = useRef<HTMLDivElement>(null);
+
+  // ── family 이름 변경 ─────────────────────────────────────────────
+  async function submitRename(familyId: string) {
+    const newTitle = renameInput.trim();
+    if (!newTitle) { setRenamingFamilyId(null); return; }
+    try {
+      await fetch("/api/design-docs/family/rename", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ family_id: familyId, title: newTitle }),
+      });
+      setRenamingFamilyId(null);
+      setRenameInput("");
+      await loadVersions();
+      // 현재 doc도 다시 로드 (헤더 제목 갱신)
+      if (currentDoc) await loadDoc(currentDoc.id);
+    } catch (err) {
+      console.error("[doc-view] 이름 변경 실패:", err);
+    }
+  }
 
   // ── 버전 목록 로드 ────────────────────────────────────────────────
   const loadVersions = useCallback(async () => {
@@ -89,6 +113,16 @@ export default function DocumentView({
 
   // 마운트·열림·reloadKey 변경 시 갱신
   useEffect(() => { if (open) void loadVersions(); }, [open, loadVersions]);
+
+  // versions 로드되면 모든 family를 기본 펼침으로
+  useEffect(() => {
+    if (versions.length === 0) return;
+    setExpandedFamilies(prev => {
+      const n = new Set(prev);
+      for (const v of versions) n.add(v.doc_family_id ?? v.id);
+      return n;
+    });
+  }, [versions]);
   useEffect(() => {
     // reloadKey 변경 시: 버전 목록 새로 받고, 가장 최신을 선택
     if (reloadKey !== undefined && reloadKey > 0 && open) {
@@ -410,7 +444,7 @@ export default function DocumentView({
                   </button>
                 </div>
 
-                {/* 카테고리 트리 */}
+                {/* family 트리 — 같은 기획서의 버전끼리 묶음 */}
                 <div className="flex-1 overflow-y-auto px-2 py-2" style={{ scrollbarWidth: "thin" }}>
                   {versions.length === 0 && (
                     <p className="text-xs text-center mt-6" style={{ color: SILVER_DIM }}>
@@ -418,52 +452,101 @@ export default function DocumentView({
                     </p>
                   )}
                   {(() => {
-                    // 카테고리 분류 — changes_summary 패턴 기반
-                    const cats: { id: string; label: string; icon: string; docs: DocMeta[] }[] = [
-                      { id: "chat", label: "대화 기반", icon: "💬", docs: [] },
-                      { id: "revision", label: "수정 버전", icon: "🪄", docs: [] },
-                      { id: "decision", label: "기획 바이블 기반", icon: "📋", docs: [] },
-                      { id: "other", label: "기타", icon: "📌", docs: [] },
-                    ];
+                    // family 단위로 그룹핑
+                    // 같은 doc_family_id를 가진 버전들끼리 묶음
+                    const familyMap = new Map<string, DocMeta[]>();
                     for (const v of versions) {
-                      const s = v.changes_summary ?? "";
-                      if (s.includes("수정 요청")) cats[1].docs.push(v);
-                      else if (s.includes("대화") && s.includes("교차 검증")) cats[0].docs.push(v);
-                      else if (s.includes("결정사항") || s.includes("자동 생성") || s.includes("반영")) cats[2].docs.push(v);
-                      else cats[3].docs.push(v);
+                      const fid = v.doc_family_id ?? v.id;
+                      if (!familyMap.has(fid)) familyMap.set(fid, []);
+                      familyMap.get(fid)!.push(v);
                     }
+                    // 각 family의 버전을 version_no 내림차순으로
+                    for (const arr of familyMap.values()) {
+                      arr.sort((a, b) => b.version_no - a.version_no);
+                    }
+                    // family 정렬: 최신 활동(가장 큰 created_at) 기준 내림차순
+                    const families = Array.from(familyMap.entries()).map(([fid, docs]) => ({
+                      familyId: fid,
+                      docs,
+                      latestAt: docs.reduce((m, d) => (d.created_at > m ? d.created_at : m), docs[0].created_at),
+                      // family 이름 = 최신 버전의 title
+                      name: docs[0].title,
+                    }));
+                    families.sort((a, b) => (a.latestAt < b.latestAt ? 1 : -1));
 
-                    return cats.map(cat => {
-                      if (cat.docs.length === 0) return null;
-                      const isOpen = expandedCats.has(cat.id);
+                    return families.map(fam => {
+                      const isOpen = expandedFamilies.has(fam.familyId);
+                      const isRenaming = renamingFamilyId === fam.familyId;
                       return (
-                        <div key={cat.id} className="mb-2">
-                          <button
-                            onClick={() =>
-                              setExpandedCats(prev => {
-                                const n = new Set(prev);
-                                if (n.has(cat.id)) n.delete(cat.id);
-                                else n.add(cat.id);
-                                return n;
-                              })
-                            }
-                            className="w-full text-left text-xs px-2 py-1.5 rounded flex items-center justify-between font-bold"
+                        <div key={fam.familyId} className="mb-2">
+                          {/* family 헤더 */}
+                          <div
+                            className="flex items-center gap-1 px-2 py-1.5 rounded font-bold"
                             style={{ backgroundColor: SILVER_FAINT, color: SILVER }}
                           >
-                            <span>
-                              {cat.icon} {cat.label}
-                            </span>
-                            <span
-                              className="inline-flex items-center justify-center w-5 h-5 rounded text-base leading-none"
-                              style={{ backgroundColor: "rgba(255,255,255,0.06)", color: SILVER_DIM }}
-                            >
-                              {isOpen ? "−" : "+"}
-                            </span>
-                          </button>
+                            {isRenaming ? (
+                              <input
+                                value={renameInput}
+                                onChange={(e) => setRenameInput(e.target.value)}
+                                onBlur={() => submitRename(fam.familyId)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") submitRename(fam.familyId);
+                                  if (e.key === "Escape") { setRenamingFamilyId(null); setRenameInput(""); }
+                                }}
+                                className="flex-1 text-xs px-1.5 py-0.5 rounded outline-none"
+                                style={{ backgroundColor: "rgba(0,0,0,0.4)", border: "1px solid rgba(100,180,255,0.5)", color: "#e0e8f0" }}
+                                autoFocus
+                              />
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() =>
+                                    setExpandedFamilies(prev => {
+                                      const n = new Set(prev);
+                                      if (n.has(fam.familyId)) n.delete(fam.familyId);
+                                      else n.add(fam.familyId);
+                                      return n;
+                                    })
+                                  }
+                                  className="flex-1 text-left text-xs flex items-center gap-1.5 min-w-0"
+                                >
+                                  <span className="truncate">{fam.name}</span>
+                                  <span style={{ color: SILVER_DIM, fontWeight: 400, flexShrink: 0 }}>
+                                    ({fam.docs.length})
+                                  </span>
+                                </button>
+                                {/* 이름 수정 아이콘 */}
+                                <button
+                                  onClick={() => { setRenamingFamilyId(fam.familyId); setRenameInput(fam.name); }}
+                                  title="기획서 이름 변경 (같은 family의 모든 버전에 적용)"
+                                  className="text-xs px-1 py-0.5 rounded hover:bg-white/10"
+                                  style={{ color: SILVER_DIM }}
+                                >
+                                  ✏️
+                                </button>
+                                {/* +/− 토글 */}
+                                <button
+                                  onClick={() =>
+                                    setExpandedFamilies(prev => {
+                                      const n = new Set(prev);
+                                      if (n.has(fam.familyId)) n.delete(fam.familyId);
+                                      else n.add(fam.familyId);
+                                      return n;
+                                    })
+                                  }
+                                  className="inline-flex items-center justify-center w-5 h-5 rounded text-base leading-none flex-shrink-0"
+                                  style={{ backgroundColor: "rgba(255,255,255,0.06)", color: SILVER_DIM }}
+                                >
+                                  {isOpen ? "−" : "+"}
+                                </button>
+                              </>
+                            )}
+                          </div>
 
+                          {/* 버전 리스트 */}
                           {isOpen && (
-                            <div className="mt-1 ml-1 flex flex-col gap-0.5">
-                              {cat.docs.map(d => {
+                            <div className="mt-1 ml-2 flex flex-col gap-0.5">
+                              {fam.docs.map(d => {
                                 const active = d.id === currentDoc?.id;
                                 return (
                                   <button
@@ -480,12 +563,13 @@ export default function DocumentView({
                                     }}
                                   >
                                     <div className="flex items-center gap-1.5">
-                                      <span style={{ color: SILVER_DIM, flexShrink: 0 }}>v{d.version_no}</span>
-                                      <span className="truncate">{d.title}</span>
-                                    </div>
-                                    <div className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>
-                                      {new Date(d.created_at).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })}
-                                      {d.created_by_nickname && ` · ${d.created_by_nickname}`}
+                                      <span style={{ color: active ? "rgba(180,210,255,1)" : SILVER_DIM, flexShrink: 0, fontWeight: 600 }}>
+                                        v{d.version_no}
+                                      </span>
+                                      <span className="text-[10px]" style={{ color: SILVER_DIM }}>
+                                        {new Date(d.created_at).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })}
+                                        {d.created_by_nickname && ` · ${d.created_by_nickname}`}
+                                      </span>
                                     </div>
                                   </button>
                                 );

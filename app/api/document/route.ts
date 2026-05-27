@@ -120,33 +120,29 @@ export async function POST(request: Request) {
       .join("");
 
     // design_docs에 저장 (project_id 있을 때만)
+    // 대화 기반 신규 작성 = 새 family 생성 → version_no는 항상 1로 시작
     let saved: unknown = null;
     if (project_id) {
-      // 마지막 버전 → v(N+1)
-      const { data: lastVer } = await supabase
-        .from("design_docs")
-        .select("version_no")
-        .eq("project_id", project_id)
-        .order("version_no", { ascending: false })
-        .limit(1);
-      const nextVersion = ((lastVer?.[0]?.version_no as number | undefined) ?? 0) + 1;
-
       // 제목: 본문 첫 H1 추출 (없으면 기본값)
-      // 끝의 "기획서" / "기획" 같은 불필요 접미사 제거 — 주제만 깔끔하게
       const titleMatch = fullText.match(/^#\s+(.+?)$/m);
       const title = titleMatch
         ? titleMatch[1]
             .slice(0, 80)
             .replace(/\s*기획서\s*$/, "")
             .replace(/\s*기획\s*$/, "")
-            .trim() || `v${nextVersion} 대화 기반`
-        : `v${nextVersion} 대화 기반`;
+            .trim() || "대화 기반 기획서"
+        : "대화 기반 기획서";
+
+      // 새 family ID — Postgres가 INSERT 시 id 생성하므로,
+      // 클라이언트 측에서 UUID 생성해서 family_id로 같이 넣는다 (한 INSERT에 같은 값)
+      const newFamilyId = crypto.randomUUID();
 
       const { data: doc, error: saveErr } = await supabase
         .from("design_docs")
         .insert({
           project_id,
-          version_no: nextVersion,
+          doc_family_id: newFamilyId,
+          version_no: 1,
           title,
           content_markdown: fullText,
           status: "draft",

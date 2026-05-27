@@ -89,14 +89,9 @@ export async function POST(request: Request) {
       .order("display_order");
     const subs = (subRaw ?? []) as SubCategory[];
 
-    // 4. 마지막 버전 번호 조회 → v(N+1)
-    const { data: lastVer } = await supabase
-      .from("design_docs")
-      .select("version_no")
-      .eq("project_id", body.project_id)
-      .order("version_no", { ascending: false })
-      .limit(1);
-    const nextVersion = ((lastVer?.[0]?.version_no as number | undefined) ?? 0) + 1;
+    // 4. 바이블 자동 생성 = 새 family v1 (수정 요청으로 v2, v3로 진화)
+    const nextVersion = 1;
+    const newFamilyId = crypto.randomUUID();
 
     // 5. 결정사항을 카테고리별로 그룹핑
     const decisionsBySub = new Map<string, DecisionRow[]>();
@@ -120,6 +115,7 @@ export async function POST(request: Request) {
       .from("design_docs")
       .insert({
         project_id: body.project_id,
+        doc_family_id: newFamilyId,
         version_no: nextVersion,
         title,
         content_markdown: markdown,
@@ -127,9 +123,7 @@ export async function POST(request: Request) {
         decision_snapshot: { count: decisions.length, generated_at: new Date().toISOString() },
         source_decision_ids: sourceDecisionIds,
         created_by_nickname: body.nickname ?? null,
-        changes_summary: nextVersion === 1
-          ? `초안 — 결정사항 ${decisions.length}개 기반으로 자동 생성`
-          : `v${nextVersion - 1} 이후 추가·변경된 결정사항 반영`,
+        changes_summary: `초안 — 결정사항 ${decisions.length}개 기반으로 자동 생성`,
       })
       .select()
       .single();
