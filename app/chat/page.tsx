@@ -1340,15 +1340,16 @@ export default function ChatPage() {
           {sessionId?.replace(/^agent:/, "") === "정민" && (
             <button
               onClick={() => window.open("/admin/curation", "_blank")}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
+              className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0"
               title="게임 도메인 큐레이션 (관리자 전용)"
               style={{
                 backgroundColor: "rgba(255,200,100,0.15)",
                 border: "1px solid rgba(255,200,100,0.5)",
                 color: "rgba(255,220,150,1)",
+                fontSize: "14px",
               }}
             >
-              🛠️ 큐레이션
+              ⚙️
             </button>
           )}
           {sessionId && (
