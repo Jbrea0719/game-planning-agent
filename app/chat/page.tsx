@@ -119,8 +119,21 @@ export default function ChatPage() {
   // 롤링 맥락 카드 — 항상 3줄, 새 답변마다 백그라운드로 교체
   const [agentContext, setAgentContext] = useState("");
   const [showContextModal, setShowContextModal] = useState(false);
-  // 인라인 신뢰도 라벨 토글 (기본 OFF — 가독성 우선)
+  // 인라인 신뢰도 라벨 토글 (기본 OFF — 가독성 우선, localStorage에 저장)
   const [showCitations, setShowCitations] = useState(false);
+
+  // 마운트 시 localStorage에서 토글 상태 복원
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = localStorage.getItem("jordan_show_citations");
+    if (saved === "true") setShowCitations(true);
+  }, []);
+
+  // 토글 변경 시 localStorage에 저장
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("jordan_show_citations", String(showCitations));
+  }, [showCitations]);
   const [docContent, setDocContent] = useState("");
   const [docLoading, setDocLoading] = useState(false);
   const [showDocModal, setShowDocModal] = useState(false);
