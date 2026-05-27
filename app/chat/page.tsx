@@ -250,19 +250,32 @@ export default function ChatPage() {
   }, [streamingPair]);
 
   // 최초 진입·새로고침 시 자동 동작 — 최하단 스크롤 + 입력창 포커스
-  // pairs가 처음 채워지는 시점을 감지 (이전 대화 복원 완료 시)
+  // pairs가 실제로 채워진 시점을 감지 (이전 대화 복원 완료 시)
   const initScrolledRef = useRef(false);
   useEffect(() => {
     if (initScrolledRef.current) return;
     if (!sessionId) return;
-    // pairs 로드 직후 또는 빈 대화여도 일단 실행 (한 번만)
-    initScrolledRef.current = true;
-    // setTimeout으로 다음 tick에 실행 (DOM 렌더링 후)
-    const t = setTimeout(() => {
-      scrollToBottom();
+
+    // 빈 상태(로딩 중 또는 새 세션)에서는 focus만, 스크롤은 건너뜀
+    if (pairs.length === 0) {
       inputRef.current?.focus();
-    }, 100);
-    return () => clearTimeout(t);
+      return;
+    }
+
+    // pairs가 처음 채워졌을 때 = 이전 대화 복원 완료
+    initScrolledRef.current = true;
+    // 메시지 DOM 렌더 완료 후 스크롤 (requestAnimationFrame 2회로 안전 보장)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        scrollToBottom();
+        inputRef.current?.focus();
+      });
+    });
+    // 백업: 일부 환경(이미지 등 늦은 레이아웃)에서 RAF 부족할 수 있어 500ms 후 한 번 더
+    const backup = setTimeout(() => {
+      scrollToBottom();
+    }, 500);
+    return () => clearTimeout(backup);
   }, [pairs, sessionId]);
 
   function scrollToBottom() {
