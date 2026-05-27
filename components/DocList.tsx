@@ -194,7 +194,7 @@ export default function DocList({
       className="absolute inset-0 flex flex-col z-10"
       style={{ backgroundColor: "#0a0e1a", borderRight: `1px solid ${SILVER_FAINT}` }}
     >
-      {/* 오버레이 헤더 */}
+      {/* 오버레이 헤더 — ✕ 제거, 기획서 선택 시 자동으로 목차로 전환 */}
       <div className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 gap-2" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
         <p className="text-xs font-bold flex-1 min-w-0" style={{ color: "rgba(180,210,255,1)" }}>📚 기획서 리스트</p>
         <button
@@ -208,11 +208,6 @@ export default function DocList({
             fontSize: "13px",
           }}
         >⚙️</button>
-        <button
-          onClick={onClose}
-          className="text-xs px-2 py-0.5 rounded flex-shrink-0"
-          style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}
-        >✕</button>
       </div>
 
       {/* 트리 */}

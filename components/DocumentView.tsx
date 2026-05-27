@@ -502,12 +502,20 @@ export default function DocumentView({
               </button>
             </div>
 
-            {/* 현재 보고 있는 기획서 제목 — 리스트 버튼과 목차 사이 */}
+            {/* 현재 보고 있는 기획서 제목 — ✕ 클릭 시 리스트로 돌아감 */}
             {currentDoc && (
-              <div className="px-3 py-2.5 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
-                <p className="text-sm font-bold truncate" style={{ color: SILVER }} title={currentDoc.title}>
+              <div className="px-3 py-2.5 flex-shrink-0 flex items-center gap-2" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+                <p className="text-sm font-bold truncate flex-1 min-w-0" style={{ color: SILVER }} title={currentDoc.title}>
                   📄 {currentDoc.title}
                 </p>
+                <button
+                  onClick={() => setShowDocList(true)}
+                  title="기획서 리스트로 돌아가기"
+                  className="text-xs flex items-center justify-center w-6 h-6 rounded flex-shrink-0 hover:bg-white/10"
+                  style={{ color: SILVER_DIM }}
+                >
+                  ✕
+                </button>
               </div>
             )}
 
