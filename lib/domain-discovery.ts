@@ -76,19 +76,36 @@ async function saveGameRegistry(entry: GameRegistryEntry): Promise<void> {
 // 도메인 자동 발견 — Claude 웹 검색 활용
 // ════════════════════════════════════════
 async function discoverDomainsViaSearch(gameName: string): Promise<DiscoveredDomain[]> {
-  const systemPrompt = `당신은 게임 정보 출처 큐레이터예요. 사용자가 알려준 한국 게임에 대해, 신뢰할 만한 정보 사이트를 web_search로 찾아 정리하세요.
+  const systemPrompt = `당신은 게임 정보 출처 큐레이터예요. 사용자가 알려준 한국 게임에 대해, **현재 활성 상태로 운영 중인** 신뢰할 만한 정보 사이트를 web_search로 찾아 정리하세요.
 
 [찾아야 할 카테고리]
-1. official: 공식 사이트, 공식 커뮤니티 (네이버 라운지·네이버 카페·공식 홈페이지·공식 포럼)
+1. official: 공식 사이트, 공식 커뮤니티 — **현재 운영 중인 것만**
+   - 우선순위: 네이버 라운지 (game.naver.com/lounge/X) > 네이버 카페 (cafe.naver.com/X) > 공식 홈페이지 > 디스코드
+   - **반드시 "{게임명} 네이버 라운지", "{게임명} 공식 카페" 키워드로 검색해 라운지/카페 존재 확인**
+   - **이전에 사용됐지만 닫혔거나 옛 사이트(예: forum.netmarble.com처럼 deprecated)는 제외**
 2. press: 게임 저널리즘 (인벤 게시판·인벤 뉴스·게임메카·디스이즈게임·게임샷)
+   - 우선순위: inven.co.kr/board/{게임코드} (인벤 게시판) > 게임메카 > 디스이즈게임
 3. wiki: 위키 (나무위키·Fandom 위키)
-4. community: 유저 커뮤니티 (디시인사이드 마이너갤·루리웹 게시판·레딧 등)
+4. community: 유저 커뮤니티
+   - 우선순위: 디시인사이드 마이너갤 (gall.dcinside.com/mgallery/board/lists/?id=X) > 루리웹 게시판 > 레딧
+   - **"{게임명} 디시 마이너갤" 또는 "{게임명} 갤러리" 키워드로 명시적 검색**
 
 [검색 전략]
-- web_search 도구로 "{게임명} 공식 카페", "{게임명} 인벤 게시판", "{게임명} 디시 마이너갤", "{게임명} 나무위키" 등 검색
+- web_search 도구로 다음 쿼리 조합 검색:
+  - "{게임명} 네이버 라운지"
+  - "{게임명} 공식 카페"
+  - "{게임명} 인벤 게시판"
+  - "{게임명} 디시 마이너갤" 또는 "{게임명} 갤러리"
+  - "{게임명} 나무위키"
 - 검색 결과에서 실제 사이트 URL을 추출
-- 게임명을 확실히 다루는 사이트만 선별 (잘못된 게임 사이트는 제외)
+- **게임의 한국어 정식 명칭으로 검색** (영문/줄임말로 검색하면 다른 게임 잡힐 수 있음)
+- 게임명을 확실히 다루는 사이트만 선별 (다른 게임이 섞이면 제외)
 - 도메인은 가능하면 경로까지 포함 (예: "inven.co.kr/board/sena", "game.naver.com/lounge/sena_rebirth")
+- **공식 사이트 발견 시 "현재 활성 상태인지" 확인** — 검색 결과에 최근 게시글이 보이는지로 판단
+
+[중요 — 흔한 실수]
+- forum.netmarble.com 같은 옛 통합 포럼은 일부 게임이 이미 네이버 라운지로 이동했음. 반드시 "네이버 라운지" 키워드로 별도 검색
+- "공식 = 회사 사이트"가 아니라 "공식 = 현재 유저가 가장 활발하게 사용하는 공식 커뮤니티"
 
 [출력 형식 — JSON만 출력. 다른 텍스트 절대 추가 금지]
 {
@@ -97,7 +114,7 @@ async function discoverDomainsViaSearch(gameName: string): Promise<DiscoveredDom
   ]
 }
 
-총 3~10개 정도. 너무 많이 찾지 말고 정말 권위 있는 곳만.`;
+총 5~10개 정도. 정말 권위 있고 현재 운영 중인 곳만.`;
 
   const userContent = `다음 한국 게임의 신뢰할 만한 정보 사이트를 찾아주세요.
 
@@ -114,7 +131,8 @@ async function discoverDomainsViaSearch(gameName: string): Promise<DiscoveredDom
         {
           type: "web_search_20250305",
           name: "web_search",
-          max_uses: 4,
+          // 라운지·카페·인벤·디시·나무위키 등 5개 카테고리 별도 검색 가능
+          max_uses: 5,
           user_location: { type: "approximate", country: "KR", timezone: "Asia/Seoul" },
         } as unknown as Anthropic.Tool,
       ],
@@ -147,16 +165,64 @@ async function discoverDomainsViaSearch(gameName: string): Promise<DiscoveredDom
 }
 
 // ════════════════════════════════════════
-// 메인 진입점 — 캐시 → 자동 발견 → 저장
+// 수동 큐레이션(GAME_COMMUNITIES) → DiscoveredDomain[] 변환
+// 사용자가 직접 검증한 도메인이 있으면 자동 발견보다 우선
+// ════════════════════════════════════════
+interface ManualCuration {
+  officialUrlFilters?: string[];
+  officialDomains: string[];
+  dcGalleryId?: string;
+}
+
+export function manualToDiscovered(manual: ManualCuration | null | undefined): DiscoveredDomain[] {
+  if (!manual) return [];
+  const result: DiscoveredDomain[] = [];
+
+  // 공식 URL 필터 → official tier로 변환 (가장 신뢰)
+  for (const filter of manual.officialUrlFilters ?? []) {
+    if (filter.includes("inven.co.kr") || filter.includes("gamemeca") || filter.includes("thisisgame") || filter.includes("gameshot")) {
+      result.push({ url: filter, tier: "press", note: "수동 검증 — 게임 저널리즘" });
+    } else if (filter.includes("namu.wiki")) {
+      result.push({ url: filter, tier: "wiki", note: "수동 검증 — 위키" });
+    } else if (filter.includes("dcinside") || filter.includes("ruliweb")) {
+      result.push({ url: filter, tier: "community", note: "수동 검증 — 커뮤니티" });
+    } else {
+      // game.naver.com, cafe.naver.com, sports.naver.com 등은 official로 분류
+      result.push({ url: filter, tier: "official", note: "수동 검증 — 공식/공식급" });
+    }
+  }
+
+  // DC 갤러리 ID가 있으면 명시적으로 community 추가
+  if (manual.dcGalleryId) {
+    const dcUrl = `gall.dcinside.com/mgallery/board/lists/?id=${manual.dcGalleryId}`;
+    if (!result.some(d => d.url.includes(manual.dcGalleryId!))) {
+      result.push({ url: dcUrl, tier: "community", note: "수동 검증 — 디시 마이너갤" });
+    }
+  }
+
+  return result;
+}
+
+// ════════════════════════════════════════
+// 메인 진입점 — 수동 큐레이션 > 캐시 > 자동 발견 > 저장
 // ════════════════════════════════════════
 export async function ensureGameDomains(
   gameId: string,
-  gameNames: string[]
-): Promise<{ domains: DiscoveredDomain[]; fromCache: boolean }> {
+  gameNames: string[],
+  manualCuration?: ManualCuration | null  // GAME_COMMUNITIES의 매칭 결과
+): Promise<{ domains: DiscoveredDomain[]; source: "manual" | "cache" | "auto" | "empty" }> {
+  // 0. 수동 큐레이션 우선 (가장 신뢰도 높음)
+  if (manualCuration && (manualCuration.officialUrlFilters?.length ?? 0) > 0) {
+    const manualDomains = manualToDiscovered(manualCuration);
+    if (manualDomains.length > 0) {
+      return { domains: manualDomains, source: "manual" };
+    }
+  }
+
   // 1. 캐시 조회
   const cached = await getGameRegistry(gameId);
   if (cached && cached.discovered_domains.length > 0) {
-    return { domains: cached.discovered_domains, fromCache: true };
+    return { domains: cached.discovered_domains, source: "cache" };
   }
 
   // 2. 자동 발견 (첫 이름을 대표로 사용)
@@ -164,8 +230,7 @@ export async function ensureGameDomains(
   const discovered = await discoverDomainsViaSearch(primaryName);
 
   if (discovered.length === 0) {
-    // 발견 실패 시 빈 결과 저장하지 않음 (다음 시도 가능하게)
-    return { domains: [], fromCache: false };
+    return { domains: [], source: "empty" };
   }
 
   // 3. 캐시 저장
@@ -176,7 +241,7 @@ export async function ensureGameDomains(
     discovery_method: "auto",
   });
 
-  return { domains: discovered, fromCache: false };
+  return { domains: discovered, source: "auto" };
 }
 
 // ════════════════════════════════════════
