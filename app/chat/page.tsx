@@ -1464,16 +1464,16 @@ export default function ChatPage() {
                 }
               }
             }}
-            className="text-xs px-2.5 py-1.5 rounded-lg font-medium flex-shrink-0 relative flex items-center gap-1"
-            title="기획 바이블 — 결정·검토된 기획 자산을 누적 관리. 모든 기획서 작성 시 교차 참조"
+            className="rounded-lg font-medium flex-shrink-0 relative flex items-center justify-center w-8 h-8"
+            title={`기획 바이블 (총 ${decisionCount}개) — 결정·검토된 기획 자산을 누적 관리. 모든 기획서 작성 시 교차 참조`}
             style={{
               backgroundColor: showDecisionPanel ? "rgba(100,220,160,0.18)" : SILVER_FAINT,
               border: `1px solid ${showDecisionPanel ? "rgba(100,220,160,0.6)" : SILVER_DIM}`,
               color: showDecisionPanel ? "rgba(150,255,200,1)" : SILVER,
+              fontSize: "14px",
             }}
           >
-            <span style={{ fontSize: "14px" }}>📚</span>
-            <span>({decisionCount})</span>
+            📚
             {bibleNewBadge && (
               <span
                 className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full animate-pulse"
