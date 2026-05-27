@@ -1311,7 +1311,7 @@ export default function ChatPage() {
             className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0 relative"
             style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
           >
-            🧠 맥락 카드
+            🧠 대화 맥락
             {agentContext && (
               <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ backgroundColor: "rgba(100,220,160,0.9)" }} />
             )}
@@ -1327,7 +1327,7 @@ export default function ChatPage() {
               color: showCitations ? "rgba(150,255,200,1)" : SILVER,
             }}
           >
-            {showCitations ? "✅ 출처 라벨 ON" : "🏷️ 출처 라벨 OFF"}
+            {showCitations ? "✅ 출처 표시 ON" : "🏷️ 출처 표시 OFF"}
           </button>
           <button
             onClick={() => setShowGameModal(true)}
