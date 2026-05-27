@@ -527,11 +527,11 @@ export default function DocumentView({
         {/* 좌측 사이드바 — 목차 + 기획서 리스트 오버레이 */}
         {!editing && (
           <aside className="relative flex-shrink-0 flex flex-col" style={{ width: "260px", borderRight: `1px solid ${SILVER_FAINT}` }}>
-            {/* 상단 기획서 리스트 버튼 + 카테고리 관리 톱니바퀴 */}
-            <div className="px-3 pt-3 pb-2 flex-shrink-0 flex items-center gap-1.5" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+            {/* 상단 기획서 리스트 버튼 (카테고리 관리는 리스트 오버레이 안으로 이동됨) */}
+            <div className="px-3 pt-3 pb-2 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
               <button
                 onClick={() => setShowDocList(v => !v)}
-                className="flex-1 text-left text-xs px-3 py-2 rounded-lg font-bold flex items-center justify-between"
+                className="w-full text-left text-xs px-3 py-2 rounded-lg font-bold flex items-center justify-between"
                 style={{
                   backgroundColor: showDocList ? "rgba(100,180,255,0.18)" : SILVER_FAINT,
                   border: `1px solid ${showDocList ? "rgba(100,180,255,0.6)" : SILVER_DIM}`,
@@ -540,19 +540,6 @@ export default function DocumentView({
               >
                 <span>📚 기획서 리스트</span>
                 <span style={{ color: SILVER_DIM, fontWeight: 400 }}>({versions.length})</span>
-              </button>
-              <button
-                onClick={() => setShowCatManager(true)}
-                title="카테고리 관리 — 대/중/소 카테고리 추가·수정·삭제"
-                className="flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0"
-                style={{
-                  backgroundColor: "rgba(255,200,100,0.15)",
-                  border: "1px solid rgba(255,200,100,0.4)",
-                  color: "rgba(255,220,150,1)",
-                  fontSize: "14px",
-                }}
-              >
-                ⚙️
               </button>
             </div>
 
