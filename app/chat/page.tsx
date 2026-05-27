@@ -201,6 +201,10 @@ export default function ChatPage() {
   // 결정사항 트래커 패널
   const [showDecisionPanel, setShowDecisionPanel] = useState(false);
   const [decisionCount, setDecisionCount] = useState(0);
+  // reloadKey 증가 → DecisionPanel이 결정사항 다시 fetch (자동 추출 후 갱신)
+  const [decisionReloadKey, setDecisionReloadKey] = useState(0);
+  // 자동 추출 알림 (사용자에게 잠시 노출)
+  const [extractedNotice, setExtractedNotice] = useState<number | null>(null);
   // 답변 피드백 상태 — pair_id별로 'accurate' | 'inaccurate' | undefined
   const [feedbacks, setFeedbacks] = useState<Record<string, "accurate" | "inaccurate">>({});
   // 부정확 사유 입력 모달 (열린 pair_id)
@@ -425,6 +429,18 @@ export default function ChatPage() {
       if (criticMatch) {
         try { criticHistory = JSON.parse(criticMatch[1]); } catch { /* 무시 */ }
         cleanText = assistantText.replace(/\n__JORDAN_CRITIC_START__[\s\S]*?__JORDAN_CRITIC_END__/, "");
+      }
+
+      // 자동 추출 마커 감지 → 트래커 새로고침 + 알림
+      const extractedMatch = assistantText.match(/__DECISIONS_EXTRACTED__(\d+)/);
+      if (extractedMatch) {
+        const cnt = parseInt(extractedMatch[1], 10);
+        if (cnt > 0) {
+          setDecisionReloadKey(k => k + 1);    // DecisionPanel 자동 새로고침
+          setExtractedNotice(cnt);              // 알림 표시
+          setTimeout(() => setExtractedNotice(null), 5000);  // 5초 후 자동 숨김
+        }
+        cleanText = cleanText.replace(/__DECISIONS_EXTRACTED__\d+/, "");
       }
       // 진행 상태 텍스트 제거: __JORDAN_ANSWER_START__ 이후만 답변으로 사용
       const answerStartIdx = cleanText.indexOf("__JORDAN_ANSWER_START__");
@@ -874,7 +890,31 @@ export default function ChatPage() {
         projectId={DEFAULT_PROJECT_ID}
         nickname={sessionId?.replace(/^agent:/, "") ?? ""}
         onCountChange={setDecisionCount}
+        reloadKey={decisionReloadKey}
       />
+
+      {/* 자동 추출 알림 (5초 자동 사라짐) */}
+      {extractedNotice !== null && (
+        <div
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-lg shadow-lg flex items-center gap-2 text-sm"
+          style={{
+            backgroundColor: "rgba(15,25,40,0.95)",
+            border: "1px solid rgba(100,220,160,0.6)",
+            color: "rgba(150,255,200,1)",
+            backdropFilter: "blur(10px)",
+          }}
+        >
+          <span>🤖</span>
+          <span><b>{extractedNotice}개</b>의 결정사항이 자동 추출됐어요</span>
+          <button
+            onClick={() => { setExtractedNotice(null); setShowDecisionPanel(true); }}
+            className="ml-2 text-xs px-2 py-0.5 rounded"
+            style={{ backgroundColor: "rgba(100,220,160,0.2)", border: "1px solid rgba(100,220,160,0.5)" }}
+          >
+            확인하기 →
+          </button>
+        </div>
+      )}
 
       {/* 맥락 카드 팝업 */}
       {showContextModal && (

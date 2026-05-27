@@ -45,12 +45,14 @@ export default function DecisionPanel({
   projectId,
   nickname,
   onCountChange,
+  reloadKey,
 }: {
   open: boolean;
   onClose: () => void;
   projectId: string;
   nickname: string;
   onCountChange?: (total: number) => void;
+  reloadKey?: number;  // 변경 시 결정사항 다시 fetch (외부 트리거)
 }) {
   const [categories, setCategories] = useState<MainCategoryItem[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
@@ -96,6 +98,10 @@ export default function DecisionPanel({
   // 패널 열릴 때마다 로드 + 마운트 시 1회 (배지 카운트용)
   useEffect(() => { void loadDecisions(); }, [loadDecisions]);
   useEffect(() => { if (open) void loadDecisions(); }, [open, loadDecisions]);
+  // 외부에서 reloadKey 증가 → 결정사항 다시 fetch (자동 추출 후 갱신)
+  useEffect(() => {
+    if (reloadKey !== undefined && reloadKey > 0) void loadDecisions();
+  }, [reloadKey, loadDecisions]);
 
   // ── 결정사항 추가 ──────────────────────────────────────────────────
   async function submitNew() {

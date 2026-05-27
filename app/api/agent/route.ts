@@ -3,6 +3,7 @@ import { tavily } from "@tavily/core";
 import { supabase } from "@/lib/supabase";
 import { classifyQuestion, REGISTERED_GAMES, type RouteDecision } from "../router/route";
 import { ensureGameDomains, type DiscoveredDomain } from "@/lib/domain-discovery";
+import { extractAndSaveDecisions } from "@/lib/decision-extractor";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -1357,6 +1358,26 @@ export async function POST(request: Request) {
             }
           } else {
             console.warn("[agent] session_id 또는 pair_id 없음 — 저장 건너뜀");
+          }
+
+          // ─── 자동 결정사항 추출 (Phase A.5) ──────────────────────
+          // 답변 완료 후 Haiku로 결정사항 추출·자동 저장
+          // 동기 처리 (1~2초 추가) — 추출 완료 후 클라이언트에 마커로 알림
+          try {
+            const nickname = session_id?.replace(/^agent:/, "") ?? undefined;
+            const extractedCount = await extractAndSaveDecisions({
+              userQuery: userMessage.content,
+              jordanAnswer: assistantText,
+              sessionId: session_id,
+              pairId: pair_id,
+              nickname,
+            });
+            if (extractedCount > 0) {
+              // 클라이언트에 결정사항 추가됨 신호 — 트래커 자동 reload
+              encode(`__DECISIONS_EXTRACTED__${extractedCount}`);
+            }
+          } catch (err) {
+            console.error("[agent] 결정사항 자동 추출 실패:", err);
           }
         } catch (err) {
           encode(`오류가 발생했어요: ${String(err)}`);
