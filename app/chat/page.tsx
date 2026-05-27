@@ -241,6 +241,17 @@ export default function ChatPage() {
   // 롤링 맥락 카드 — 항상 3줄, 새 답변마다 백그라운드로 교체
   const [agentContext, setAgentContext] = useState("");
   const [showContextModal, setShowContextModal] = useState(false);
+  // 주요 기획 사항 — 맥락선 이후 추가된 결정사항만 보여줌
+  type RecentDecision = {
+    id: string;
+    content: string;
+    confidence: string;
+    sub_category_id: string | null;
+    created_at: string;
+    created_by_nickname?: string | null;
+  };
+  const [recentDecisions, setRecentDecisions] = useState<RecentDecision[]>([]);
+  const [recentDecisionsLoading, setRecentDecisionsLoading] = useState(false);
   // 인라인 신뢰도 라벨 토글 (기본 OFF — 가독성 우선, localStorage에 저장)
   const [showCitations, setShowCitations] = useState(false);
   // 결정사항 트래커 패널 (UI 명칭: 기획 바이블)
@@ -284,6 +295,26 @@ export default function ChatPage() {
     if (typeof window === "undefined") return;
     localStorage.setItem("jordan_show_citations", String(showCitations));
   }, [showCitations]);
+
+  // 주요 기획 사항 모달 열릴 때 + 결정사항 갱신 시 fetch
+  // 맥락선이 있으면 그 이후 created_at만 표시
+  useEffect(() => {
+    if (!showContextModal) return;
+    setRecentDecisionsLoading(true);
+    fetch(`/api/decisions?project_id=${DEFAULT_PROJECT_ID}`)
+      .then(r => r.json())
+      .then(data => {
+        const all = (data.decisions ?? []) as RecentDecision[];
+        const filtered = contextAnchorTimestamp
+          ? all.filter(d => d.created_at >= contextAnchorTimestamp)
+          : all;
+        // 최신순
+        filtered.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+        setRecentDecisions(filtered);
+      })
+      .catch(err => console.error("[주요 기획] fetch 실패:", err))
+      .finally(() => setRecentDecisionsLoading(false));
+  }, [showContextModal, decisionReloadKey, contextAnchorTimestamp]);
 
   // 기획 바이블 카운트 증가 감지 → 빨간 점 ON + 2분 자동 해제
   useEffect(() => {
@@ -1261,39 +1292,67 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* 맥락 카드 팝업 */}
+      {/* 주요 기획 사항 팝업 — 맥락선 이하 기획 바이블에 추가된 결정 목록 */}
       {showContextModal && (
         <div className="fixed inset-0 bg-black/60 flex items-start justify-end z-50 p-4 pt-16" onClick={() => setShowContextModal(false)}>
-          <div className="rounded-2xl w-72 shadow-2xl" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
-              <div className="flex items-center gap-2">
-                <span style={{ color: "rgba(100,220,160,0.9)", fontSize: "12px" }}>🧠</span>
-                <p className="text-xs font-bold" style={{ color: SILVER }}>현재 맥락 카드</p>
+          <div className="rounded-2xl w-96 max-h-[80vh] flex flex-col shadow-2xl" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                  <span style={{ color: "rgba(100,220,160,0.9)", fontSize: "12px" }}>📋</span>
+                  <p className="text-xs font-bold" style={{ color: SILVER }}>주요 기획 사항</p>
+                </div>
+                <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>
+                  {contextAnchorPairId
+                    ? `맥락선 이하 추가된 결정 (${recentDecisions.length}개)`
+                    : `기획 바이블 전체 (${recentDecisions.length}개) — 맥락선 설정 시 그 이후만 표시`}
+                </p>
               </div>
               <button onClick={() => setShowContextModal(false)} className="text-xs px-2 py-1 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>
             </div>
-            <div className="px-4 py-4">
-              {agentContext ? (
-                <div className="space-y-2">
-                  {agentContext.split("\n").filter(Boolean).map((line, i) => {
-                    const [label, ...rest] = line.split(":");
-                    const value = rest.join(":").trim();
+            <div className="flex-1 overflow-y-auto px-4 py-3" style={{ scrollbarWidth: "thin", scrollbarColor: `${SILVER_DIM} transparent` }}>
+              {recentDecisionsLoading ? (
+                <p className="text-xs text-center py-4" style={{ color: SILVER_DIM }}>불러오는 중...</p>
+              ) : recentDecisions.length === 0 ? (
+                <p className="text-xs text-center py-6" style={{ color: SILVER_DIM }}>
+                  {contextAnchorPairId
+                    ? "맥락선 이하 추가된 결정이 아직 없어요"
+                    : "기획 바이블에 누적된 결정이 없어요"}
+                </p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {recentDecisions.map(d => {
+                    const conf = d.confidence;
+                    const confStyle =
+                      conf === "decided" ? { bg: "rgba(100,220,160,0.15)", color: "rgba(150,255,200,1)", label: "✓" }
+                      : conf === "review" ? { bg: "rgba(255,200,100,0.15)", color: "rgba(255,220,150,1)", label: "🔍" }
+                      : { bg: "rgba(150,180,255,0.15)", color: "rgba(180,210,255,1)", label: "⚪" };
                     return (
-                      <div key={i} className="flex flex-col gap-0.5">
-                        <span className="text-xs font-semibold" style={{ color: SILVER_DIM }}>{label}</span>
-                        <span className="text-xs" style={{ color: "#e0e8f0" }}>{value}</span>
+                      <div key={d.id} className="px-3 py-2 rounded-lg flex items-start gap-2" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5" style={{ backgroundColor: confStyle.bg, color: confStyle.color }}>
+                          {confStyle.label}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs" style={{ color: "#e0e8f0", lineHeight: 1.45 }}>{d.content}</p>
+                          <p className="text-[10px] mt-1" style={{ color: SILVER_DIM }}>
+                            {new Date(d.created_at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            {d.created_by_nickname && ` · ${d.created_by_nickname}`}
+                          </p>
+                        </div>
                       </div>
                     );
                   })}
-                  <p className="text-xs mt-3 pt-3" style={{ color: SILVER_DIM, borderTop: `1px solid ${SILVER_FAINT}` }}>
-                    매 답변 후 자동 갱신 · 항상 이 크기 유지
-                  </p>
                 </div>
-              ) : (
-                <p className="text-xs text-center py-4" style={{ color: SILVER_DIM }}>
-                  아직 대화 기록이 없어요.<br />첫 질문 후 자동으로 생성돼요.
-                </p>
               )}
+            </div>
+            <div className="flex-shrink-0 px-4 py-2.5" style={{ borderTop: `1px solid ${SILVER_FAINT}` }}>
+              <button
+                onClick={() => { setShowContextModal(false); setShowDecisionPanel(true); }}
+                className="w-full text-xs px-3 py-1.5 rounded-lg font-medium"
+                style={{ backgroundColor: "rgba(100,220,160,0.18)", border: "1px solid rgba(100,220,160,0.5)", color: "rgba(150,255,200,1)" }}
+              >
+                📚 기획 바이블 전체 보기
+              </button>
             </div>
           </div>
         </div>
@@ -1333,8 +1392,8 @@ export default function ChatPage() {
               <section>
                 <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🛠️ 헤더 도구 (좌 → 우)</p>
                 <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
-                  <p><b style={{ color: SILVER }}>📌 맥락 시작점</b> — 클릭하면 현재 설정된 맥락선 위치로 스크롤 + 노란 하이라이트. 설정 안 돼 있으면 <i>"맥락선이 없습니다"</i> 토스트. 설정/해제는 본문 안에서.</p>
-                  <p><b style={{ color: SILVER }}>🧠 대화 맥락</b> — 지금까지 대화의 핵심을 3줄 요약. 답변마다 자동 갱신돼서 조던이 일관성을 유지해요.</p>
+                  <p><b style={{ color: SILVER }}>📌 맥락</b> — 클릭하면 현재 맥락선 위치로 스크롤 + 노란 하이라이트. 설정 안 돼 있으면 <i>"맥락선이 없습니다"</i> 토스트. 설정/해제는 본문 안에서.</p>
+                  <p><b style={{ color: SILVER }}>📋 주요 기획 사항</b> — 맥락선 이하 추가된 기획 바이블 결정 목록을 빠르게 확인. 맥락선이 없으면 전체 누적 결정을 보여줘요.</p>
                   <p><b style={{ color: SILVER }}>📄 기획서 작성</b> — 대화 선택 후 [✓ 작성 시작] 누르면 <i>백그라운드로 생성</i>. 작성 중에는 헤더 버튼이 "작성 중... (취소)" 표시 — <b>다시 누르면 작성 취소</b>. 완료 시 알림 토스트 + 자동으로 기획서 리스트에 새 버전 저장.</p>
                   <p><b style={{ color: SILVER }}>📄 기획서</b> — 진입 시 좌측 <b>📚 기획서 리스트</b>가 기본 열림. 리스트는 <b>대 &gt; 중 &gt; 소 &gt; 기획서</b> 4단계 트리. 대(인게임/아웃게임…)는 진한 배경, 중(영웅/PVP…)는 옅은 배경, 소(영웅 등급/스킬…)는 좌측 보더, 기획서는 leaf. 각 단계마다 +/− 토글. 기획서 옆 ✏️로 이름 변경, 📂로 분류 변경. 리스트 헤더의 <b>⚙️</b>로 카테고리 관리 (추가·수정·삭제). 안 본 기획서 옆에는 <b style={{ color: "rgba(255,150,150,1)" }}>빨간 점</b>(클릭하면 영구 해제). 뷰 안에서 <b>🪄 수정 요청</b>으로 자연어 지시 → 같은 기획서를 그 자리에서 갱신. 수정 전 원본은 <b>7일간 백업 폴더에 자동 보관</b>. <b>📥 내보내기</b>는 MD/TXT/HTML/PDF 4가지.</p>
                   <p><b style={{ color: SILVER }}>🏷️ 출처 표시</b> — 답변에 [공식 인용 — 4개 일치] 같은 신뢰도 라벨 표시 ON/OFF.</p>
@@ -1606,8 +1665,8 @@ export default function ChatPage() {
           {/* ─── 일반 모드: 모든 헤더 버튼 표시 ─── */}
           {!selectMode && (
           <>
-          {/* ① 맥락 시작점 — 헤더 맨 앞 (위치로 이동 / 없으면 안내) */}
-          <Tooltip text={contextAnchorPairId ? "현재 맥락 시작점 위치로 이동" : "맥락 시작점이 설정돼 있지 않아요"}>
+          {/* ① 맥락 — 현재 맥락선 위치로 이동 (없으면 안내) */}
+          <Tooltip text={contextAnchorPairId ? "현재 맥락선 위치로 이동" : "맥락선이 설정돼 있지 않아요"}>
             <button
               onClick={() => {
                 if (!contextAnchorPairId) {
@@ -1634,18 +1693,18 @@ export default function ChatPage() {
                 color: contextAnchorPairId ? "rgba(255,220,150,1)" : SILVER_DIM,
               }}
             >
-              📌 맥락 시작점
+              📌 맥락
             </button>
           </Tooltip>
 
-          {/* ② 대화 맥락 */}
-          <Tooltip text="지금까지 대화의 핵심 맥락 요약. 답변마다 자동 갱신돼요">
+          {/* ② 주요 기획 사항 — 맥락선 이하 기획 바이블에 추가된 결정 목록 */}
+          <Tooltip text={contextAnchorPairId ? "맥락선 이하 추가된 기획 결정사항 보기" : "현재 기획 바이블에 누적된 결정사항 보기"}>
             <button
               onClick={() => setShowContextModal(true)}
               className="text-xs px-3 py-1.5 rounded-lg font-medium"
               style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
             >
-              🧠 대화 맥락
+              📋 주요 기획 사항
             </button>
           </Tooltip>
 
@@ -1837,12 +1896,12 @@ export default function ChatPage() {
                 <div className="flex items-center gap-2 py-1" style={{ color: "rgba(255,200,100,0.9)" }}>
                   <div className="flex-1" style={{ borderTop: "1px dashed rgba(255,200,100,0.6)" }} />
                   <span className="text-xs font-medium flex items-center gap-1.5">
-                    📌 맥락 시작점 (이 시점부터 조던에게 전달됨)
+                    📌 맥락선 — 이 아래만 조던의 대화·기획에 포함돼요
                     <button
                       onClick={(e) => { e.stopPropagation(); clearContextAnchor(); }}
                       className="text-xs px-1.5 py-0.5 rounded hover:bg-white/10"
                       style={{ color: "rgba(255,200,100,0.8)" }}
-                      title="맥락 시작점 해제"
+                      title="맥락선 해제"
                     >
                       ✕
                     </button>
@@ -1860,7 +1919,7 @@ export default function ChatPage() {
                     border: `1px solid ${isAnchor ? "rgba(255,200,100,0.7)" : "rgba(255,200,100,0.4)"}`,
                     color: "rgba(255,220,150,0.95)",
                   }}
-                  title={isAnchor ? "현재 맥락 시작점 (다른 페어 호버 시 이동 가능)" : "이 시점부터 맥락 시작"}
+                  title={isAnchor ? "현재 맥락선 위치 (다른 페어 호버 시 이동 가능)" : "이 시점에 맥락선 설정 — 아래만 조던에게 전달"}
                 >
                   📌
                 </button>
