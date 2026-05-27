@@ -3,6 +3,10 @@
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import React from "react";
 import ReactMarkdown from "react-markdown";
+import DecisionPanel from "@/components/DecisionPanel";
+
+// 단일 프로젝트 고정 ID (Phase A — 추후 다중 프로젝트 지원 시 변경)
+const DEFAULT_PROJECT_ID = "00000000-0000-0000-0000-000000000001";
 
 type Message = {
   role: "user" | "assistant";
@@ -194,6 +198,9 @@ export default function ChatPage() {
   const [showContextModal, setShowContextModal] = useState(false);
   // 인라인 신뢰도 라벨 토글 (기본 OFF — 가독성 우선, localStorage에 저장)
   const [showCitations, setShowCitations] = useState(false);
+  // 결정사항 트래커 패널
+  const [showDecisionPanel, setShowDecisionPanel] = useState(false);
+  const [decisionCount, setDecisionCount] = useState(0);
   // 답변 피드백 상태 — pair_id별로 'accurate' | 'inaccurate' | undefined
   const [feedbacks, setFeedbacks] = useState<Record<string, "accurate" | "inaccurate">>({});
   // 부정확 사유 입력 모달 (열린 pair_id)
@@ -860,6 +867,15 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* 결정사항 트래커 사이드 패널 */}
+      <DecisionPanel
+        open={showDecisionPanel}
+        onClose={() => setShowDecisionPanel(false)}
+        projectId={DEFAULT_PROJECT_ID}
+        nickname={sessionId?.replace(/^agent:/, "") ?? ""}
+        onCountChange={setDecisionCount}
+      />
+
       {/* 맥락 카드 팝업 */}
       {showContextModal && (
         <div className="fixed inset-0 bg-black/60 flex items-start justify-end z-50 p-4 pt-16" onClick={() => setShowContextModal(false)}>
@@ -1126,6 +1142,19 @@ export default function ChatPage() {
               </button>
             </>
           )}
+          {/* 결정사항 트래커 토글 — 누적 개수 배지 */}
+          <button
+            onClick={() => setShowDecisionPanel(v => !v)}
+            className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
+            title="결정사항 트래커 — 대화에서 정해진 기획 결정을 누적 관리"
+            style={{
+              backgroundColor: showDecisionPanel ? "rgba(100,220,160,0.18)" : SILVER_FAINT,
+              border: `1px solid ${showDecisionPanel ? "rgba(100,220,160,0.6)" : SILVER_DIM}`,
+              color: showDecisionPanel ? "rgba(150,255,200,1)" : SILVER,
+            }}
+          >
+            📋 결정사항 ({decisionCount})
+          </button>
           {/* 맥락 카드 버튼 — 카드가 있으면 초록 점 표시 */}
           <button
             onClick={() => setShowContextModal(true)}
