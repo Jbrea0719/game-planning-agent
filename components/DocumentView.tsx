@@ -2,17 +2,21 @@
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
-import { marked } from "marked";
 import CategoryManager from "./CategoryManager";
+import DocList from "./DocList";
+import {
+  downloadMD as exportMD,
+  downloadTXT as exportTXT,
+  downloadHTML as exportHTML,
+  downloadPDF as exportPDF,
+} from "@/lib/doc-export";
 
 const SILVER = "#c0c8d8";
 const SILVER_DIM = "rgba(192,200,216,0.5)";
 const SILVER_FAINT = "rgba(192,200,216,0.15)";
 
-interface DocMeta {
+export interface DocMeta {
   id: string;
-  doc_family_id: string | null;
-  version_no: number;
   title: string;
   status: string;
   changes_summary: string | null;
@@ -23,18 +27,18 @@ interface DocMeta {
   category_sub_id: string | null;
 }
 
-interface CategorySubItem {
+export interface CategorySubItem {
   id: string;
   name_ko: string;
   area_code: string | null;
   area_name: string | null;
 }
-interface CategoryAreaItem {
+export interface CategoryAreaItem {
   code: string;
   name: string;
   sub_categories: CategorySubItem[];
 }
-interface CategoryMainItem {
+export interface CategoryMainItem {
   id: string;
   name_ko: string;
   icon: string | null;
@@ -42,7 +46,7 @@ interface CategoryMainItem {
   areas?: CategoryAreaItem[];
 }
 
-interface DocFull extends DocMeta {
+export interface DocFull extends DocMeta {
   content_markdown: string;
   archived_at: string | null;
 }
@@ -353,7 +357,7 @@ export default function DocumentView({
   // ── 삭제 ───────────────────────────────────────────────────────
   async function deleteDoc() {
     if (!currentDoc) return;
-    if (!confirm(`v${currentDoc.version_no} "${currentDoc.title}"을 삭제할까요?`)) return;
+    if (!confirm(`"${currentDoc.title}" 기획서를 삭제할까요?`)) return;
     try {
       await fetch(`/api/design-docs/${currentDoc.id}`, { method: "DELETE" });
       setCurrentDoc(null);
@@ -363,60 +367,14 @@ export default function DocumentView({
     }
   }
 
-  // ── 내보내기 ─────────────────────────────────────────────────────
-  function downloadMD() {
-    if (!currentDoc) return;
-    const blob = new Blob([currentDoc.content_markdown], { type: "text/markdown;charset=utf-8" });
-    triggerDownload(blob, `${safeName(currentDoc.title)}.md`);
-    setShowExportMenu(false);
-  }
-  // HTML 내보내기 — 마크다운을 스타일링된 HTML 문서로 변환해 다운로드
-  function downloadHTML() {
-    if (!currentDoc) return;
-    const bodyHtml = marked.parse(currentDoc.content_markdown, { async: false }) as string;
-    const html = buildHtmlDoc(currentDoc.title, bodyHtml);
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    triggerDownload(blob, `${safeName(currentDoc.title)}.html`);
-    setShowExportMenu(false);
-  }
-
-  // PDF 내보내기 — HTML을 새 창에서 띄우고 브라우저 인쇄(저장 대화상자)로 PDF 저장
-  // (서버리스 환경에서 별도 PDF 라이브러리 없이 가장 안정적인 방식)
+  // ── 내보내기 (lib/doc-export.ts 호출) ────────────────────────────
+  function downloadMD() { if (currentDoc) { exportMD(currentDoc); setShowExportMenu(false); } }
+  function downloadTXT() { if (currentDoc) { exportTXT(currentDoc); setShowExportMenu(false); } }
+  function downloadHTML() { if (currentDoc) { exportHTML(currentDoc); setShowExportMenu(false); } }
   function downloadPDF() {
     if (!currentDoc) return;
-    const bodyHtml = marked.parse(currentDoc.content_markdown, { async: false }) as string;
-    const html = buildHtmlDoc(currentDoc.title, bodyHtml, true);
-    // 새 창 열기 → onload 시 자동 print() → 사용자가 "PDF로 저장" 선택
-    const win = window.open("", "_blank", "width=900,height=1200");
-    if (!win) {
-      alert("팝업이 차단됐어요. 브라우저 팝업 허용 후 다시 시도해주세요.");
-      return;
-    }
-    win.document.write(html);
-    win.document.close();
-    // 약간의 딜레이 후 print (렌더 완료 보장)
-    setTimeout(() => {
-      try { win.focus(); win.print(); } catch (err) { console.error("PDF 인쇄 실패:", err); }
-    }, 400);
-    setShowExportMenu(false);
-  }
-
-  function downloadTXT() {
-    if (!currentDoc) return;
-    // 마크다운 기호 제거한 순수 텍스트
-    const text = currentDoc.content_markdown
-      .replace(/^#{1,6}\s+/gm, "")        // 헤더 기호
-      .replace(/\*\*(.+?)\*\*/g, "$1")     // 굵게
-      .replace(/\*(.+?)\*/g, "$1")         // 기울임
-      .replace(/`(.+?)`/g, "$1")           // 코드
-      .replace(/^\s*[-*+]\s+/gm, "• ")     // 불릿
-      .replace(/^\s*\d+\.\s+/gm, "")       // 번호 리스트
-      .replace(/!\[(.*?)\]\((.+?)\)/g, "[$1]")   // 이미지
-      .replace(/\[(.+?)\]\((.+?)\)/g, "$1")      // 링크
-      .replace(/^---+$/gm, "━━━━━━━━━━━━━━━━━━");
-
-    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-    triggerDownload(blob, `${safeName(currentDoc.title)}.txt`);
+    const ok = exportPDF(currentDoc);
+    if (!ok) alert("팝업이 차단됐어요. 브라우저 팝업 허용 후 다시 시도해주세요.");
     setShowExportMenu(false);
   }
 
@@ -589,359 +547,35 @@ export default function DocumentView({
               </div>
             )}
 
-            {/* 기획서 리스트 오버레이 — 사이드바와 동일 크기로 덮음 */}
+            {/* 기획서 리스트 오버레이 — DocList 컴포넌트로 분리됨 */}
             {showDocList && (
-              <div
-                className="absolute inset-0 flex flex-col z-10"
-                style={{ backgroundColor: "#0a0e1a", borderRight: `1px solid ${SILVER_FAINT}` }}
-              >
-                {/* 오버레이 헤더 */}
-                <div className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 gap-2" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
-                  <p className="text-xs font-bold flex-1 min-w-0" style={{ color: "rgba(180,210,255,1)" }}>📚 기획서 리스트</p>
-                  <button
-                    onClick={() => setShowCatManager(true)}
-                    title="카테고리 관리 — 대/중/소 카테고리 추가·수정·삭제"
-                    className="flex items-center justify-center w-7 h-7 rounded flex-shrink-0"
-                    style={{
-                      backgroundColor: "rgba(255,200,100,0.15)",
-                      border: "1px solid rgba(255,200,100,0.4)",
-                      color: "rgba(255,220,150,1)",
-                      fontSize: "13px",
-                    }}
-                  >
-                    ⚙️
-                  </button>
-                  <button
-                    onClick={() => setShowDocList(false)}
-                    className="text-xs px-2 py-0.5 rounded flex-shrink-0"
-                    style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                {/* family 트리 — 같은 기획서의 버전끼리 묶음 */}
-                <div className="flex-1 overflow-y-auto px-2 py-2" style={{ scrollbarWidth: "thin" }}>
-                  {versions.length === 0 && (
-                    <p className="text-xs text-center mt-6" style={{ color: SILVER_DIM }}>
-                      생성된 기획서가 없어요
-                    </p>
-                  )}
-                  {(() => {
-                    // 1. family 단위로 dedupe — 같은 family에서 최신만 (version_no 최대) 보임
-                    const familyMap = new Map<string, DocMeta>();
-                    for (const v of versions) {
-                      const fid = v.doc_family_id ?? v.id;
-                      const cur = familyMap.get(fid);
-                      if (!cur || v.version_no > cur.version_no) familyMap.set(fid, v);
-                    }
-                    const docs = Array.from(familyMap.values());
-
-                    // 2. 대(main) > 중(area) > 소(sub) 3단계 트리 구축
-                    type MainNode = {
-                      key: string; mainId: string | null; label: string; icon: string;
-                      areas: Map<string, AreaNode>;
-                      directDocs: DocMeta[];   // 영역 없는 소카테고리 또는 미분류
-                    };
-                    type AreaNode = {
-                      key: string; code: string; label: string;
-                      subs: Map<string, SubNode>;
-                      directDocs: DocMeta[];   // 소카테고리 없는 doc
-                    };
-                    type SubNode = {
-                      key: string; subId: string; label: string;
-                      docs: DocMeta[];
-                    };
-
-                    const tree = new Map<string, MainNode>();
-                    const NONE_KEY = "__none__";
-
-                    function ensureMain(mainId: string | null): MainNode {
-                      const key = mainId ?? NONE_KEY;
-                      if (!tree.has(key)) {
-                        const main = mainId ? categories.find(m => m.id === mainId) ?? null : null;
-                        tree.set(key, {
-                          key,
-                          mainId,
-                          label: main ? main.name_ko : "분류 안 됨",
-                          icon: main?.icon ?? "📂",
-                          areas: new Map(),
-                          directDocs: [],
-                        });
-                      }
-                      return tree.get(key)!;
-                    }
-                    function ensureArea(main: MainNode, areaCode: string): AreaNode {
-                      if (!main.areas.has(areaCode)) {
-                        const mainObj = categories.find(m => m.id === main.mainId);
-                        const areaName = mainObj?.areas?.find(a => a.code === areaCode)?.name ?? areaCode;
-                        main.areas.set(areaCode, { key: `${main.key}::${areaCode}`, code: areaCode, label: areaName, subs: new Map(), directDocs: [] });
-                      }
-                      return main.areas.get(areaCode)!;
-                    }
-                    function ensureSub(area: AreaNode, subId: string, mainId: string | null, areaCode: string): SubNode {
-                      if (!area.subs.has(subId)) {
-                        const mainObj = mainId ? categories.find(m => m.id === mainId) : null;
-                        let subName = subId;
-                        if (mainObj) {
-                          const subItem = mainObj.areas?.find(a => a.code === areaCode)?.sub_categories.find(s => s.id === subId)
-                            ?? mainObj.sub_categories?.find(s => s.id === subId);
-                          if (subItem) subName = subItem.name_ko;
-                        }
-                        area.subs.set(subId, { key: `${area.key}::${subId}`, subId, label: subName, docs: [] });
-                      }
-                      return area.subs.get(subId)!;
-                    }
-
-                    for (const d of docs) {
-                      const main = ensureMain(d.category_main_id);
-                      if (d.category_area_code) {
-                        const area = ensureArea(main, d.category_area_code);
-                        if (d.category_sub_id) {
-                          const sub = ensureSub(area, d.category_sub_id, d.category_main_id, d.category_area_code);
-                          sub.docs.push(d);
-                        } else {
-                          area.directDocs.push(d);
-                        }
-                      } else {
-                        main.directDocs.push(d);
-                      }
-                    }
-
-                    // 정렬: 한국어 라벨 알파벳, 미분류는 맨 뒤
-                    const mainArr = Array.from(tree.values()).sort((a, b) => {
-                      if (a.key === NONE_KEY) return 1;
-                      if (b.key === NONE_KEY) return -1;
-                      return a.label.localeCompare(b.label, "ko");
-                    });
-
-                    // 4단계 (대 > 중 > 소 > 기획서) 색상·스타일
-                    const STYLE = {
-                      MAIN_BG: "rgba(100,180,255,0.18)",
-                      MAIN_BORDER: "rgba(100,180,255,0.45)",
-                      AREA_BG: "rgba(100,180,255,0.08)",
-                      AREA_BORDER: "rgba(100,180,255,0.25)",
-                      SUB_BG: "rgba(255,255,255,0.03)",
-                      SUB_BORDER: "rgba(192,200,216,0.20)",
-                    };
-
-                    // 기획서 하나 렌더링 (leaf)
-                    const renderDoc = (d: DocMeta, depth: number) => {
-                      const active = d.id === currentDoc?.id;
-                      const isUnviewed = !viewedDocIds.has(d.id);
-                      return (
-                        <div key={d.id} className="flex items-center gap-1" style={{ paddingLeft: `${depth * 12}px` }}>
-                          <button
-                            onClick={() => { void loadDoc(d.id); setShowDocList(false); }}
-                            className="flex-1 text-left text-xs px-2 py-1.5 rounded flex items-center gap-1.5 transition-colors"
-                            style={{
-                              backgroundColor: active ? "rgba(100,180,255,0.25)" : "transparent",
-                              border: active ? "1px solid rgba(100,180,255,0.6)" : "1px solid transparent",
-                              color: active ? "rgba(180,210,255,1)" : "#d0d8e0",
-                            }}
-                          >
-                            <span style={{ color: SILVER_DIM, fontSize: "9px", flexShrink: 0 }}>📄</span>
-                            <span className="truncate font-medium">{d.title}</span>
-                            {isUnviewed && (
-                              <span
-                                className="w-2 h-2 rounded-full ml-auto flex-shrink-0 animate-pulse"
-                                title="아직 열어보지 않은 새 기획서"
-                                style={{ backgroundColor: "rgba(255,80,80,0.95)", boxShadow: "0 0 4px rgba(255,80,80,0.6)" }}
-                              />
-                            )}
-                          </button>
-                          {/* 액션: 이름 변경 + 카테고리 변경 */}
-                          <button
-                            onClick={() => { setRenamingFamilyId(d.doc_family_id ?? d.id); setRenameInput(d.title); }}
-                            title="이름 변경"
-                            className="text-xs px-1 py-1 rounded hover:bg-white/10 flex-shrink-0"
-                            style={{ color: SILVER_DIM }}
-                          >✏️</button>
-                          <button
-                            onClick={() => {
-                              setCategorizingFamilyId(d.doc_family_id ?? d.id);
-                              setCatPickMainId(d.category_main_id ?? "");
-                              setCatPickAreaCode(d.category_area_code ?? "");
-                              setCatPickSubId(d.category_sub_id ?? "");
-                            }}
-                            title="카테고리 분류 변경"
-                            className="text-xs px-1 py-1 rounded hover:bg-white/10 flex-shrink-0"
-                            style={{ color: SILVER_DIM }}
-                          >📂</button>
-                        </div>
-                      );
-                    };
-
-                    // 인라인 rename input (기획서 이름 수정 중일 때 doc 렌더 위에 표시)
-                    const renderDocWithRename = (d: DocMeta, depth: number) => {
-                      const fid = d.doc_family_id ?? d.id;
-                      if (renamingFamilyId !== fid) return renderDoc(d, depth);
-                      return (
-                        <div key={d.id} className="flex items-center gap-1" style={{ paddingLeft: `${depth * 12}px` }}>
-                          <input
-                            value={renameInput}
-                            onChange={(e) => setRenameInput(e.target.value)}
-                            onBlur={() => submitRename(fid)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") submitRename(fid);
-                              if (e.key === "Escape") { setRenamingFamilyId(null); setRenameInput(""); }
-                            }}
-                            className="flex-1 text-xs font-medium px-2 py-1.5 rounded outline-none"
-                            style={{ backgroundColor: "rgba(0,0,0,0.5)", border: "1px solid rgba(100,180,255,0.6)", color: "#e0e8f0" }}
-                            autoFocus
-                          />
-                        </div>
-                      );
-                    };
-
-                    return mainArr.map(main => {
-                      const mainOpen = expandedCats.has(main.key);
-                      const mainTotalDocs =
-                        main.directDocs.length +
-                        Array.from(main.areas.values()).reduce((s, a) =>
-                          s + a.directDocs.length + Array.from(a.subs.values()).reduce((ss, sub) => ss + sub.docs.length, 0),
-                        0);
-
-                      return (
-                        <div key={main.key} className="mb-2">
-                          {/* 대카테고리 헤더 — 가장 강조 */}
-                          <button
-                            onClick={() =>
-                              setExpandedCats(prev => {
-                                const n = new Set(prev);
-                                if (n.has(main.key)) n.delete(main.key); else n.add(main.key);
-                                return n;
-                              })
-                            }
-                            className="w-full text-left px-3 py-2 rounded-md flex items-center justify-between font-bold transition-colors"
-                            style={{
-                              backgroundColor: STYLE.MAIN_BG,
-                              border: `1px solid ${STYLE.MAIN_BORDER}`,
-                              color: SILVER,
-                              fontSize: "13px",
-                            }}
-                          >
-                            <span className="flex items-center gap-1.5 min-w-0">
-                              <span style={{ flexShrink: 0 }}>{main.icon}</span>
-                              <span className="truncate">{main.label}</span>
-                            </span>
-                            <span className="flex items-center gap-1.5 flex-shrink-0">
-                              <span className="text-[10px]" style={{ color: SILVER_DIM, fontWeight: 500 }}>{mainTotalDocs}</span>
-                              <span className="inline-flex items-center justify-center w-4 h-4 rounded text-sm leading-none" style={{ color: SILVER_DIM }}>
-                                {mainOpen ? "−" : "+"}
-                              </span>
-                            </span>
-                          </button>
-
-                          {mainOpen && (
-                            <div className="mt-1 flex flex-col gap-1">
-                              {/* 대카테고리 직속 (영역 없음) */}
-                              {main.directDocs.length > 0 && (
-                                <div className="flex flex-col gap-0.5 pl-2">
-                                  {main.directDocs.map(d => renderDocWithRename(d, 0))}
-                                </div>
-                              )}
-
-                              {/* 중카테고리(영역) */}
-                              {Array.from(main.areas.values())
-                                .sort((a, b) => a.label.localeCompare(b.label, "ko"))
-                                .map(area => {
-                                  const areaOpen = expandedCats.has(area.key);
-                                  const areaTotal = area.directDocs.length + Array.from(area.subs.values()).reduce((s, sub) => s + sub.docs.length, 0);
-                                  return (
-                                    <div key={area.key} className="ml-2">
-                                      <button
-                                        onClick={() =>
-                                          setExpandedCats(prev => {
-                                            const n = new Set(prev);
-                                            if (n.has(area.key)) n.delete(area.key); else n.add(area.key);
-                                            return n;
-                                          })
-                                        }
-                                        className="w-full text-left px-2.5 py-1.5 rounded flex items-center justify-between font-semibold transition-colors"
-                                        style={{
-                                          backgroundColor: STYLE.AREA_BG,
-                                          border: `1px solid ${STYLE.AREA_BORDER}`,
-                                          color: "rgba(220,228,240,1)",
-                                          fontSize: "12px",
-                                        }}
-                                      >
-                                        <span className="flex items-center gap-1.5 min-w-0">
-                                          <span style={{ flexShrink: 0, fontSize: "10px" }}>📂</span>
-                                          <span className="truncate">{area.label}</span>
-                                        </span>
-                                        <span className="flex items-center gap-1.5 flex-shrink-0">
-                                          <span className="text-[10px]" style={{ color: SILVER_DIM }}>{areaTotal}</span>
-                                          <span className="inline-flex items-center justify-center w-4 h-4 rounded text-sm leading-none" style={{ color: SILVER_DIM }}>
-                                            {areaOpen ? "−" : "+"}
-                                          </span>
-                                        </span>
-                                      </button>
-
-                                      {areaOpen && (
-                                        <div className="mt-1 ml-2 flex flex-col gap-1">
-                                          {/* 영역 직속 (소카테고리 없음) */}
-                                          {area.directDocs.length > 0 && (
-                                            <div className="flex flex-col gap-0.5">
-                                              {area.directDocs.map(d => renderDocWithRename(d, 0))}
-                                            </div>
-                                          )}
-
-                                          {/* 소카테고리 */}
-                                          {Array.from(area.subs.values())
-                                            .sort((a, b) => a.label.localeCompare(b.label, "ko"))
-                                            .map(sub => {
-                                              const subOpen = expandedCats.has(sub.key);
-                                              return (
-                                                <div key={sub.key}>
-                                                  <button
-                                                    onClick={() =>
-                                                      setExpandedCats(prev => {
-                                                        const n = new Set(prev);
-                                                        if (n.has(sub.key)) n.delete(sub.key); else n.add(sub.key);
-                                                        return n;
-                                                      })
-                                                    }
-                                                    className="w-full text-left px-2 py-1 rounded flex items-center justify-between transition-colors"
-                                                    style={{
-                                                      backgroundColor: STYLE.SUB_BG,
-                                                      borderLeft: `2px solid ${STYLE.SUB_BORDER}`,
-                                                      color: SILVER_DIM,
-                                                      fontSize: "11px",
-                                                    }}
-                                                  >
-                                                    <span className="flex items-center gap-1 min-w-0">
-                                                      <span style={{ flexShrink: 0, fontSize: "8px" }}>▸</span>
-                                                      <span className="truncate">{sub.label}</span>
-                                                    </span>
-                                                    <span className="flex items-center gap-1 flex-shrink-0">
-                                                      <span className="text-[9px]">{sub.docs.length}</span>
-                                                      <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded text-xs leading-none">
-                                                        {subOpen ? "−" : "+"}
-                                                      </span>
-                                                    </span>
-                                                  </button>
-                                                  {subOpen && (
-                                                    <div className="mt-0.5 flex flex-col gap-0.5 ml-2">
-                                                      {sub.docs.map(d => renderDocWithRename(d, 0))}
-                                                    </div>
-                                                  )}
-                                                </div>
-                                              );
-                                            })}
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              </div>
+              <DocList
+                versions={versions}
+                currentDoc={currentDoc}
+                viewedDocIds={viewedDocIds}
+                categories={categories}
+                expandedCats={expandedCats}
+                toggleCat={(key) => setExpandedCats(prev => {
+                  const n = new Set(prev);
+                  if (n.has(key)) n.delete(key); else n.add(key);
+                  return n;
+                })}
+                renamingDocId={renamingFamilyId}
+                renameInput={renameInput}
+                setRenameInput={setRenameInput}
+                submitRename={(docId) => submitRename(docId)}
+                cancelRename={() => { setRenamingFamilyId(null); setRenameInput(""); }}
+                startRename={(docId, title) => { setRenamingFamilyId(docId); setRenameInput(title); }}
+                startCategorize={(d) => {
+                  setCategorizingFamilyId(d.id);
+                  setCatPickMainId(d.category_main_id ?? "");
+                  setCatPickAreaCode(d.category_area_code ?? "");
+                  setCatPickSubId(d.category_sub_id ?? "");
+                }}
+                onLoadDoc={(id) => { void loadDoc(id); setShowDocList(false); }}
+                onOpenCategoryManager={() => setShowCatManager(true)}
+                onClose={() => setShowDocList(false)}
+              />
             )}
           </aside>
         )}
@@ -1129,7 +763,7 @@ export default function DocumentView({
                 autoFocus
               />
               <p className="text-xs" style={{ color: SILVER_DIM }}>
-                💡 수정은 새 버전(v{(currentDoc?.version_no ?? 0) + 1}+)으로 저장돼요. 원본은 그대로 남아요.
+                💡 수정 전 원본은 7일간 백업 폴더에 보관돼요. 잘못된 수정 시 복구 가능.
               </p>
               <div className="flex gap-2 justify-end mt-1">
                 <button
@@ -1168,74 +802,3 @@ export default function DocumentView({
   );
 }
 
-// ── 헬퍼: 파일명 안전 처리 ─────────────────────────────────────────
-function safeName(s: string): string {
-  return s.replace(/[\\/:*?"<>|]/g, "_").trim() || "design_doc";
-}
-
-// ── 헬퍼: 스타일링된 HTML 문서 빌드 ────────────────────────────────
-// printMode=true면 인쇄 친화 스타일(여백·페이지 브레이크) 추가
-function buildHtmlDoc(title: string, bodyHtml: string, printMode = false): string {
-  const escTitle = title.replace(/[<>&]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] ?? c));
-  return `<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${escTitle}</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; }
-  body {
-    font-family: -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", sans-serif;
-    line-height: 1.7;
-    color: #1a1a1a;
-    max-width: 820px;
-    margin: 0 auto;
-    padding: 48px 32px;
-    background: #fff;
-  }
-  h1 { font-size: 28px; margin: 0 0 24px; padding-bottom: 12px; border-bottom: 2px solid #333; }
-  h2 { font-size: 22px; margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 1px solid #ccc; }
-  h3 { font-size: 18px; margin: 28px 0 10px; color: #333; }
-  h4 { font-size: 15px; margin: 22px 0 8px; color: #555; }
-  p { margin: 10px 0; }
-  ul, ol { margin: 10px 0; padding-left: 28px; }
-  li { margin: 4px 0; }
-  strong { color: #000; }
-  em { color: #444; }
-  code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-size: 0.92em; font-family: "SF Mono", Consolas, monospace; }
-  pre { background: #f5f5f5; padding: 14px; border-radius: 6px; overflow-x: auto; }
-  pre code { background: transparent; padding: 0; }
-  blockquote { border-left: 4px solid #999; padding: 4px 16px; margin: 14px 0; color: #555; background: #fafafa; }
-  table { border-collapse: collapse; width: 100%; margin: 14px 0; }
-  th, td { border: 1px solid #ccc; padding: 8px 12px; text-align: left; }
-  th { background: #f0f0f0; font-weight: 600; }
-  a { color: #0066cc; }
-  hr { border: none; border-top: 1px solid #ccc; margin: 28px 0; }
-  .footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid #ccc; color: #888; font-size: 11px; text-align: center; }
-  ${printMode ? `
-    @page { size: A4; margin: 18mm 16mm; }
-    @media print {
-      body { padding: 0; max-width: none; }
-      h1, h2, h3 { page-break-after: avoid; }
-      pre, blockquote, table { page-break-inside: avoid; }
-    }
-  ` : ""}
-</style>
-</head>
-<body>
-${bodyHtml}
-<div class="footer">조던 — 게임 기획 전문가 · ${new Date().toLocaleString("ko-KR")}</div>
-</body>
-</html>`;
-}
-function triggerDownload(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}

@@ -89,9 +89,7 @@ export async function POST(request: Request) {
       .order("display_order");
     const subs = (subRaw ?? []) as SubCategory[];
 
-    // 4. 바이블 자동 생성 = 새 family v1 (수정 요청으로 v2, v3로 진화)
-    const nextVersion = 1;
-    const newFamilyId = crypto.randomUUID();
+    // 4. 바이블 자동 생성 — 새 doc 생성 (버전 개념 없음, 수정은 in-place)
 
     // 5. 결정사항을 카테고리별로 그룹핑
     const decisionsBySub = new Map<string, DecisionRow[]>();
@@ -105,18 +103,16 @@ export async function POST(request: Request) {
     const categoryContext = buildCategoryContext(mains, subs, decisionsBySub);
 
     // 7. Claude로 기획서 마크다운 생성
-    const markdown = await generateMarkdown(project as Project, categoryContext, nextVersion);
+    const markdown = await generateMarkdown(project as Project, categoryContext);
 
     // 8. design_docs에 저장
-    const title = body.title ?? `v${nextVersion} 자동 생성`;
+    const title = body.title ?? `바이블 기반 자동 생성`;
     const sourceDecisionIds = decisions.map(d => d.id);
 
     const { data: saved, error: saveErr } = await supabase
       .from("design_docs")
       .insert({
         project_id: body.project_id,
-        doc_family_id: newFamilyId,
-        version_no: nextVersion,
         title,
         content_markdown: markdown,
         status: "draft",
@@ -214,8 +210,7 @@ function decisionStatus(confidence: string): string {
 // ─── Claude Sonnet으로 마크다운 기획서 생성 ──────────────────────────
 async function generateMarkdown(
   project: Project,
-  categoryContext: string,
-  versionNo: number
+  categoryContext: string
 ): Promise<string> {
   const today = new Date().toISOString().split("T")[0];
 
@@ -235,10 +230,10 @@ async function generateMarkdown(
 6. 톤: 정식 기획서, 단정적인 서술 (~이다, ~한다)
 
 [문서 구조]
-# {게임명} 기획서 (v{버전})
+# {게임명} 기획서
 
 ## 📋 메타 정보
-- 작성일, 버전, 결정사항 누적 개수
+- 작성일, 결정사항 누적 개수
 
 ## 📑 목차
 
@@ -264,7 +259,6 @@ async function generateMarkdown(
 - 설명: ${project.description ?? "(없음)"}
 
 생성 정보:
-- 버전: v${versionNo}
 - 작성일: ${today}
 
 다음은 카테고리별 결정사항 데이터예요. 이를 정식 게임 기획서로 정리해주세요.
@@ -287,5 +281,5 @@ ${categoryContext}
     .map(b => (b as Anthropic.TextBlock).text)
     .join("");
 
-  return text || `# ${project.name} 기획서 (v${versionNo})\n\n_(생성 실패)_`;
+  return text || `# ${project.name} 기획서\n\n_(생성 실패)_`;
 }

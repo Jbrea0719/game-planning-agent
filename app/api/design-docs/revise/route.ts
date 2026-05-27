@@ -1,16 +1,17 @@
-// 기획서 수정 요청 — 기존 버전을 기반으로 사용자 지시대로 수정한 새 버전 생성
+// 기획서 수정 요청 — 기존 기획서를 사용자 지시대로 갱신 (in-place UPDATE)
 // POST /api/design-docs/revise { doc_id, instruction, nickname? }
 //
 // 흐름:
-//   1. 원본 기획서 로드 (content_markdown)
-//   2. 기획 바이블 전체 로드 (교차 검증용)
-//   3. Claude로 수정 → 전체 마크다운 반환
-//   4. design_docs에 새 버전 INSERT (v(N+1))
-//   5. changes_summary에 사용자 지시 기록
+//   1. 원본 기획서 로드
+//   2. 수정 전 본문을 design_doc_backups에 백업 (7일 유지)
+//   3. 기획 바이블 전체 로드 (교차 검증용)
+//   4. Claude로 수정 → 전체 마크다운 반환
+//   5. design_docs UPDATE — 같은 row를 새 내용으로 덮어씀
 
 import Anthropic from "@anthropic-ai/sdk";
 import { buildDecisionContext } from "@/lib/decision-context";
 import { supabase } from "@/lib/supabase";
+import { createBackup } from "@/lib/doc-backup";
 
 const REVISE_SYSTEM_PROMPT = `당신은 영웅수집형 모바일 게임 기획서 편집 전문가입니다.
 
@@ -39,10 +40,10 @@ export async function POST(request: Request) {
       return Response.json({ error: "수정 요청 내용을 입력하세요" }, { status: 400 });
     }
 
-    // 1. 원본 doc 로드 (family_id + 카테고리 포함)
+    // 1. 원본 doc 로드
     const { data: orig, error: loadErr } = await supabase
       .from("design_docs")
-      .select("id, project_id, doc_family_id, title, content_markdown, version_no, category_main_id, category_area_code, category_sub_id")
+      .select("id, project_id, title, content_markdown, category_main_id, category_area_code, category_sub_id")
       .eq("id", doc_id)
       .maybeSingle();
 
@@ -50,7 +51,18 @@ export async function POST(request: Request) {
       return Response.json({ error: "원본 기획서를 찾을 수 없어요" }, { status: 404 });
     }
 
-    // 2. 기획 바이블 로드
+    // 2. 수정 전 백업 (7일 보존, 실패해도 흐름 계속)
+    await createBackup({
+      doc_id: orig.id,
+      project_id: orig.project_id,
+      title: orig.title,
+      content_markdown: orig.content_markdown,
+      reason: "수정 요청 직전",
+      instruction: instruction.trim().slice(0, 200),
+      nickname,
+    });
+
+    // 3. 기획 바이블 로드
     let bibleText = "";
     try {
       bibleText = await buildDecisionContext(orig.project_id, 500, null);
@@ -58,11 +70,11 @@ export async function POST(request: Request) {
       console.error("[design-docs/revise] 바이블 로드 실패:", err);
     }
 
-    // 3. Claude 호출 (non-streaming)
+    // 4. Claude 호출 (non-streaming)
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
     const userContent =
-      `=== 원본 기획서 (v${orig.version_no} · ${orig.title}) ===\n` +
+      `=== 원본 기획서 (${orig.title}) ===\n` +
       `${orig.content_markdown}\n\n` +
       `=== 사용자 수정 요청 ===\n${instruction.trim()}\n\n` +
       (bibleText
@@ -85,9 +97,6 @@ export async function POST(request: Request) {
     if (!revisedMd.trim()) {
       return Response.json({ error: "수정 결과가 비어 있어요" }, { status: 500 });
     }
-
-    // 4. 버전 개념 제거 — 원본 doc을 UPDATE로 갱신 (히스토리 보존 X)
-    //    family_id, version_no는 그대로 유지
 
     // 새 제목: 본문 첫 H1에서 추출 (없으면 원본 제목 유지)
     const titleMatch = revisedMd.match(/^#\s+(.+?)$/m);
