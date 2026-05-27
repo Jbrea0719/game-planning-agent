@@ -33,7 +33,8 @@ const DOC_SYSTEM_PROMPT = `당신은 영웅수집형 모바일 게임 기획서 
 - 마크다운 형식.
 
 [기획서 구조]
-# [주제] 기획서
+# [주제]
+(주의: H1 제목 뒤에 "기획서" 같은 단어를 붙이지 마세요. 주제만 간결하게.)
 
 ## 1. 개요
 - 목적 및 배경
@@ -131,10 +132,15 @@ export async function POST(request: Request) {
       const nextVersion = ((lastVer?.[0]?.version_no as number | undefined) ?? 0) + 1;
 
       // 제목: 본문 첫 H1 추출 (없으면 기본값)
+      // 끝의 "기획서" / "기획" 같은 불필요 접미사 제거 — 주제만 깔끔하게
       const titleMatch = fullText.match(/^#\s+(.+?)$/m);
       const title = titleMatch
-        ? titleMatch[1].slice(0, 80).replace(/기획서$/, "기획서").trim()
-        : `v${nextVersion} 대화 기반 기획서`;
+        ? titleMatch[1]
+            .slice(0, 80)
+            .replace(/\s*기획서\s*$/, "")
+            .replace(/\s*기획\s*$/, "")
+            .trim() || `v${nextVersion} 대화 기반`
+        : `v${nextVersion} 대화 기반`;
 
       const { data: doc, error: saveErr } = await supabase
         .from("design_docs")
