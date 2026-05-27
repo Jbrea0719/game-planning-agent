@@ -174,13 +174,20 @@ function AssistantMarkdown({ text }: { text: string }) {
 }
 
 // ── 헤더 버튼용 커스텀 툴팁 ──
-// 마우스 호버 시 버튼 아래쪽에 설명 팝업이 부드럽게 나타남
+// 데스크톱: 마우스 호버 시 표시
+// 모바일: 터치 다운 → 표시 / 터치 떼면 → 닫히고 버튼 클릭 자연 발생
 function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
+  const [touched, setTouched] = useState(false);
   return (
-    <div className="relative group flex-shrink-0">
+    <div
+      className="relative group flex-shrink-0"
+      onTouchStart={() => setTouched(true)}
+      onTouchEnd={() => setTouched(false)}
+      onTouchCancel={() => setTouched(false)}
+    >
       {children}
       <span
-        className="pointer-events-none absolute top-full mt-2 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50"
+        className={`pointer-events-none absolute top-full mt-2 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-md text-xs transition-opacity duration-150 z-50 ${touched ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
         style={{
           backgroundColor: "rgba(15,25,40,0.97)",
           border: "1px solid rgba(192,200,216,0.3)",
