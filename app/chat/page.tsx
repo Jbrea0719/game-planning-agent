@@ -229,8 +229,9 @@ export default function ChatPage() {
   const [showGuideModal, setShowGuideModal] = useState(false);
   // 맥락선 없을 때 안내 토스트
   const [noAnchorNotice, setNoAnchorNotice] = useState(false);
-  // 기획서 백그라운드 작성 상태
+  // 기획서 백그라운드 작성 상태 + 취소용 AbortController
   const [docBackgroundGenerating, setDocBackgroundGenerating] = useState(false);
+  const docGenAbortRef = useRef<AbortController | null>(null);
   // 기획서 작성 완료 알림 (사용자 확인 시 사라짐, 자동 해제 X)
   const [docCompletedNotice, setDocCompletedNotice] = useState<{ title: string; version_no: number } | null>(null);
   // 📄 기획서 버튼 레드닷 — 보지 않은 신규 기획서 있음 (localStorage 유지)
@@ -815,6 +816,10 @@ export default function ChatPage() {
     setSelectedPairIds(new Set());
     setDocBackgroundGenerating(true);
 
+    // 취소용 AbortController
+    const controller = new AbortController();
+    docGenAbortRef.current = controller;
+
     try {
       const response = await fetch("/api/document", {
         method: "POST",
@@ -824,6 +829,7 @@ export default function ChatPage() {
           project_id: DEFAULT_PROJECT_ID,
           nickname: sessionId?.replace(/^agent:/, "") ?? null,
         }),
+        signal: controller.signal,
       });
       const data = await response.json();
       if (!response.ok || !data.success) {
@@ -842,11 +848,26 @@ export default function ChatPage() {
       // DocumentView 리로드 트리거
       setDocReloadKey(k => k + 1);
     } catch (err) {
-      console.error("[기획서 작성] 실패:", err);
-      alert(`기획서 작성 실패: ${String(err)}`);
+      // 사용자가 취소한 경우는 조용히 처리
+      if (err instanceof Error && err.name === "AbortError") {
+        console.log("[기획서 작성] 사용자 취소");
+      } else {
+        console.error("[기획서 작성] 실패:", err);
+        alert(`기획서 작성 실패: ${String(err)}`);
+      }
     } finally {
+      docGenAbortRef.current = null;
       setDocBackgroundGenerating(false);
     }
+  }
+
+  // 진행 중인 기획서 작성 취소
+  function cancelDocGeneration() {
+    if (docGenAbortRef.current) {
+      docGenAbortRef.current.abort();
+      docGenAbortRef.current = null;
+    }
+    setDocBackgroundGenerating(false);
   }
 
   // 📄 기획서 버튼 클릭 — 뷰 열고 레드닷 해제 (자동 해제 X, 클릭으로만)
@@ -1314,7 +1335,7 @@ export default function ChatPage() {
                 <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
                   <p><b style={{ color: SILVER }}>📌 맥락 시작점</b> — 클릭하면 현재 설정된 맥락선 위치로 스크롤 + 노란 하이라이트. 설정 안 돼 있으면 <i>"맥락선이 없습니다"</i> 토스트. 설정/해제는 본문 안에서.</p>
                   <p><b style={{ color: SILVER }}>🧠 대화 맥락</b> — 지금까지 대화의 핵심을 3줄 요약. 답변마다 자동 갱신돼서 조던이 일관성을 유지해요.</p>
-                  <p><b style={{ color: SILVER }}>📄 기획서 작성</b> — 대화 선택 후 [✓ 작성 시작] 누르면 <i>백그라운드로 생성</i>. 작성 중에는 헤더 버튼이 "작성 중..." 표시. 완료 시 알림 토스트 + 자동으로 기획서 리스트에 새 버전 저장.</p>
+                  <p><b style={{ color: SILVER }}>📄 기획서 작성</b> — 대화 선택 후 [✓ 작성 시작] 누르면 <i>백그라운드로 생성</i>. 작성 중에는 헤더 버튼이 "작성 중... (취소)" 표시 — <b>다시 누르면 작성 취소</b>. 완료 시 알림 토스트 + 자동으로 기획서 리스트에 새 버전 저장.</p>
                   <p><b style={{ color: SILVER }}>📄 기획서</b> — 지금까지 생성한 기획서 버전 열람·편집·다운로드 (MD/TXT). 신규 기획서가 있으면 <b style={{ color: "rgba(255,150,150,1)" }}>빨간 점</b> 표시 (열어보면 사라짐, 자동 해제 X).</p>
                   <p><b style={{ color: SILVER }}>🏷️ 출처 표시</b> — 답변에 [공식 인용 — 4개 일치] 같은 신뢰도 라벨 표시 ON/OFF.</p>
                   <p><b style={{ color: SILVER }}>🎮 참고 게임</b> — 조던이 검색·분석할 때 신뢰하는 등록 게임 11종과 각 게임의 신뢰 출처 목록.</p>
@@ -1628,24 +1649,23 @@ export default function ChatPage() {
             </button>
           </Tooltip>
 
-          {/* ③ 기획서 작성 — 백그라운드 작성 중이면 진행 표시 */}
+          {/* ③ 기획서 작성 — 백그라운드 작성 중이면 진행 표시 (클릭 시 취소) */}
           {activePairs.length > 0 && (
-            <Tooltip text={docBackgroundGenerating ? "백그라운드에서 작성 중이에요 — 완료되면 알림" : "맥락선 이하 대화를 중심으로, 기획 바이블도 교차 검증해서 새 기획서 생성"}>
+            <Tooltip text={docBackgroundGenerating ? "버튼을 누르면 작성이 취소됩니다" : "맥락선 이하 대화를 중심으로, 기획 바이블도 교차 검증해서 새 기획서 생성"}>
               <button
-                onClick={enterSelectMode}
-                disabled={docBackgroundGenerating}
+                onClick={docBackgroundGenerating ? cancelDocGeneration : enterSelectMode}
                 className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5"
                 style={{
                   backgroundColor: docBackgroundGenerating ? "rgba(100,180,255,0.18)" : SILVER,
                   border: docBackgroundGenerating ? "1px solid rgba(100,180,255,0.5)" : "none",
                   color: docBackgroundGenerating ? "rgba(180,210,255,1)" : "#0a0e1a",
-                  cursor: docBackgroundGenerating ? "wait" : "pointer",
+                  cursor: "pointer",
                 }}
               >
                 {docBackgroundGenerating ? (
                   <>
                     <span className="inline-block w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(180,210,255,0.3)", borderTopColor: "rgba(180,210,255,1)" }} />
-                    작성 중...
+                    작성 중... <span style={{ opacity: 0.6, marginLeft: "2px" }}>(취소)</span>
                   </>
                 ) : (
                   <>📄 기획서 작성</>
