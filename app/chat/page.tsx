@@ -227,6 +227,8 @@ export default function ChatPage() {
   const [showDeleted, setShowDeleted] = useState(false);
   const [showGameModal, setShowGameModal] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
+  // 맥락선 없을 때 안내 토스트
+  const [noAnchorNotice, setNoAnchorNotice] = useState(false);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [showAnswerCompleteBtn, setShowAnswerCompleteBtn] = useState(false);
   // 롤링 맥락 카드 — 항상 3줄, 새 답변마다 백그라운드로 교체
@@ -1105,6 +1107,22 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* 맥락선 없음 안내 토스트 (2초) */}
+      {noAnchorNotice && (
+        <div
+          className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 text-sm"
+          style={{
+            backgroundColor: "rgba(15,25,40,0.95)",
+            border: "1px solid rgba(255,200,100,0.5)",
+            color: "rgba(255,220,150,1)",
+            backdropFilter: "blur(10px)",
+          }}
+        >
+          <span>📌</span>
+          <span>맥락선이 없습니다</span>
+        </div>
+      )}
+
       {/* 자동 추출 알림 (5초 자동 사라짐) */}
       {extractedNotice !== null && (
         <div
@@ -1530,22 +1548,39 @@ export default function ChatPage() {
             </button>
           </Tooltip>
 
-          {/* ④ 맥락 시작점 (anchor 있을 때) */}
-          {contextAnchorPairId && (
-            <Tooltip text="맥락 시작점 해제 — 전체 대화·기획 바이블을 다시 사용">
-              <button
-                onClick={clearContextAnchor}
-                className="text-xs px-3 py-1.5 rounded-lg font-medium"
-                style={{
-                  backgroundColor: "rgba(255,200,100,0.15)",
-                  border: "1px solid rgba(255,200,100,0.5)",
-                  color: "rgba(255,220,150,1)",
-                }}
-              >
-                📌 맥락 시작점 ✕
-              </button>
-            </Tooltip>
-          )}
+          {/* ④ 맥락 시작점 — 현재 위치로 스크롤 (없으면 안내 토스트) */}
+          <Tooltip text={contextAnchorPairId ? "현재 맥락 시작점 위치로 이동" : "맥락 시작점이 설정돼 있지 않아요"}>
+            <button
+              onClick={() => {
+                if (!contextAnchorPairId) {
+                  setNoAnchorNotice(true);
+                  setTimeout(() => setNoAnchorNotice(false), 2000);
+                  return;
+                }
+                const el = document.getElementById(`pair-${contextAnchorPairId}`);
+                if (el) {
+                  el.scrollIntoView({ behavior: "smooth", block: "center" });
+                  // 짧게 하이라이트 효과
+                  el.style.transition = "background-color 0.3s";
+                  const orig = el.style.backgroundColor;
+                  el.style.backgroundColor = "rgba(255,200,100,0.1)";
+                  setTimeout(() => { el.style.backgroundColor = orig; }, 1200);
+                } else {
+                  // anchor pair가 화면에서 사라진 경우 (예: 삭제됨)
+                  setNoAnchorNotice(true);
+                  setTimeout(() => setNoAnchorNotice(false), 2000);
+                }
+              }}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium"
+              style={{
+                backgroundColor: contextAnchorPairId ? "rgba(255,200,100,0.15)" : SILVER_FAINT,
+                border: `1px solid ${contextAnchorPairId ? "rgba(255,200,100,0.5)" : SILVER_DIM}`,
+                color: contextAnchorPairId ? "rgba(255,220,150,1)" : SILVER_DIM,
+              }}
+            >
+              📌 맥락 시작점
+            </button>
+          </Tooltip>
 
           {/* ⑤ 출처 표시 */}
           <Tooltip text="답변 문장에 [공식 인용 — N개 일치] 같은 신뢰도 라벨 표시 여부">
@@ -1671,6 +1706,7 @@ export default function ChatPage() {
               return (
             <div
               key={pair.pair_id}
+              id={`pair-${pair.pair_id}`}
               className={`space-y-3 group relative ${selectMode ? "cursor-pointer" : ""}`}
               onClick={selectMode ? () => togglePairSelect(pair.pair_id) : undefined}
               style={{ opacity: isBeforeAnchor ? 0.4 : 1 }}
