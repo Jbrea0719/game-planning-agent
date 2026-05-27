@@ -1418,7 +1418,7 @@ export default function ChatPage() {
                       <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>조던이 분석에 활용하는 신뢰 게임 11종</p>
                     </div>
                     <button
-                      onClick={() => { setShowSettingsModal(false); setShowGameModal(true); }}
+                      onClick={() => setShowGameModal(true)}
                       className="text-xs px-3 py-1.5 rounded-lg font-medium ml-2 flex-shrink-0"
                       style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
                     >
@@ -1584,9 +1584,9 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* 참고 게임 팝업 */}
+      {/* 참고 게임 팝업 — 설정 모달 위에 띄울 수 있도록 z-[60] */}
       {showGameModal && (
-        <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4" onClick={() => setShowGameModal(false)}>
+        <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-[60] p-4" onClick={() => setShowGameModal(false)}>
           <div className="rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }} onClick={(e) => e.stopPropagation()}>
             {/* 팝업 헤더 */}
             <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
