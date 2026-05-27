@@ -47,6 +47,10 @@ export default function DocumentView({
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState("");
   const [showExportMenu, setShowExportMenu] = useState(false);
+  // 수정 요청 모달 상태
+  const [showReviseModal, setShowReviseModal] = useState(false);
+  const [reviseInstruction, setReviseInstruction] = useState("");
+  const [revising, setRevising] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   // ── 버전 목록 로드 ────────────────────────────────────────────────
@@ -146,6 +150,40 @@ export default function DocumentView({
     }
   }
 
+  // ── 수정 요청 (사용자 지시 → 새 버전 생성) ─────────────────────
+  async function submitRevise() {
+    if (!currentDoc || !reviseInstruction.trim() || revising) return;
+    setRevising(true);
+    try {
+      const res = await fetch("/api/design-docs/revise", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          doc_id: currentDoc.id,
+          instruction: reviseInstruction.trim(),
+          nickname,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(`수정 실패: ${data.error ?? "알 수 없는 오류"}`);
+        return;
+      }
+      // 새 버전이 생성됐으니 목록 갱신 + 새 버전 선택
+      const newDocId = data.doc?.id;
+      await loadVersions();
+      if (newDocId) await loadDoc(newDocId);
+      // 모달 정리
+      setShowReviseModal(false);
+      setReviseInstruction("");
+    } catch (err) {
+      console.error("[doc-view] 수정 요청 실패:", err);
+      alert(`수정 실패: ${String(err)}`);
+    } finally {
+      setRevising(false);
+    }
+  }
+
   // ── 삭제 ───────────────────────────────────────────────────────
   async function deleteDoc() {
     if (!currentDoc) return;
@@ -225,6 +263,20 @@ export default function DocumentView({
                 style={{ backgroundColor: SILVER_FAINT, color: SILVER, opacity: currentDoc ? 1 : 0.5 }}
               >
                 ✏️ 편집
+              </button>
+              <button
+                onClick={() => { setReviseInstruction(""); setShowReviseModal(true); }}
+                disabled={!currentDoc}
+                title="조던에게 수정 요청 — 자연어로 지시하면 AI가 새 버전 생성"
+                className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                style={{
+                  backgroundColor: "rgba(100,180,255,0.18)",
+                  border: "1px solid rgba(100,180,255,0.5)",
+                  color: "rgba(180,210,255,1)",
+                  opacity: currentDoc ? 1 : 0.5,
+                }}
+              >
+                🪄 수정 요청
               </button>
               <div className="relative">
                 <button
@@ -354,6 +406,81 @@ export default function DocumentView({
           )}
         </div>
       </div>
+
+      {/* 수정 요청 모달 */}
+      {showReviseModal && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(0,0,0,0.7)" }}
+          onClick={() => { if (!revising) setShowReviseModal(false); }}
+        >
+          <div
+            className="rounded-2xl w-full max-w-xl shadow-2xl"
+            style={{ backgroundColor: "#0f1628", border: "1px solid rgba(100,180,255,0.4)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+              <span style={{ fontSize: "18px" }}>🪄</span>
+              <div className="flex-1">
+                <p className="text-sm font-bold" style={{ color: "rgba(180,210,255,1)" }}>기획서 수정 요청</p>
+                <p className="text-xs mt-0.5" style={{ color: SILVER_DIM }}>
+                  자연어로 어떻게 바꾸고 싶은지 알려주세요. 조던이 새 버전을 만들어요.
+                </p>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 flex flex-col gap-3">
+              <textarea
+                value={reviseInstruction}
+                onChange={(e) => setReviseInstruction(e.target.value)}
+                disabled={revising}
+                placeholder="예시:&#10;- 가챠 확률을 SSR 3%에서 1.5%로 낮추고 천장 조건도 100회로 조정&#10;- 영웅 등급 체계 섹션을 더 상세하게 보강&#10;- 수익화 섹션 제거하고 그 자리에 라이브 운영 일정 추가"
+                rows={7}
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none"
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.05)",
+                  border: `1px solid ${SILVER_FAINT}`,
+                  color: "#e0e8f0",
+                  lineHeight: 1.55,
+                }}
+                autoFocus
+              />
+              <p className="text-xs" style={{ color: SILVER_DIM }}>
+                💡 수정은 새 버전(v{(currentDoc?.version_no ?? 0) + 1}+)으로 저장돼요. 원본은 그대로 남아요.
+              </p>
+              <div className="flex gap-2 justify-end mt-1">
+                <button
+                  onClick={() => setShowReviseModal(false)}
+                  disabled={revising}
+                  className="text-xs px-4 py-2 rounded-lg"
+                  style={{ backgroundColor: SILVER_FAINT, color: SILVER }}
+                >
+                  취소
+                </button>
+                <button
+                  onClick={submitRevise}
+                  disabled={!reviseInstruction.trim() || revising}
+                  className="text-xs px-4 py-2 rounded-lg font-bold flex items-center gap-1.5 disabled:opacity-40"
+                  style={{
+                    backgroundColor: "rgba(100,180,255,0.25)",
+                    border: "1px solid rgba(100,180,255,0.6)",
+                    color: "rgba(180,210,255,1)",
+                  }}
+                >
+                  {revising ? (
+                    <>
+                      <span className="inline-block w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(180,210,255,0.3)", borderTopColor: "rgba(180,210,255,1)" }} />
+                      수정 중...
+                    </>
+                  ) : (
+                    <>🪄 수정 시작</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
