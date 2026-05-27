@@ -1351,7 +1351,7 @@ export default function ChatPage() {
                   <p><b style={{ color: SILVER }}>▼ 자세한 답변 보기</b> — 같은 질문에 대해 더 깊이 있는 확장 설명 요청.</p>
                   <p><b style={{ color: SILVER }}>📋 디렉터 검토 의견</b> — 검토 에이전트가 본 답변에 대해 짚은 보완점·우려 사항.</p>
                   <p><b style={{ color: SILVER }}>👍 정확함 / 👎 부정확</b> — 피드백 저장. 부정확은 사유 입력 가능 → 차후 품질 개선에 활용.</p>
-                  <p><b style={{ color: SILVER }}>📌 호버 압정</b> — 답변 좌측에 호버 시 나타남. 이 시점부터 맥락 시작점으로 지정. 본문 내 맥락선 ✕로 해제.</p>
+                  <p><b style={{ color: SILVER }}>📌 호버 압정</b> — 답변 좌측에 호버 시 나타남. <b>모든 페어에 표시되며 언제든 다른 시점으로 변경 가능</b>. 해제는 본문 내 맥락선 ✕로.</p>
                   <p><b style={{ color: SILVER }}>복사·삭제</b> — 답변 우상단 ⎘ 복사 / 호버 시 삭제. 삭제된 대화는 하단에서 복원 가능.</p>
                 </div>
               </section>
@@ -1850,13 +1850,17 @@ export default function ChatPage() {
                   <div className="flex-1" style={{ borderTop: "1px dashed rgba(255,200,100,0.6)" }} />
                 </div>
               )}
-              {/* 호버 시 anchor 설정 버튼 (이미 anchor면 표시 안 함) */}
-              {!isAnchor && !selectMode && (
+              {/* 호버 시 anchor 설정 버튼 — 모든 페어에 표시 (언제든 변경 가능) */}
+              {!selectMode && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setContextAnchor(pair.pair_id, pair.timestamp ?? new Date().toISOString()); }}
                   className="absolute -left-7 top-2 opacity-0 group-hover:opacity-100 transition-opacity text-xs rounded-full w-6 h-6 flex items-center justify-center"
-                  style={{ backgroundColor: "rgba(255,200,100,0.15)", border: "1px solid rgba(255,200,100,0.4)", color: "rgba(255,220,150,0.9)" }}
-                  title="이 시점부터 맥락 시작 (이전 대화·결정사항은 조던 컨텍스트에서 제외)"
+                  style={{
+                    backgroundColor: isAnchor ? "rgba(255,200,100,0.3)" : "rgba(255,200,100,0.15)",
+                    border: `1px solid ${isAnchor ? "rgba(255,200,100,0.7)" : "rgba(255,200,100,0.4)"}`,
+                    color: "rgba(255,220,150,0.95)",
+                  }}
+                  title={isAnchor ? "현재 맥락 시작점 (다른 페어 호버 시 이동 가능)" : "이 시점부터 맥락 시작"}
                 >
                   📌
                 </button>
