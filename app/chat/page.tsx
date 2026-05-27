@@ -226,6 +226,7 @@ export default function ChatPage() {
   const [showModal, setShowModal] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
   const [showGameModal, setShowGameModal] = useState(false);
+  const [showGuideModal, setShowGuideModal] = useState(false);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [showAnswerCompleteBtn, setShowAnswerCompleteBtn] = useState(false);
   // 롤링 맥락 카드 — 항상 3줄, 새 답변마다 백그라운드로 교체
@@ -1192,6 +1193,88 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* 가이드 팝업 — 조던 전체 기능 요약 */}
+      {showGuideModal && (
+        <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4" onClick={() => setShowGuideModal(false)}>
+          <div
+            className="rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl"
+            style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 팝업 헤더 */}
+            <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+              <div>
+                <p className="text-sm font-bold" style={{ color: SILVER }}>📖 조던 사용 가이드</p>
+                <p className="text-xs mt-0.5" style={{ color: SILVER_DIM }}>영웅수집형 게임 기획 전문가 에이전트의 모든 기능</p>
+              </div>
+              <button onClick={() => setShowGuideModal(false)} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>
+            </div>
+
+            {/* 팝업 내용 */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5" style={{ scrollbarWidth: "thin", scrollbarColor: `${SILVER_DIM} transparent` }}>
+
+              {/* 섹션 1 — 핵심 동작 */}
+              <section>
+                <p className="text-xs font-bold mb-2" style={{ color: "rgba(150,255,200,1)" }}>🤖 핵심 동작</p>
+                <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
+                  <p><b style={{ color: SILVER }}>다단계 에이전트 파이프라인</b> — 분석 → 설계 → 검토 → 답변. 단순 챗봇이 아닌 디렉터급 의사결정 과정을 거쳐요.</p>
+                  <p><b style={{ color: SILVER }}>실시간 게임 데이터 분석</b> — 등록된 11개 게임의 신뢰 출처(공식·라운지·인벤·디시·나무위키 등)를 실시간 검색해 근거 기반 답변.</p>
+                  <p><b style={{ color: SILVER }}>스트리밍 응답</b> — 답변이 작성되는 과정을 실시간으로 표시.</p>
+                </div>
+              </section>
+
+              {/* 섹션 2 — 헤더 도구 */}
+              <section>
+                <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🛠️ 헤더 도구 (좌 → 우)</p>
+                <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
+                  <p><b style={{ color: SILVER }}>🧠 대화 맥락</b> — 지금까지 대화의 핵심을 3줄 요약. 답변마다 자동 갱신돼서 조던이 일관성을 유지해요.</p>
+                  <p><b style={{ color: SILVER }}>📄 기획서 작성</b> — 맥락선 이하 대화를 중심으로 + 기획 바이블 전체와 교차 검증해서 새 기획서 생성. 체크박스로 대상 대화 가감 가능.</p>
+                  <p><b style={{ color: SILVER }}>📄 기획서</b> — 지금까지 생성한 기획서 버전 열람·편집·다운로드 (MD/TXT).</p>
+                  <p><b style={{ color: SILVER }}>📌 맥락 시작점</b> — 답변 옆 호버 시 나타나는 압정으로 설정. 이 시점 이후 대화·바이블만 조던에게 전달돼 토큰 절약 + 새 주제 집중. 헤더 ✕로 해제.</p>
+                  <p><b style={{ color: SILVER }}>🏷️ 출처 표시</b> — 답변에 [공식 인용 — 4개 일치] 같은 신뢰도 라벨 표시 ON/OFF.</p>
+                  <p><b style={{ color: SILVER }}>🎮 참고 게임</b> — 조던이 검색·분석할 때 신뢰하는 등록 게임 11종과 각 게임의 신뢰 출처 목록.</p>
+                  <p><b style={{ color: SILVER }}>📚 기획 바이블</b> — 누적된 모든 기획 결정 자산. 모든 기획서 작성에 자동 참조. 신규 항목 추가 시 빨간 점.</p>
+                </div>
+              </section>
+
+              {/* 섹션 3 — 답변별 도구 */}
+              <section>
+                <p className="text-xs font-bold mb-2" style={{ color: "rgba(255,220,150,1)" }}>💬 답변별 도구</p>
+                <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
+                  <p><b style={{ color: SILVER }}>▼ 자세한 답변 보기</b> — 같은 질문에 대해 더 깊이 있는 확장 설명 요청.</p>
+                  <p><b style={{ color: SILVER }}>📋 디렉터 검토 의견</b> — 검토 에이전트가 본 답변에 대해 짚은 보완점·우려 사항.</p>
+                  <p><b style={{ color: SILVER }}>👍 정확함 / 👎 부정확</b> — 피드백 저장. 부정확은 사유 입력 가능 → 차후 품질 개선에 활용.</p>
+                  <p><b style={{ color: SILVER }}>📌 호버 압정</b> — 이 시점부터 맥락 시작점으로 지정.</p>
+                  <p><b style={{ color: SILVER }}>복사·삭제</b> — 답변 우상단 ⎘ 복사 / 호버 시 삭제. 삭제된 대화는 하단에서 복원 가능.</p>
+                </div>
+              </section>
+
+              {/* 섹션 4 — 자동 기능 */}
+              <section>
+                <p className="text-xs font-bold mb-2" style={{ color: "rgba(255,180,180,1)" }}>⚙️ 자동 기능</p>
+                <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
+                  <p><b style={{ color: SILVER }}>기획 바이블 자동 추출</b> — 대화에서 결정·검토된 사항을 조던이 자동 추출해 바이블에 추가. 카테고리 자동 분류.</p>
+                  <p><b style={{ color: SILVER }}>충돌 항목 보류</b> — 조던이 반대·우려를 표한 결정은 자동 등록 보류. 사용자가 "그래도 등록해줘" 요청 시에만 등록.</p>
+                  <p><b style={{ color: SILVER }}>대화 기록 자동 저장</b> — Supabase에 저장. 새로고침·다른 기기에서도 복원.</p>
+                </div>
+              </section>
+
+              {/* 섹션 5 — 활용 팁 */}
+              <section>
+                <p className="text-xs font-bold mb-2" style={{ color: "rgba(200,180,255,1)" }}>💡 활용 팁</p>
+                <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
+                  <p><b style={{ color: SILVER }}>긴 프로젝트일 때</b> — 주제 전환 시 맥락 시작점(📌) 설정해서 이전 맥락 제외. 핵심 결정은 바이블에 누적돼 있으니 손실 없음.</p>
+                  <p><b style={{ color: SILVER }}>기획서 만들기</b> — 충분히 대화로 발산 → 결정사항이 바이블에 쌓임 → 헤더 [📄 기획서 작성]으로 한 번에 정리.</p>
+                  <p><b style={{ color: SILVER }}>바이블 직접 편집</b> — 📚 클릭해서 패널 열고 +/✏️/🗑️로 수동 관리 가능. 자동 추출이 놓친 항목도 직접 추가.</p>
+                  <p><b style={{ color: SILVER }}>모바일</b> — 헤더 버튼 꾹 누르고 있으면 설명 팝업, 떼면 실행.</p>
+                </div>
+              </section>
+
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 참고 게임 팝업 */}
       {showGameModal && (
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4" onClick={() => setShowGameModal(false)}>
@@ -1493,7 +1576,23 @@ export default function ChatPage() {
             </button>
           </Tooltip>
 
-          {/* ⑦ 기획 바이블 — 책 아이콘, 텍스트 없음, 신규 항목 빨간 점 */}
+          {/* ⑦ 가이드 — 조던 전체 기능 요약 */}
+          <Tooltip text="조던의 모든 기능 한눈에 보기">
+            <button
+              onClick={() => setShowGuideModal(true)}
+              className="rounded-lg font-medium flex items-center justify-center w-8 h-8"
+              style={{
+                backgroundColor: SILVER_FAINT,
+                border: `1px solid ${SILVER_DIM}`,
+                color: SILVER,
+                fontSize: "14px",
+              }}
+            >
+              📖
+            </button>
+          </Tooltip>
+
+          {/* ⑧ 기획 바이블 — 책 아이콘, 텍스트 없음, 신규 항목 빨간 점 */}
           <Tooltip text={`기획 바이블 (현재 ${decisionCount}개) — 누적된 기획 결정 자산. 모든 기획서 작성 시 교차 참조`}>
             <button
               onClick={() => {
