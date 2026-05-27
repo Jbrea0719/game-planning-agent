@@ -227,6 +227,7 @@ export default function ChatPage() {
   const [showDeleted, setShowDeleted] = useState(false);
   const [showGameModal, setShowGameModal] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   // 맥락선 없을 때 안내 토스트
   const [noAnchorNotice, setNoAnchorNotice] = useState(false);
   // 기획서 백그라운드 작성 상태 + 취소용 AbortController
@@ -1358,6 +1359,149 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* 설정 팝업 — 참고 게임 / 출처 표시 / 관리 도구 / 답변 모델 */}
+      {showSettingsModal && (() => {
+        const isAdmin = sessionId?.replace(/^agent:/, "") === "정민";
+        return (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowSettingsModal(false)}>
+            <div
+              className="rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl"
+              style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 헤더 */}
+              <div className="flex items-center justify-between px-5 py-4 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+                <div>
+                  <p className="text-sm font-bold flex items-center gap-2" style={{ color: SILVER }}>
+                    <span>⚙️</span> 설정
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: SILVER_DIM }}>
+                    {isAdmin ? "관리자 모드 — 모든 항목 수정 가능" : "뷰어 모드 — 일부 항목은 읽기 전용"}
+                  </p>
+                </div>
+                <button onClick={() => setShowSettingsModal(false)} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>
+                  닫기
+                </button>
+              </div>
+
+              {/* 본문 */}
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5" style={{ scrollbarWidth: "thin", scrollbarColor: `${SILVER_DIM} transparent` }}>
+
+                {/* 1. 답변 표시 — 출처 표시 토글 */}
+                <section>
+                  <p className="text-xs font-bold mb-2" style={{ color: "rgba(150,255,200,1)" }}>🏷️ 답변 표시</p>
+                  <div className="px-3 py-2.5 rounded-lg flex items-center justify-between" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
+                    <div className="flex-1">
+                      <p className="text-xs font-medium" style={{ color: SILVER }}>출처 표시</p>
+                      <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>답변 문장에 [공식 인용 — N개 일치] 같은 신뢰도 라벨 표시</p>
+                    </div>
+                    <button
+                      onClick={() => setShowCitations(v => !v)}
+                      className="text-xs px-3 py-1.5 rounded-lg font-medium ml-2 flex-shrink-0"
+                      style={{
+                        backgroundColor: showCitations ? "rgba(100,220,160,0.25)" : SILVER_FAINT,
+                        border: `1px solid ${showCitations ? "rgba(100,220,160,0.7)" : SILVER_DIM}`,
+                        color: showCitations ? "rgba(150,255,200,1)" : SILVER,
+                      }}
+                    >
+                      {showCitations ? "ON" : "OFF"}
+                    </button>
+                  </div>
+                </section>
+
+                {/* 2. 참고 게임 라이브러리 */}
+                <section>
+                  <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🎮 참고 게임</p>
+                  <div className="px-3 py-2.5 rounded-lg flex items-center justify-between" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
+                    <div className="flex-1">
+                      <p className="text-xs font-medium" style={{ color: SILVER }}>등록된 게임 라이브러리</p>
+                      <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>조던이 분석에 활용하는 신뢰 게임 11종</p>
+                    </div>
+                    <button
+                      onClick={() => { setShowSettingsModal(false); setShowGameModal(true); }}
+                      className="text-xs px-3 py-1.5 rounded-lg font-medium ml-2 flex-shrink-0"
+                      style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
+                    >
+                      자세히 →
+                    </button>
+                  </div>
+                </section>
+
+                {/* 3. 관리 도구 — 관리자만 수정 가능 */}
+                <section>
+                  <div className="flex items-center gap-2 mb-2">
+                    <p className="text-xs font-bold" style={{ color: "rgba(255,220,150,1)" }}>🛠️ 관리 도구</p>
+                    {!isAdmin && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(255,200,100,0.1)", color: "rgba(255,220,150,0.7)" }}>
+                        🔒 관리자 전용
+                      </span>
+                    )}
+                  </div>
+                  <div className="px-3 py-2.5 rounded-lg flex items-center justify-between" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}`, opacity: isAdmin ? 1 : 0.5 }}>
+                    <div className="flex-1">
+                      <p className="text-xs font-medium" style={{ color: SILVER }}>게임 도메인 큐레이션</p>
+                      <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>
+                        {isAdmin ? "신뢰 사이트 등록·발견 도구" : "관리자(정민)만 접근 가능"}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => isAdmin && window.open("/admin/curation", "_blank")}
+                      disabled={!isAdmin}
+                      className="text-xs px-3 py-1.5 rounded-lg font-medium ml-2 flex-shrink-0 disabled:cursor-not-allowed"
+                      style={{
+                        backgroundColor: isAdmin ? "rgba(255,200,100,0.2)" : SILVER_FAINT,
+                        border: `1px solid ${isAdmin ? "rgba(255,200,100,0.5)" : SILVER_DIM}`,
+                        color: isAdmin ? "rgba(255,220,150,1)" : SILVER_DIM,
+                      }}
+                    >
+                      열기 →
+                    </button>
+                  </div>
+                </section>
+
+                {/* 4. 답변 모델 — 관리자만 수정 가능 */}
+                <section>
+                  <div className="flex items-center gap-2 mb-2">
+                    <p className="text-xs font-bold" style={{ color: "rgba(200,180,255,1)" }}>🤖 답변 모델</p>
+                    {!isAdmin && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(255,200,100,0.1)", color: "rgba(255,220,150,0.7)" }}>
+                        🔒 관리자 전용
+                      </span>
+                    )}
+                  </div>
+                  <div className="px-3 py-2.5 rounded-lg" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}`, opacity: isAdmin ? 1 : 0.7 }}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="text-xs font-medium" style={{ color: SILVER }}>최종 답변 모델</p>
+                        <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>현재: Claude Sonnet 4.5</p>
+                      </div>
+                      <select
+                        disabled={!isAdmin}
+                        defaultValue="claude-sonnet-4-5"
+                        className="text-xs px-3 py-1.5 rounded-lg outline-none disabled:cursor-not-allowed"
+                        style={{
+                          backgroundColor: "rgba(0,0,0,0.4)",
+                          border: `1px solid ${isAdmin ? "rgba(200,180,255,0.4)" : SILVER_DIM}`,
+                          color: isAdmin ? "#e0e8f0" : SILVER_DIM,
+                        }}
+                      >
+                        <option value="claude-sonnet-4-5">Claude Sonnet 4.5 (현재)</option>
+                        <option value="claude-opus-4-1" disabled>Claude Opus 4.1 (예정)</option>
+                        <option value="claude-haiku-4-5" disabled>Claude Haiku 4.5 (예정)</option>
+                      </select>
+                    </div>
+                    <p className="text-[10px] mt-2" style={{ color: SILVER_DIM }}>
+                      💡 추후 답변 속도·품질 트레이드오프 선택 옵션으로 확장 예정
+                    </p>
+                  </div>
+                </section>
+
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* 가이드 팝업 — 조던 전체 기능 요약 */}
       {showGuideModal && (
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4" onClick={() => setShowGuideModal(false)}>
@@ -1396,9 +1540,8 @@ export default function ChatPage() {
                   <p><b style={{ color: SILVER }}>📋 맥락 결정사항</b> — 맥락선 이하 추가된 기획 바이블 결정 목록을 빠르게 확인. 맥락선이 없으면 전체 누적 결정을 보여줘요.</p>
                   <p><b style={{ color: SILVER }}>📄 기획서 작성</b> — 대화 선택 후 [✓ 작성 시작] 누르면 <i>백그라운드로 생성</i>. 작성 중에는 헤더 버튼이 "작성 중... (취소)" 표시 — <b>다시 누르면 작성 취소</b>. 완료 시 알림 토스트 + 자동으로 기획서 리스트에 새 버전 저장.</p>
                   <p><b style={{ color: SILVER }}>📄 기획서</b> — 진입 시 좌측 <b>📚 기획서 리스트</b>가 기본 열림. 리스트는 <b>대 &gt; 중 &gt; 소 &gt; 기획서</b> 4단계 트리. 대(인게임/아웃게임…)는 진한 배경, 중(영웅/PVP…)는 옅은 배경, 소(영웅 등급/스킬…)는 좌측 보더, 기획서는 leaf. 각 단계마다 +/− 토글. 기획서 옆 ✏️로 이름 변경, 📂로 분류 변경. 리스트 헤더의 <b>⚙️</b>로 카테고리 관리 (추가·수정·삭제). 안 본 기획서 옆에는 <b style={{ color: "rgba(255,150,150,1)" }}>빨간 점</b>(클릭하면 영구 해제). 뷰 안에서 <b>🪄 수정 요청</b>으로 자연어 지시 → 같은 기획서를 그 자리에서 갱신. 수정 전 원본은 <b>7일간 백업 폴더에 자동 보관</b>. <b>📥 내보내기</b>는 MD/TXT/HTML/PDF 4가지.</p>
-                  <p><b style={{ color: SILVER }}>🏷️ 출처 표시</b> — 답변에 [공식 인용 — 4개 일치] 같은 신뢰도 라벨 표시 ON/OFF.</p>
-                  <p><b style={{ color: SILVER }}>🎮 참고 게임</b> — 조던이 검색·분석할 때 신뢰하는 등록 게임 11종과 각 게임의 신뢰 출처 목록.</p>
                   <p><b style={{ color: SILVER }}>📖 가이드</b> — 지금 보고 있는 이 화면. 조던의 모든 기능을 한눈에 정리. 기능이 바뀌면 자동 갱신.</p>
+                  <p><b style={{ color: SILVER }}>⚙️ 설정</b> — 출처 표시, 참고 게임 라이브러리, 관리 도구(큐레이션·관리자 전용), 답변 모델(관리자 전용)이 한곳에 모임. 비관리자는 뷰어 모드로 일부만 수정 가능.</p>
                   <p><b style={{ color: SILVER }}>📚 기획 바이블</b> — 누적된 모든 기획 결정 자산. 모든 기획서 작성에 자동 참조. 신규 항목 추가 시 빨간 점(클릭/2분 뒤 해제).</p>
                 </div>
               </section>
@@ -1635,7 +1778,10 @@ export default function ChatPage() {
             <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.3)", color: "#34d399" }}>🔍 게임 분석 기반</span>
           </div>
           {/* 헤더 설명 */}
-          <p className="text-xs" style={{ color: SILVER_DIM }}>안녕, 영웅수집형 게임 디렉터 조던이야. 분석부터 기획까지 같이 풀어가자</p>
+          <p className="text-xs leading-snug" style={{ color: SILVER_DIM }}>
+            난 게임기획자이자 게임마스터 조던!<br />
+            무엇이든 물어보라고!
+          </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           {/* ─── 선택 모드: 작성 컨트롤만 크게 표시, 다른 헤더 버튼은 숨김 ─── */}
@@ -1758,33 +1904,7 @@ export default function ChatPage() {
             </button>
           </Tooltip>
 
-          {/* 맥락 시작점은 헤더 맨 앞으로 이동됨 */}
-
-          {/* ⑤ 출처 표시 */}
-          <Tooltip text="답변 문장에 [공식 인용 — N개 일치] 같은 신뢰도 라벨 표시 여부">
-            <button
-              onClick={() => setShowCitations(v => !v)}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium"
-              style={{
-                backgroundColor: showCitations ? "rgba(100,220,160,0.18)" : SILVER_FAINT,
-                border: `1px solid ${showCitations ? "rgba(100,220,160,0.7)" : SILVER_DIM}`,
-                color: showCitations ? "rgba(150,255,200,1)" : SILVER,
-              }}
-            >
-              {showCitations ? "✅ 출처 표시 ON" : "🏷️ 출처 표시 OFF"}
-            </button>
-          </Tooltip>
-
-          {/* ⑥ 참고 게임 */}
-          <Tooltip text="조던이 분석에 활용하는 등록된 게임 라이브러리 (현재 11개)">
-            <button
-              onClick={() => setShowGameModal(true)}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium"
-              style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
-            >
-              🎮 참고 게임
-            </button>
-          </Tooltip>
+          {/* 출처 표시·참고 게임·큐레이션은 ⚙️ 설정 모달로 이동됨 */}
 
           {/* ⑦ 가이드 — 조던 전체 기능 요약 */}
           <Tooltip text="조던의 모든 기능 한눈에 보기">
@@ -1834,23 +1954,21 @@ export default function ChatPage() {
             </button>
           </Tooltip>
 
-          {/* ⑧ 큐레이션 (관리자 전용) */}
-          {sessionId?.replace(/^agent:/, "") === "정민" && (
-            <Tooltip text="게임 도메인 큐레이션 (관리자 전용)">
-              <button
-                onClick={() => window.open("/admin/curation", "_blank")}
-                className="flex items-center justify-center w-8 h-8 rounded-lg"
-                style={{
-                  backgroundColor: "rgba(255,200,100,0.15)",
-                  border: "1px solid rgba(255,200,100,0.5)",
-                  color: "rgba(255,220,150,1)",
-                  fontSize: "14px",
-                }}
-              >
-                ⚙️
-              </button>
-            </Tooltip>
-          )}
+          {/* ⑧ 설정 — 참고 게임 / 출처 표시 / 관리 도구 / 답변 모델 통합 */}
+          <Tooltip text="설정 — 참고 게임, 출처 표시, 관리 도구, 답변 모델">
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              className="flex items-center justify-center w-8 h-8 rounded-lg"
+              style={{
+                backgroundColor: SILVER_FAINT,
+                border: `1px solid ${SILVER_DIM}`,
+                color: SILVER,
+                fontSize: "14px",
+              }}
+            >
+              ⚙️
+            </button>
+          </Tooltip>
           {sessionId && (
             <span className="text-xs px-3 py-1 rounded-full" style={{ backgroundColor: SILVER_FAINT, border: `1px solid rgba(192,200,216,0.3)`, color: SILVER }}>{sessionId.replace(/^agent:/, "")}</span>
           )}
