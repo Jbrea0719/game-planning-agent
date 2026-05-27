@@ -1772,8 +1772,8 @@ export default function ChatPage() {
         </div>
         <div>
           <div className="flex items-center gap-2">
-            {/* 에이전트 이름: 조던 (게임기획) */}
-            <p className="font-bold text-sm" style={{ color: SILVER }}>조던 (게임기획)</p>
+            {/* 에이전트 이름: 조던 */}
+            <p className="font-bold text-sm" style={{ color: SILVER }}>조던</p>
             {/* 감성 뱃지 — 게임 경험 강조 */}
             <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.3)", color: "#34d399" }}>✨ 다양한 수집형 게임 경험</span>
           </div>
@@ -1985,7 +1985,7 @@ export default function ChatPage() {
           {activePairs.length === 0 && !streamingPair && (
             <div className="text-center mt-20">
               <div className="w-16 h-16 rounded-full mx-auto overflow-hidden mb-4" style={{ border: `1px solid ${SILVER_DIM}` }}><img src="/avatar.jpg" alt="조던" className="w-full h-full object-cover" /></div>
-              <p className="text-sm font-medium" style={{ color: SILVER }}>조던 (게임기획)</p>
+              <p className="text-sm font-medium" style={{ color: SILVER }}>조던</p>
               <p className="text-xs mt-1" style={{ color: SILVER_DIM }}>AFK Arena · 세븐나이츠 · 서머너즈워 · 니케 · 에픽세븐 · 원신 — 무엇이든 물어보세요</p>
               <p className="text-xs mt-3 px-4 py-2 rounded-full inline-block" style={{ backgroundColor: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: "#34d399" }}>
                 ✨ 다양한 수집형 게임 경험으로 너와 함께해
