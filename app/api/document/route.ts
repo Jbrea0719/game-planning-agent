@@ -1,9 +1,16 @@
+// 대화 선택 기반 기획서 생성 (백그라운드)
+// POST /api/document { messages, project_id, nickname? }
+//
+// 흐름:
+//   1. 선택된 대화 + 기획 바이블 전체 로드
+//   2. Claude로 기획서 마크다운 생성 (non-streaming, 완성까지 대기)
+//   3. design_docs 테이블에 새 버전(v1, v2, ...) INSERT
+//   4. 저장된 doc 반환 → 클라이언트는 알림·레드닷 처리
+
 import Anthropic from "@anthropic-ai/sdk";
 import { buildDecisionContext } from "@/lib/decision-context";
+import { supabase } from "@/lib/supabase";
 
-// 기획서 작성 시스템 프롬프트
-// 핵심 변경: 선택된 대화 = 본문(중심 데이터),
-//           기획 바이블 = 교차 검증 기준 (전체 누적 자산)
 const DOC_SYSTEM_PROMPT = `당신은 영웅수집형 모바일 게임 기획서 작성 전문가입니다.
 
 [입력 구성]
@@ -65,9 +72,10 @@ type Message = { role: "user" | "assistant"; content: string };
 
 export async function POST(request: Request) {
   try {
-    const { messages, project_id } = (await request.json()) as {
+    const { messages, project_id, nickname } = (await request.json()) as {
       messages: Message[];
       project_id?: string;
+      nickname?: string;
     };
 
     if (!messages || messages.length === 0) {
@@ -79,7 +87,7 @@ export async function POST(request: Request) {
       .map((m) => `[${m.role === "user" ? "질문" : "조던"}] ${m.content}`)
       .join("\n\n");
 
-    // 기획 바이블 전체 로드 (anchor 무시 — 전체 자산이 교차 검증 기준)
+    // 기획 바이블 전체 로드
     let bibleText = "";
     if (project_id) {
       try {
@@ -89,7 +97,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // 유저 메시지: 본문 + 바이블 명시 구분
     const userContent = bibleText
       ? `아래 입력을 토대로 게임 기획서를 작성해주세요.\n\n` +
         `=== 1. 본문 대화 (이번 기획서의 중심 데이터) ===\n${conversationText}\n\n` +
@@ -98,32 +105,71 @@ export async function POST(request: Request) {
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-    const stream = await client.messages.stream({
+    // 백그라운드 생성: non-streaming, 완성까지 대기
+    const res = await client.messages.create({
       model: "claude-sonnet-4-5",
       max_tokens: 8192,
       system: DOC_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userContent }],
     });
 
-    const readable = new ReadableStream({
-      async start(controller) {
-        for await (const chunk of stream) {
-          if (
-            chunk.type === "content_block_delta" &&
-            chunk.delta.type === "text_delta"
-          ) {
-            controller.enqueue(new TextEncoder().encode(chunk.delta.text));
-          }
-        }
-        controller.close();
-      },
-    });
+    const fullText = res.content
+      .filter((b) => b.type === "text")
+      .map((b) => (b as Anthropic.TextBlock).text)
+      .join("");
 
-    return new Response(readable, {
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    // design_docs에 저장 (project_id 있을 때만)
+    let saved: unknown = null;
+    if (project_id) {
+      // 마지막 버전 → v(N+1)
+      const { data: lastVer } = await supabase
+        .from("design_docs")
+        .select("version_no")
+        .eq("project_id", project_id)
+        .order("version_no", { ascending: false })
+        .limit(1);
+      const nextVersion = ((lastVer?.[0]?.version_no as number | undefined) ?? 0) + 1;
+
+      // 제목: 본문 첫 H1 추출 (없으면 기본값)
+      const titleMatch = fullText.match(/^#\s+(.+?)$/m);
+      const title = titleMatch
+        ? titleMatch[1].slice(0, 80).replace(/기획서$/, "기획서").trim()
+        : `v${nextVersion} 대화 기반 기획서`;
+
+      const { data: doc, error: saveErr } = await supabase
+        .from("design_docs")
+        .insert({
+          project_id,
+          version_no: nextVersion,
+          title,
+          content_markdown: fullText,
+          status: "draft",
+          decision_snapshot: {
+            source: "chat_selection",
+            messages_count: messages.length,
+            generated_at: new Date().toISOString(),
+          },
+          source_decision_ids: [],
+          created_by_nickname: nickname ?? null,
+          changes_summary: `대화 ${messages.length}개 선택 + 기획 바이블 교차 검증`,
+        })
+        .select()
+        .single();
+
+      if (saveErr) {
+        console.error("[api/document] 저장 실패:", saveErr.message);
+      } else {
+        saved = doc;
+      }
+    }
+
+    return Response.json({
+      success: true,
+      content: fullText,
+      doc: saved,
     });
   } catch (error) {
     console.error("[api/document] 오류:", error);
-    return new Response(`오류: ${String(error)}`, { status: 500 });
+    return Response.json({ error: String(error) }, { status: 500 });
   }
 }

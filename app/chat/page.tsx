@@ -229,6 +229,12 @@ export default function ChatPage() {
   const [showGuideModal, setShowGuideModal] = useState(false);
   // 맥락선 없을 때 안내 토스트
   const [noAnchorNotice, setNoAnchorNotice] = useState(false);
+  // 기획서 백그라운드 작성 상태
+  const [docBackgroundGenerating, setDocBackgroundGenerating] = useState(false);
+  // 기획서 작성 완료 알림 (사용자 확인 시 사라짐, 자동 해제 X)
+  const [docCompletedNotice, setDocCompletedNotice] = useState<{ title: string; version_no: number } | null>(null);
+  // 📄 기획서 버튼 레드닷 — 보지 않은 신규 기획서 있음 (localStorage 유지)
+  const [docNewDot, setDocNewDot] = useState(false);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [showAnswerCompleteBtn, setShowAnswerCompleteBtn] = useState(false);
   // 롤링 맥락 카드 — 항상 3줄, 새 답변마다 백그라운드로 교체
@@ -267,6 +273,9 @@ export default function ChatPage() {
     if (typeof window === "undefined") return;
     const saved = localStorage.getItem("jordan_show_citations");
     if (saved === "true") setShowCitations(true);
+    // 미확인 기획서 레드닷 복원
+    const dotSaved = localStorage.getItem("jordan_doc_new_dot");
+    if (dotSaved === "true") setDocNewDot(true);
   }, []);
 
   // 토글 변경 시 localStorage에 저장
@@ -790,6 +799,8 @@ export default function ChatPage() {
     setSelectedPairIds(new Set());
   }
 
+  // 백그라운드 기획서 생성 — 모달 없음, 헤더 버튼 상태로 진행 표시
+  // 완료 시: design_docs에 자동 저장 + 알림 토스트 + 📄 기획서 버튼 레드닷
   async function generateDocument() {
     const selectedMsgs = activePairs
       .filter((p) => selectedPairIds.has(p.pair_id))
@@ -799,10 +810,10 @@ export default function ChatPage() {
       ]);
     if (selectedMsgs.length === 0) return;
 
+    // 선택 모드 즉시 종료, 백그라운드 진행 표시 시작
     setSelectMode(false);
-    setDocContent("");
-    setDocLoading(true);
-    setShowDocModal(true);
+    setSelectedPairIds(new Set());
+    setDocBackgroundGenerating(true);
 
     try {
       const response = await fetch("/api/document", {
@@ -810,23 +821,40 @@ export default function ChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: selectedMsgs,
-          project_id: DEFAULT_PROJECT_ID,  // 서버에서 기획 바이블 전체를 불러와 교차 검증
+          project_id: DEFAULT_PROJECT_ID,
+          nickname: sessionId?.replace(/^agent:/, "") ?? null,
         }),
       });
-      if (!response.ok || !response.body) throw new Error("오류");
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let text = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        text += decoder.decode(value);
-        setDocContent(text);
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error ?? "생성 실패");
       }
-    } catch {
-      setDocContent("기획서 생성 중 오류가 발생했습니다.");
+
+      // 저장된 doc 정보
+      const doc = data.doc as { title?: string; version_no?: number } | null;
+      const title = doc?.title ?? "새 기획서";
+      const version_no = doc?.version_no ?? 0;
+
+      // 완료 알림 + 레드닷
+      setDocCompletedNotice({ title, version_no });
+      setDocNewDot(true);
+      localStorage.setItem("jordan_doc_new_dot", "true");
+      // DocumentView 리로드 트리거
+      setDocReloadKey(k => k + 1);
+    } catch (err) {
+      console.error("[기획서 작성] 실패:", err);
+      alert(`기획서 작성 실패: ${String(err)}`);
     } finally {
-      setDocLoading(false);
+      setDocBackgroundGenerating(false);
+    }
+  }
+
+  // 📄 기획서 버튼 클릭 — 뷰 열고 레드닷 해제 (자동 해제 X, 클릭으로만)
+  function openDocumentView() {
+    setShowDocumentView(true);
+    if (docNewDot) {
+      setDocNewDot(false);
+      localStorage.removeItem("jordan_doc_new_dot");
     }
   }
 
@@ -1107,6 +1135,45 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* 기획서 작성 완료 알림 — 사용자 확인 시 사라짐 (자동 해제 X) */}
+      {docCompletedNotice && (
+        <div
+          className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 text-sm"
+          style={{
+            backgroundColor: "rgba(15,25,40,0.97)",
+            border: "1px solid rgba(100,180,255,0.6)",
+            color: "rgba(180,210,255,1)",
+            backdropFilter: "blur(10px)",
+            maxWidth: "min(560px, 92vw)",
+          }}
+        >
+          <span style={{ fontSize: "18px" }}>📄</span>
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <p className="font-bold">기획서 작성 완료</p>
+            <p className="text-xs truncate" style={{ color: "rgba(180,210,255,0.7)" }}>
+              v{docCompletedNotice.version_no} · {docCompletedNotice.title}
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setDocCompletedNotice(null);
+              openDocumentView();
+            }}
+            className="text-xs px-3 py-1.5 rounded-lg ml-2 font-medium"
+            style={{ backgroundColor: "rgba(100,180,255,0.25)", border: "1px solid rgba(100,180,255,0.5)", color: "rgba(180,210,255,1)" }}
+          >
+            바로 보기 →
+          </button>
+          <button
+            onClick={() => setDocCompletedNotice(null)}
+            className="text-xs px-2 py-1 rounded"
+            style={{ color: "rgba(180,210,255,0.6)" }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* 맥락선 없음 안내 토스트 (2초) */}
       {noAnchorNotice && (
         <div
@@ -1247,8 +1314,8 @@ export default function ChatPage() {
                 <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
                   <p><b style={{ color: SILVER }}>📌 맥락 시작점</b> — 클릭하면 현재 설정된 맥락선 위치로 스크롤 + 노란 하이라이트. 설정 안 돼 있으면 <i>"맥락선이 없습니다"</i> 토스트. 설정/해제는 본문 안에서.</p>
                   <p><b style={{ color: SILVER }}>🧠 대화 맥락</b> — 지금까지 대화의 핵심을 3줄 요약. 답변마다 자동 갱신돼서 조던이 일관성을 유지해요.</p>
-                  <p><b style={{ color: SILVER }}>📄 기획서 작성</b> — 맥락선 이하 대화를 중심으로 + 기획 바이블 전체와 교차 검증해서 새 기획서 생성. 체크박스로 대상 대화 가감 가능.</p>
-                  <p><b style={{ color: SILVER }}>📄 기획서</b> — 지금까지 생성한 기획서 버전 열람·편집·다운로드 (MD/TXT).</p>
+                  <p><b style={{ color: SILVER }}>📄 기획서 작성</b> — 대화 선택 후 [✓ 작성 시작] 누르면 <i>백그라운드로 생성</i>. 작성 중에는 헤더 버튼이 "작성 중..." 표시. 완료 시 알림 토스트 + 자동으로 기획서 리스트에 새 버전 저장.</p>
+                  <p><b style={{ color: SILVER }}>📄 기획서</b> — 지금까지 생성한 기획서 버전 열람·편집·다운로드 (MD/TXT). 신규 기획서가 있으면 <b style={{ color: "rgba(255,150,150,1)" }}>빨간 점</b> 표시 (열어보면 사라짐, 자동 해제 X).</p>
                   <p><b style={{ color: SILVER }}>🏷️ 출처 표시</b> — 답변에 [공식 인용 — 4개 일치] 같은 신뢰도 라벨 표시 ON/OFF.</p>
                   <p><b style={{ color: SILVER }}>🎮 참고 게임</b> — 조던이 검색·분석할 때 신뢰하는 등록 게임 11종과 각 게임의 신뢰 출처 목록.</p>
                   <p><b style={{ color: SILVER }}>📖 가이드</b> — 지금 보고 있는 이 화면. 조던의 모든 기능을 한눈에 정리. 기능이 바뀌면 자동 갱신.</p>
@@ -1561,22 +1628,41 @@ export default function ChatPage() {
             </button>
           </Tooltip>
 
-          {/* ③ 기획서 작성 */}
+          {/* ③ 기획서 작성 — 백그라운드 작성 중이면 진행 표시 */}
           {activePairs.length > 0 && (
-            <Tooltip text="맥락선 이하 대화를 중심으로, 기획 바이블도 교차 검증해서 새 기획서 생성">
+            <Tooltip text={docBackgroundGenerating ? "백그라운드에서 작성 중이에요 — 완료되면 알림" : "맥락선 이하 대화를 중심으로, 기획 바이블도 교차 검증해서 새 기획서 생성"}>
               <button
                 onClick={enterSelectMode}
-                className="text-xs px-3 py-1.5 rounded-lg font-medium"
-                style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
+                disabled={docBackgroundGenerating}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5"
+                style={{
+                  backgroundColor: docBackgroundGenerating ? "rgba(100,180,255,0.18)" : SILVER,
+                  border: docBackgroundGenerating ? "1px solid rgba(100,180,255,0.5)" : "none",
+                  color: docBackgroundGenerating ? "rgba(180,210,255,1)" : "#0a0e1a",
+                  cursor: docBackgroundGenerating ? "wait" : "pointer",
+                }}
               >
-                📄 기획서 작성
+                {docBackgroundGenerating ? (
+                  <>
+                    <span className="inline-block w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(180,210,255,0.3)", borderTopColor: "rgba(180,210,255,1)" }} />
+                    작성 중...
+                  </>
+                ) : (
+                  <>📄 기획서 작성</>
+                )}
               </button>
             </Tooltip>
           )}
-          <Tooltip text="생성된 기획서 버전을 열람·편집·내보내기">
+          <Tooltip text={docNewDot ? "신규 기획서 도착 — 확인하기" : "생성된 기획서 버전을 열람·편집·내보내기"}>
             <button
-              onClick={() => setShowDocumentView(v => !v)}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium"
+              onClick={() => {
+                if (showDocumentView) {
+                  setShowDocumentView(false);
+                } else {
+                  openDocumentView();
+                }
+              }}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium relative"
               style={{
                 backgroundColor: showDocumentView ? "rgba(100,180,255,0.18)" : SILVER_FAINT,
                 border: `1px solid ${showDocumentView ? "rgba(100,180,255,0.6)" : SILVER_DIM}`,
@@ -1584,6 +1670,12 @@ export default function ChatPage() {
               }}
             >
               📄 기획서
+              {docNewDot && (
+                <span
+                  className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full animate-pulse"
+                  style={{ backgroundColor: "rgba(255,80,80,0.95)", boxShadow: "0 0 6px rgba(255,80,80,0.7)" }}
+                />
+              )}
             </button>
           </Tooltip>
 
