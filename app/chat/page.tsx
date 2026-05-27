@@ -216,6 +216,7 @@ export default function ChatPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const streamingRawRef = useRef<string>("");
   const userScrolledUpRef = useRef(false);
@@ -247,6 +248,22 @@ export default function ChatPage() {
       scrollToBottom();
     }
   }, [streamingPair]);
+
+  // 최초 진입·새로고침 시 자동 동작 — 최하단 스크롤 + 입력창 포커스
+  // pairs가 처음 채워지는 시점을 감지 (이전 대화 복원 완료 시)
+  const initScrolledRef = useRef(false);
+  useEffect(() => {
+    if (initScrolledRef.current) return;
+    if (!sessionId) return;
+    // pairs 로드 직후 또는 빈 대화여도 일단 실행 (한 번만)
+    initScrolledRef.current = true;
+    // setTimeout으로 다음 tick에 실행 (DOM 렌더링 후)
+    const t = setTimeout(() => {
+      scrollToBottom();
+      inputRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(t);
+  }, [pairs, sessionId]);
 
   function scrollToBottom() {
     const el = scrollRef.current;
@@ -1238,6 +1255,7 @@ export default function ChatPage() {
       {/* 입력창 */}
       <div className="px-4 py-3 flex gap-3 items-end" style={{ backgroundColor: "rgba(0,0,0,0.5)", borderTop: `1px solid ${SILVER_FAINT}` }}>
         <textarea
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -1246,6 +1264,7 @@ export default function ChatPage() {
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}
+          autoFocus
           rows={1}
           className="flex-1 px-4 py-3 rounded-xl text-sm outline-none resize-none"
           style={{
