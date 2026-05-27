@@ -1469,29 +1469,39 @@ export default function ChatPage() {
                       </span>
                     )}
                   </div>
-                  <div className="px-3 py-2.5 rounded-lg" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}`, opacity: isAdmin ? 1 : 0.7 }}>
+                  <div className="px-3 py-2.5 rounded-lg flex flex-col gap-2" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}`, opacity: isAdmin ? 1 : 0.85 }}>
+                    {/* 최종 답변 */}
                     <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <p className="text-xs font-medium" style={{ color: SILVER }}>최종 답변 모델</p>
-                        <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>현재: Claude Sonnet 4.5</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium" style={{ color: SILVER }}>최종 답변</p>
+                        <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>사용자가 읽는 조던 답변</p>
                       </div>
-                      <select
-                        disabled={!isAdmin}
-                        defaultValue="claude-sonnet-4-5"
-                        className="text-xs px-3 py-1.5 rounded-lg outline-none disabled:cursor-not-allowed"
-                        style={{
-                          backgroundColor: "rgba(0,0,0,0.4)",
-                          border: `1px solid ${isAdmin ? "rgba(200,180,255,0.4)" : SILVER_DIM}`,
-                          color: isAdmin ? "#e0e8f0" : SILVER_DIM,
-                        }}
-                      >
-                        <option value="claude-sonnet-4-5">Claude Sonnet 4.5 (현재)</option>
-                        <option value="claude-opus-4-1" disabled>Claude Opus 4.1 (예정)</option>
-                        <option value="claude-haiku-4-5" disabled>Claude Haiku 4.5 (예정)</option>
-                      </select>
+                      <span className="text-xs px-2 py-1 rounded font-bold ml-2 flex-shrink-0" style={{ backgroundColor: "rgba(200,180,255,0.18)", border: "1px solid rgba(200,180,255,0.5)", color: "rgba(220,200,255,1)" }}>
+                        Opus 4.7
+                      </span>
                     </div>
-                    <p className="text-[10px] mt-2" style={{ color: SILVER_DIM }}>
-                      💡 추후 답변 속도·품질 트레이드오프 선택 옵션으로 확장 예정
+                    {/* 기획서 작성·수정 */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium" style={{ color: SILVER }}>기획서 작성·수정</p>
+                        <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>대화 기반·바이블 자동 생성·수정 요청</p>
+                      </div>
+                      <span className="text-xs px-2 py-1 rounded font-bold ml-2 flex-shrink-0" style={{ backgroundColor: "rgba(200,180,255,0.18)", border: "1px solid rgba(200,180,255,0.5)", color: "rgba(220,200,255,1)" }}>
+                        Opus 4.7
+                      </span>
+                    </div>
+                    {/* 내부 단계 */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium" style={{ color: SILVER }}>내부 분석·검토</p>
+                        <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>웹 검색·라우터·검토 등</p>
+                      </div>
+                      <span className="text-xs px-2 py-1 rounded font-bold ml-2 flex-shrink-0" style={{ backgroundColor: "rgba(100,180,255,0.15)", border: "1px solid rgba(100,180,255,0.4)", color: "rgba(180,210,255,1)" }}>
+                        Sonnet 4.5
+                      </span>
+                    </div>
+                    <p className="text-[10px] mt-1 pt-2" style={{ color: SILVER_DIM, borderTop: `1px solid ${SILVER_FAINT}` }}>
+                      💎 사용자 직접 노출 결과물엔 Opus, 내부 단계엔 Sonnet — 품질·비용 균형
                     </p>
                   </div>
                 </section>

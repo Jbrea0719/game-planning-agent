@@ -10,6 +10,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { buildDecisionContext } from "@/lib/decision-context";
 import { supabase } from "@/lib/supabase";
+import { MODEL } from "@/lib/models";
 
 const DOC_SYSTEM_PROMPT = `당신은 영웅수집형 모바일 게임 기획서 작성 전문가입니다.
 
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
 
     // 백그라운드 생성: non-streaming, 완성까지 대기
     const res = await client.messages.create({
-      model: "claude-sonnet-4-5",
+      model: MODEL.DOC_WRITING,  // Opus 4.7 — 기획서 작성 최고 품질
       max_tokens: 8192,
       system: DOC_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userContent }],

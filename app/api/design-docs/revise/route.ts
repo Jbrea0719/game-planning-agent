@@ -12,6 +12,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { buildDecisionContext } from "@/lib/decision-context";
 import { supabase } from "@/lib/supabase";
 import { createBackup } from "@/lib/doc-backup";
+import { MODEL } from "@/lib/models";
 
 const REVISE_SYSTEM_PROMPT = `당신은 영웅수집형 모바일 게임 기획서 편집 전문가입니다.
 
@@ -83,7 +84,7 @@ export async function POST(request: Request) {
       `위 원본 기획서를 사용자 수정 요청대로 갱신해서 전체 마크다운을 반환하세요.`;
 
     const res = await client.messages.create({
-      model: "claude-sonnet-4-5",
+      model: MODEL.DOC_WRITING,  // Opus 4.7 — 기획서 수정 최고 품질
       max_tokens: 8192,
       system: REVISE_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userContent }],

@@ -9,6 +9,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "@/lib/supabase";
+import { MODEL } from "@/lib/models";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -268,7 +269,7 @@ ${categoryContext}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
   const res = await client.messages.create({
-    model: "claude-sonnet-4-5",
+    model: MODEL.DOC_WRITING,  // Opus 4.7 — 기획서 자동 생성 최고 품질
     max_tokens: 16000,  // 긴 기획서 대응
     system: [
       { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } } as unknown as Anthropic.TextBlockParam,
