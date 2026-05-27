@@ -397,8 +397,182 @@ async function searchGeneral(query: string): Promise<string> {
 }
 
 // ════════════════════════════════════════
-// 에이전트 1: 분석 에이전트
-// 역할: 질문과 관련된 게임들을 3채널(나무위키/디시/공식)로 실시간 검색 후 비교 분석
+// 한국 게임 정보 기본 신뢰 도메인 (게임별 도메인과 합쳐서 사용)
+// ════════════════════════════════════════
+const KOREAN_GAME_TRUSTED_DOMAINS = [
+  // 게임 저널리즘 (가장 신뢰도 높음)
+  "inven.co.kr",
+  "gamemeca.com",
+  "thisisgame.com",
+  "gameshot.net",
+  "hungryapp.co.kr",
+  // 위키
+  "namu.wiki",
+  // 네이버 자체 서비스
+  "game.naver.com",
+  "cafe.naver.com",
+  "sports.naver.com",
+  "news.naver.com",
+  "blog.naver.com",
+  "m.sports.naver.com",
+  // 커뮤니티
+  "gall.dcinside.com",
+  "ruliweb.com",
+  "bbs.ruliweb.com",
+];
+
+// 질문 + 맥락 카드에서 매칭되는 게임 찾기
+function findMatchingGame(userQuery: string, contextCard: string): { game: typeof GAME_COMMUNITIES[string]; gameKey: string } | null {
+  const haystack = `${contextCard} ${userQuery}`.toLowerCase();
+  const matched = Object.entries(GAME_COMMUNITIES)
+    .filter(([key]) => haystack.includes(key.toLowerCase()))
+    .sort((a, b) => b[0].length - a[0].length); // 더 긴(정확한) 매칭 우선
+  if (matched.length === 0) return null;
+  return { game: matched[0][1], gameKey: matched[0][0] };
+}
+
+// ════════════════════════════════════════
+// 에이전트 1 (신규): Claude 네이티브 웹 검색
+// 역할: Anthropic 웹 검색 도구로 게임별 신뢰 도메인에서 정보 수집 + 자동 인용
+// ════════════════════════════════════════
+async function analyzeWithWebSearch(
+  userQuery: string,
+  contextCard: string = "",
+  recentMessages: { role: string; content: string }[] = [],
+  onProgress?: (text: string) => void
+): Promise<string> {
+
+  // 게임 매칭 → allowed_domains 구성
+  const matched = findMatchingGame(userQuery, contextCard);
+  const gameAllowed = matched
+    ? Array.from(new Set([
+        ...(matched.game.officialUrlFilters ?? []).map(f => f.split("/")[0]),  // 경로 제거하고 도메인만
+        ...matched.game.officialDomains,
+        ...KOREAN_GAME_TRUSTED_DOMAINS,
+      ]))
+    : KOREAN_GAME_TRUSTED_DOMAINS;
+
+  // 도메인 중복 제거 후 최종 리스트 (Anthropic 가이드: 너무 좁히지 말 것)
+  const allowedDomains = Array.from(new Set(gameAllowed.filter(d => d && d.length > 0)));
+
+  if (matched) {
+    onProgress?.(`  🎯 **${matched.gameKey}** 매칭 — 신뢰 도메인 ${allowedDomains.length}개로 제한\n`);
+  } else {
+    onProgress?.(`  🌐 일반 검색 — 한국 게임 신뢰 도메인 ${allowedDomains.length}개\n`);
+  }
+
+  // 맥락 섹션 구성
+  const contextSection = contextCard ? `\n\n[대화 맥락 카드]\n${contextCard}` : "";
+  const recentSection = recentMessages.length > 0
+    ? `\n\n[직전 교환]\n${recentMessages.slice(-2).map(m =>
+        `${m.role === "user" ? "질문" : "조던"}: ${m.content.slice(0, 200)}`
+      ).join("\n")}`
+    : "";
+
+  const systemPrompt = `당신은 영웅수집형 게임 정보 수집·분석 전문 에이전트예요.
+사용자의 질문에 대해 web_search 도구로 실시간 한국 웹 검색을 수행하고, 수집된 정보를 정리하세요.
+
+[검색 원칙]
+- 게임명이 명시되면 그 게임만 검색 (다른 게임으로 절대 바꾸지 말 것)
+- "세븐나이츠 리버스" → "세븐나이츠"로 축약 금지
+- 비교 분석이 명시적으로 필요한 경우만 여러 검색
+- 최대 5회 검색 (정보 충분하면 더 적게)
+
+[소스 신뢰도]
+1순위: 공식 사이트·게임 저널리즘 (인벤·게임메카·디스이즈게임)
+2순위: 네이버 카페·커뮤니티 (정보성 카페)
+3순위: 디시인사이드 (유저 반응 파악용)
+4순위: 나무위키 (최후 수단)
+
+[충돌 시]
+- 공식과 커뮤니티 정보 다르면 → 공식 신뢰
+- 사실(날짜·이름·수치)은 공식에서, 유저 반응은 커뮤니티에서
+- 확인 안 되는 정보는 "확인 안 됨"으로 명시
+
+[정확성 원칙]
+- 검색 결과의 게시 날짜를 반드시 확인
+- 여러 게시글의 날짜·캐릭터명을 절대 혼재하지 말 것
+- 출처별로 정보 분리해서 정리할 것
+
+[출력 형식]
+검색 후 다음 형식으로 정리:
+1. 핵심 사실 (날짜·이름·수치) — 출처 명시
+2. 추가 맥락 (유저 반응·평가) — 출처 명시
+3. 미확인 부분 (있을 경우)
+
+다음 단계(조던 답변 생성)에서 이 정리본을 활용하므로 깔끔하게 정리할 것.`;
+
+  const userContent = `${contextSection}${recentSection}
+
+[현재 질문]
+${userQuery}`;
+
+  try {
+    const res = await client.messages.create({
+      model: "claude-sonnet-4-5",
+      max_tokens: 4000,
+      system: systemPrompt,
+      tools: [
+        {
+          type: "web_search_20250305",
+          name: "web_search",
+          max_uses: 5,
+          allowed_domains: allowedDomains,
+          user_location: { type: "approximate", country: "KR", timezone: "Asia/Seoul" },
+        } as unknown as Anthropic.Tool,
+      ],
+      messages: [{ role: "user", content: userContent }],
+    });
+
+    // 검색 진행상황 스트림 출력
+    let searchCount = 0;
+    const citations: { url: string; title: string }[] = [];
+
+    for (const block of res.content) {
+      // 서버 측 검색 도구 사용 추적
+      const b = block as { type: string; tool_use_id?: string; content?: unknown };
+      if (b.type === "server_tool_use") {
+        searchCount++;
+      }
+      // 검색 결과에서 URL 수집 (인용 표시용)
+      if (b.type === "web_search_tool_result") {
+        const arr = Array.isArray(b.content) ? b.content : [];
+        for (const item of arr) {
+          const it = item as { url?: string; title?: string };
+          if (it.url && it.title) {
+            citations.push({ url: it.url, title: it.title });
+          }
+        }
+      }
+    }
+
+    // 진행상황 출력
+    if (searchCount > 0) {
+      onProgress?.(`  🔎 웹 검색 ${searchCount}회 수행, 출처 ${citations.length}개 확보\n`);
+      // 상위 출처 URL 표시 (최대 5개)
+      const topCitations = citations.slice(0, 5);
+      for (const c of topCitations) {
+        onProgress?.(`    └ ${c.title.slice(0, 60)} — ${c.url}\n`);
+      }
+    }
+
+    // 텍스트 응답 추출
+    const textContent = res.content
+      .filter(b => b.type === "text")
+      .map(b => (b as Anthropic.TextBlock).text)
+      .join("");
+
+    return textContent || "검색 완료 (분석 텍스트 없음)";
+  } catch (err) {
+    console.error("[analyzeWithWebSearch] 오류:", err);
+    onProgress?.(`  ❌ 웹 검색 실패: ${String(err).slice(0, 100)}\n`);
+    return `웹 검색 중 오류 발생: ${String(err)}`;
+  }
+}
+
+// ════════════════════════════════════════
+// (구) 에이전트 1: 분석 에이전트 — Naver/Tavily 기반
+// 새 analyzeWithWebSearch로 대체됨. 보존(rollback 안전망용)
 // ════════════════════════════════════════
 async function analyzeAgent(
   userQuery: string,
@@ -651,10 +825,10 @@ async function runMultiAgentPipeline(
   detailed = false
 ): Promise<string> {
 
-  // ── 검색 + 분석 (롤링 카드 + 직전 2개로 맥락 파악)
-  onChunk(`\n🔍 **검색 중** — 나무위키, 디시, 공식 커뮤니티 검색 중...\n`);
-  // onChunk를 onProgress로 전달 → 검색 대상(게임명/주제)이 스트림에 실시간 노출됨
-  const analysisResult = await analyzeAgent(userQuery, contextCard, recentMessages, onChunk);
+  // ── 검색 + 분석 (Claude 네이티브 웹 검색)
+  onChunk(`\n🔍 **웹 검색 중** — Claude가 한국 게임 신뢰 사이트들을 검색하고 있어요...\n`);
+  // onChunk를 onProgress로 전달 → 검색 진행상황 + 출처 URL이 스트림에 실시간 노출됨
+  const analysisResult = await analyzeWithWebSearch(userQuery, contextCard, recentMessages, onChunk);
   onChunk(`✅ 검색 완료\n\n---\n\n`);
 
   // ── 조던 말투로 최종 답변 생성
@@ -668,28 +842,26 @@ async function runMultiAgentPipeline(
 직설적이고 실무 중심으로, "이 구조는 이래서 망합니다"처럼 솔직하게 말해줘요.
 
 [중요 — 검색 데이터 활용]
-당신은 방금 실시간 네이버 검색을 통해 공식 커뮤니티(인벤·카페·라운지·게임미디어), 디시인사이드, 나무위키 데이터를 수집했어요.
-사용자 메시지에 포함된 [실시간 검색 데이터]를 반드시 활용해서 답변하세요.
+당신은 방금 Claude 네이티브 웹 검색을 통해 한국 게임 신뢰 사이트(인벤·게임메카·디스이즈게임·나무위키·디시·네이버 카페/뉴스 등)에서 실시간 정보를 수집했어요.
+사용자 메시지의 [실시간 검색 데이터]는 이미 출처별로 정리돼 있어요. 이를 반드시 활용해서 답변하세요.
 절대로 "실시간 검색 기능이 없어요", "최신 정보를 알 수 없어요" 같은 말을 하지 마세요.
 
-[검색 결과 읽는 법 — 매우 중요]
-각 결과의 "본문 미리보기"는 네이버 검색 description으로 약 200~400자로 짧지만 사실 정보가 압축돼 있어요.
-짧다고 무시하지 말고, **여러 결과의 미리보기를 종합해 사실 정보(날짜·이름·수치)를 추출**하세요.
-예) 미리보기에 "5월 14일(목) 업데이트 신규 영웅 [전설] 칼 헤론" 같은 문구가 있으면 → 정확히 그대로 인용.
-여러 미리보기에 동일 사실이 반복되면 신뢰도 높음. 다른 사실이 나오면 1순위(공식) 출처 우선.
-
-검색 결과가 부족하거나 "검색 결과 없음"인 경우에만 "정확한 데이터 확인이 어려워요"라고 짧게 언급하고, 알고 있는 범위 내에서 답변하세요.
-
 [소스 신뢰도 우선순위 — 반드시 준수]
-1순위: 공식 커뮤니티/홈페이지 — 사실 정보(패치·날짜·신규 영웅·이벤트)의 최우선 출처
-2순위: 디시인사이드 — 공식이 부족할 때 보완, 또는 공식과의 교차검증용
-3순위: 나무위키 — 공식과 디시 둘 다 부족할 때만 사용하는 최후 수단
+1순위: 공식 사이트·게임 저널리즘 (인벤·게임메카·디스이즈게임·공식 라운지·뉴스) — 사실 정보(패치·날짜·신규 영웅·이벤트)의 최우선 출처
+2순위: 네이버 카페·정보성 커뮤니티 — 공식 보완용
+3순위: 디시인사이드 — 유저 반응·체감 평가용
+4순위: 나무위키 — 위 셋 부족할 때 최후 수단
 
 [충돌 시 판단 — 매우 중요]
-- 공식과 디시 정보가 다르면 → 반드시 공식을 신뢰 (디시는 유저 작성이라 부정확 가능)
-- 공식에 명확한 답이 있으면 → 디시·나무위키 정보로 답을 절대 바꾸지 말 것
-- 사실(날짜·이름·수치)은 공식에서 인용, 유저 반응·체감 평가는 디시에서 인용
-- 답변 시 인용 출처를 명시: "공식 라운지 공지에 따르면...", "디시 유저 반응을 보면..." 형태로
+- 공식·언론과 커뮤니티 정보가 다르면 → 반드시 공식 신뢰
+- 공식·언론에 명확한 답이 있으면 → 커뮤니티 정보로 답을 절대 바꾸지 말 것
+- 사실(날짜·이름·수치)은 공식·언론에서 인용, 유저 반응·체감 평가는 디시에서 인용
+- 답변 시 인용 출처를 명시: "인벤 5/14 기사에 따르면...", "디시 유저 반응을 보면..." 형태로
+
+[정확성 절대 원칙]
+- 검색 데이터에 없는 정보는 추측하지 말 것
+- 날짜·캐릭터명·수치는 검색 데이터에 명시된 그대로 인용
+- 데이터 부족 시 "확인된 정보 없음"으로 솔직히 명시
 
 말투:
 - "~이에요", "~거든요", "~죠" 같은 친근한 말투를 사용해요
