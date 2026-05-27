@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
+import { marked } from "marked";
 import CategoryManager from "./CategoryManager";
 
 const SILVER = "#c0c8d8";
@@ -368,6 +369,37 @@ export default function DocumentView({
     triggerDownload(blob, `${safeName(currentDoc.title)}.md`);
     setShowExportMenu(false);
   }
+  // HTML 내보내기 — 마크다운을 스타일링된 HTML 문서로 변환해 다운로드
+  function downloadHTML() {
+    if (!currentDoc) return;
+    const bodyHtml = marked.parse(currentDoc.content_markdown, { async: false }) as string;
+    const html = buildHtmlDoc(currentDoc.title, bodyHtml);
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    triggerDownload(blob, `${safeName(currentDoc.title)}.html`);
+    setShowExportMenu(false);
+  }
+
+  // PDF 내보내기 — HTML을 새 창에서 띄우고 브라우저 인쇄(저장 대화상자)로 PDF 저장
+  // (서버리스 환경에서 별도 PDF 라이브러리 없이 가장 안정적인 방식)
+  function downloadPDF() {
+    if (!currentDoc) return;
+    const bodyHtml = marked.parse(currentDoc.content_markdown, { async: false }) as string;
+    const html = buildHtmlDoc(currentDoc.title, bodyHtml, true);
+    // 새 창 열기 → onload 시 자동 print() → 사용자가 "PDF로 저장" 선택
+    const win = window.open("", "_blank", "width=900,height=1200");
+    if (!win) {
+      alert("팝업이 차단됐어요. 브라우저 팝업 허용 후 다시 시도해주세요.");
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
+    // 약간의 딜레이 후 print (렌더 완료 보장)
+    setTimeout(() => {
+      try { win.focus(); win.print(); } catch (err) { console.error("PDF 인쇄 실패:", err); }
+    }, 400);
+    setShowExportMenu(false);
+  }
+
   function downloadTXT() {
     if (!currentDoc) return;
     // 마크다운 기호 제거한 순수 텍스트
@@ -438,10 +470,12 @@ export default function DocumentView({
                   📥 내보내기 ▾
                 </button>
                 {showExportMenu && (
-                  <div className="absolute right-0 top-full mt-1 rounded-lg shadow-2xl py-1 z-10" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}`, minWidth: "160px" }}>
+                  <div className="absolute right-0 top-full mt-1 rounded-lg shadow-2xl py-1 z-10" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}`, minWidth: "180px" }}>
                     <button onClick={downloadMD} className="block w-full text-left text-xs px-3 py-2 hover:bg-white/5" style={{ color: SILVER }}>📝 MD (마크다운)</button>
                     <button onClick={downloadTXT} className="block w-full text-left text-xs px-3 py-2 hover:bg-white/5" style={{ color: SILVER }}>📄 TXT (순수 텍스트)</button>
-                    <div className="px-3 py-1.5 text-[10px]" style={{ color: SILVER_DIM }}>PDF·HTML은 곧 추가 예정</div>
+                    <button onClick={downloadHTML} className="block w-full text-left text-xs px-3 py-2 hover:bg-white/5" style={{ color: SILVER }}>🌐 HTML (웹 페이지)</button>
+                    <button onClick={downloadPDF} className="block w-full text-left text-xs px-3 py-2 hover:bg-white/5" style={{ color: SILVER }}>🖨️ PDF (인쇄 → 저장)</button>
+                    <div className="px-3 py-1.5 text-[10px]" style={{ color: SILVER_DIM }}>PDF는 인쇄 대화상자에서 "PDF로 저장" 선택</div>
                   </div>
                 )}
               </div>
@@ -1054,6 +1088,63 @@ export default function DocumentView({
 // ── 헬퍼: 파일명 안전 처리 ─────────────────────────────────────────
 function safeName(s: string): string {
   return s.replace(/[\\/:*?"<>|]/g, "_").trim() || "design_doc";
+}
+
+// ── 헬퍼: 스타일링된 HTML 문서 빌드 ────────────────────────────────
+// printMode=true면 인쇄 친화 스타일(여백·페이지 브레이크) 추가
+function buildHtmlDoc(title: string, bodyHtml: string, printMode = false): string {
+  const escTitle = title.replace(/[<>&]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] ?? c));
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escTitle}</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", sans-serif;
+    line-height: 1.7;
+    color: #1a1a1a;
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 48px 32px;
+    background: #fff;
+  }
+  h1 { font-size: 28px; margin: 0 0 24px; padding-bottom: 12px; border-bottom: 2px solid #333; }
+  h2 { font-size: 22px; margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 1px solid #ccc; }
+  h3 { font-size: 18px; margin: 28px 0 10px; color: #333; }
+  h4 { font-size: 15px; margin: 22px 0 8px; color: #555; }
+  p { margin: 10px 0; }
+  ul, ol { margin: 10px 0; padding-left: 28px; }
+  li { margin: 4px 0; }
+  strong { color: #000; }
+  em { color: #444; }
+  code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-size: 0.92em; font-family: "SF Mono", Consolas, monospace; }
+  pre { background: #f5f5f5; padding: 14px; border-radius: 6px; overflow-x: auto; }
+  pre code { background: transparent; padding: 0; }
+  blockquote { border-left: 4px solid #999; padding: 4px 16px; margin: 14px 0; color: #555; background: #fafafa; }
+  table { border-collapse: collapse; width: 100%; margin: 14px 0; }
+  th, td { border: 1px solid #ccc; padding: 8px 12px; text-align: left; }
+  th { background: #f0f0f0; font-weight: 600; }
+  a { color: #0066cc; }
+  hr { border: none; border-top: 1px solid #ccc; margin: 28px 0; }
+  .footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid #ccc; color: #888; font-size: 11px; text-align: center; }
+  ${printMode ? `
+    @page { size: A4; margin: 18mm 16mm; }
+    @media print {
+      body { padding: 0; max-width: none; }
+      h1, h2, h3 { page-break-after: avoid; }
+      pre, blockquote, table { page-break-inside: avoid; }
+    }
+  ` : ""}
+</style>
+</head>
+<body>
+${bodyHtml}
+<div class="footer">조던 — 게임 기획 전문가 · ${new Date().toLocaleString("ko-KR")}</div>
+</body>
+</html>`;
 }
 function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
