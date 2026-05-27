@@ -241,7 +241,7 @@ export default function ChatPage() {
   // 롤링 맥락 카드 — 항상 3줄, 새 답변마다 백그라운드로 교체
   const [agentContext, setAgentContext] = useState("");
   const [showContextModal, setShowContextModal] = useState(false);
-  // 주요 기획 사항 — 맥락선 이후 추가된 결정사항만 보여줌
+  // 맥락 결정사항 — 맥락선 이후 추가된 결정사항만 보여줌
   type RecentDecision = {
     id: string;
     content: string;
@@ -296,7 +296,7 @@ export default function ChatPage() {
     localStorage.setItem("jordan_show_citations", String(showCitations));
   }, [showCitations]);
 
-  // 주요 기획 사항 모달 열릴 때 + 결정사항 갱신 시 fetch
+  // 맥락 결정사항 모달 열릴 때 + 결정사항 갱신 시 fetch
   // 맥락선이 있으면 그 이후 created_at만 표시
   useEffect(() => {
     if (!showContextModal) return;
@@ -312,7 +312,7 @@ export default function ChatPage() {
         filtered.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
         setRecentDecisions(filtered);
       })
-      .catch(err => console.error("[주요 기획] fetch 실패:", err))
+      .catch(err => console.error("[맥락 결정사항] fetch 실패:", err))
       .finally(() => setRecentDecisionsLoading(false));
   }, [showContextModal, decisionReloadKey, contextAnchorTimestamp]);
 
@@ -1292,7 +1292,7 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* 주요 기획 사항 팝업 — 맥락선 이하 기획 바이블에 추가된 결정 목록 */}
+      {/* 맥락 결정사항 팝업 — 맥락선 이하 기획 바이블에 추가된 결정 목록 */}
       {showContextModal && (
         <div className="fixed inset-0 bg-black/60 flex items-start justify-end z-50 p-4 pt-16" onClick={() => setShowContextModal(false)}>
           <div className="rounded-2xl w-96 max-h-[80vh] flex flex-col shadow-2xl" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }} onClick={(e) => e.stopPropagation()}>
@@ -1300,7 +1300,7 @@ export default function ChatPage() {
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
                   <span style={{ color: "rgba(100,220,160,0.9)", fontSize: "12px" }}>📋</span>
-                  <p className="text-xs font-bold" style={{ color: SILVER }}>주요 기획 사항</p>
+                  <p className="text-xs font-bold" style={{ color: SILVER }}>맥락 결정사항</p>
                 </div>
                 <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>
                   {contextAnchorPairId
@@ -1393,7 +1393,7 @@ export default function ChatPage() {
                 <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🛠️ 헤더 도구 (좌 → 우)</p>
                 <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
                   <p><b style={{ color: SILVER }}>📌 맥락</b> — 클릭하면 현재 맥락선 위치로 스크롤 + 노란 하이라이트. 설정 안 돼 있으면 <i>"맥락선이 없습니다"</i> 토스트. 설정/해제는 본문 안에서.</p>
-                  <p><b style={{ color: SILVER }}>📋 주요 기획 사항</b> — 맥락선 이하 추가된 기획 바이블 결정 목록을 빠르게 확인. 맥락선이 없으면 전체 누적 결정을 보여줘요.</p>
+                  <p><b style={{ color: SILVER }}>📋 맥락 결정사항</b> — 맥락선 이하 추가된 기획 바이블 결정 목록을 빠르게 확인. 맥락선이 없으면 전체 누적 결정을 보여줘요.</p>
                   <p><b style={{ color: SILVER }}>📄 기획서 작성</b> — 대화 선택 후 [✓ 작성 시작] 누르면 <i>백그라운드로 생성</i>. 작성 중에는 헤더 버튼이 "작성 중... (취소)" 표시 — <b>다시 누르면 작성 취소</b>. 완료 시 알림 토스트 + 자동으로 기획서 리스트에 새 버전 저장.</p>
                   <p><b style={{ color: SILVER }}>📄 기획서</b> — 진입 시 좌측 <b>📚 기획서 리스트</b>가 기본 열림. 리스트는 <b>대 &gt; 중 &gt; 소 &gt; 기획서</b> 4단계 트리. 대(인게임/아웃게임…)는 진한 배경, 중(영웅/PVP…)는 옅은 배경, 소(영웅 등급/스킬…)는 좌측 보더, 기획서는 leaf. 각 단계마다 +/− 토글. 기획서 옆 ✏️로 이름 변경, 📂로 분류 변경. 리스트 헤더의 <b>⚙️</b>로 카테고리 관리 (추가·수정·삭제). 안 본 기획서 옆에는 <b style={{ color: "rgba(255,150,150,1)" }}>빨간 점</b>(클릭하면 영구 해제). 뷰 안에서 <b>🪄 수정 요청</b>으로 자연어 지시 → 같은 기획서를 그 자리에서 갱신. 수정 전 원본은 <b>7일간 백업 폴더에 자동 보관</b>. <b>📥 내보내기</b>는 MD/TXT/HTML/PDF 4가지.</p>
                   <p><b style={{ color: SILVER }}>🏷️ 출처 표시</b> — 답변에 [공식 인용 — 4개 일치] 같은 신뢰도 라벨 표시 ON/OFF.</p>
@@ -1697,14 +1697,14 @@ export default function ChatPage() {
             </button>
           </Tooltip>
 
-          {/* ② 주요 기획 사항 — 맥락선 이하 기획 바이블에 추가된 결정 목록 */}
+          {/* ② 맥락 결정사항 — 맥락선 이하 기획 바이블에 추가된 결정 목록 */}
           <Tooltip text={contextAnchorPairId ? "맥락선 이하 추가된 기획 결정사항 보기" : "현재 기획 바이블에 누적된 결정사항 보기"}>
             <button
               onClick={() => setShowContextModal(true)}
               className="text-xs px-3 py-1.5 rounded-lg font-medium"
               style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
             >
-              📋 주요 기획 사항
+              📋 맥락 결정사항
             </button>
           </Tooltip>
 
