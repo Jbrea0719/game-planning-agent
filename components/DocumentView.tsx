@@ -51,6 +51,9 @@ export default function DocumentView({
   const [showReviseModal, setShowReviseModal] = useState(false);
   const [reviseInstruction, setReviseInstruction] = useState("");
   const [revising, setRevising] = useState(false);
+  // 기획서 리스트 오버레이 패널 + 카테고리 펼침 상태
+  const [showDocList, setShowDocList] = useState(false);
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set(["chat", "revision", "decision", "other"]));
   const bodyRef = useRef<HTMLDivElement>(null);
 
   // ── 버전 목록 로드 ────────────────────────────────────────────────
@@ -231,25 +234,19 @@ export default function DocumentView({
       <div className="flex items-center justify-between px-4 py-3 flex-shrink-0 gap-3" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <p className="text-sm font-bold flex-shrink-0" style={{ color: SILVER }}>📄 기획서</p>
-          {versions.length > 0 && currentDoc && (
-            <select
-              value={currentDoc.id}
-              onChange={e => loadDoc(e.target.value)}
-              className="px-3 py-1.5 rounded-lg text-xs outline-none"
-              style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER, maxWidth: "320px" }}
-            >
-              {versions.map(v => (
-                <option key={v.id} value={v.id}>
-                  v{v.version_no} — {v.title}
-                </option>
-              ))}
-            </select>
-          )}
           {currentDoc && (
-            <span className="text-xs" style={{ color: SILVER_DIM }}>
-              {new Date(currentDoc.created_at).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}
-              {currentDoc.created_by_nickname && ` · ${currentDoc.created_by_nickname}`}
-            </span>
+            <>
+              <span className="text-sm font-medium" style={{ color: "rgba(180,210,255,1)" }}>
+                v{currentDoc.version_no}
+              </span>
+              <span className="text-sm truncate" style={{ color: SILVER }}>
+                {currentDoc.title}
+              </span>
+              <span className="text-xs" style={{ color: SILVER_DIM }}>
+                · {new Date(currentDoc.created_at).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}
+                {currentDoc.created_by_nickname && ` · ${currentDoc.created_by_nickname}`}
+              </span>
+            </>
           )}
         </div>
 
@@ -340,39 +337,168 @@ export default function DocumentView({
 
       {/* 본문 영역 */}
       <div className="flex-1 flex min-h-0">
-        {/* 좌측 목차 */}
-        {!editing && toc.length > 0 && (
-          <aside className="overflow-y-auto py-4 px-3 flex-shrink-0" style={{ width: "260px", borderRight: `1px solid ${SILVER_FAINT}`, scrollbarWidth: "thin" }}>
-            <p className="text-xs font-bold mb-2" style={{ color: SILVER_DIM }}>📑 목차</p>
-            {toc.map(item => (
+        {/* 좌측 사이드바 — 목차 + 기획서 리스트 오버레이 */}
+        {!editing && (
+          <aside className="relative flex-shrink-0 flex flex-col" style={{ width: "260px", borderRight: `1px solid ${SILVER_FAINT}` }}>
+            {/* 상단 기획서 리스트 버튼 */}
+            <div className="px-3 pt-3 pb-2 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
               <button
-                key={item.id}
-                onClick={() => {
-                  const elements = bodyRef.current?.querySelectorAll("h1, h2, h3, h4");
-                  if (!elements) return;
-                  let idx = -1;
-                  let count = 0;
-                  for (let i = 0; i < elements.length; i++) {
-                    const el = elements[i];
-                    const lvl = parseInt(el.tagName.slice(1));
-                    if (lvl >= 2 && lvl <= 4) {
-                      if (count === toc.findIndex(t => t.id === item.id)) { idx = i; break; }
-                      count++;
-                    }
-                  }
-                  if (idx >= 0) elements[idx].scrollIntoView({ behavior: "smooth", block: "start" });
-                }}
-                className="block w-full text-left text-xs py-1 hover:underline"
+                onClick={() => setShowDocList(v => !v)}
+                className="w-full text-left text-xs px-3 py-2 rounded-lg font-bold flex items-center justify-between"
                 style={{
-                  paddingLeft: `${(item.level - 2) * 12}px`,
-                  color: item.level === 2 ? SILVER : SILVER_DIM,
-                  fontWeight: item.level === 2 ? 600 : 400,
-                  lineHeight: 1.5,
+                  backgroundColor: showDocList ? "rgba(100,180,255,0.18)" : SILVER_FAINT,
+                  border: `1px solid ${showDocList ? "rgba(100,180,255,0.6)" : SILVER_DIM}`,
+                  color: showDocList ? "rgba(180,210,255,1)" : SILVER,
                 }}
               >
-                {item.text}
+                <span>📚 기획서 리스트</span>
+                <span style={{ color: SILVER_DIM, fontWeight: 400 }}>({versions.length})</span>
               </button>
-            ))}
+            </div>
+
+            {/* 목차 영역 */}
+            {toc.length > 0 && (
+              <div className="overflow-y-auto py-4 px-3 flex-1" style={{ scrollbarWidth: "thin" }}>
+                <p className="text-xs font-bold mb-2" style={{ color: SILVER_DIM }}>📑 목차</p>
+                {toc.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      const elements = bodyRef.current?.querySelectorAll("h1, h2, h3, h4");
+                      if (!elements) return;
+                      let idx = -1;
+                      let count = 0;
+                      for (let i = 0; i < elements.length; i++) {
+                        const el = elements[i];
+                        const lvl = parseInt(el.tagName.slice(1));
+                        if (lvl >= 2 && lvl <= 4) {
+                          if (count === toc.findIndex(t => t.id === item.id)) { idx = i; break; }
+                          count++;
+                        }
+                      }
+                      if (idx >= 0) elements[idx].scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                    className="block w-full text-left text-xs py-1 hover:underline"
+                    style={{
+                      paddingLeft: `${(item.level - 2) * 12}px`,
+                      color: item.level === 2 ? SILVER : SILVER_DIM,
+                      fontWeight: item.level === 2 ? 600 : 400,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {item.text}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* 기획서 리스트 오버레이 — 사이드바와 동일 크기로 덮음 */}
+            {showDocList && (
+              <div
+                className="absolute inset-0 flex flex-col z-10"
+                style={{ backgroundColor: "#0a0e1a", borderRight: `1px solid ${SILVER_FAINT}` }}
+              >
+                {/* 오버레이 헤더 */}
+                <div className="flex items-center justify-between px-3 py-2.5 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+                  <p className="text-xs font-bold" style={{ color: "rgba(180,210,255,1)" }}>📚 기획서 리스트</p>
+                  <button
+                    onClick={() => setShowDocList(false)}
+                    className="text-xs px-2 py-0.5 rounded"
+                    style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* 카테고리 트리 */}
+                <div className="flex-1 overflow-y-auto px-2 py-2" style={{ scrollbarWidth: "thin" }}>
+                  {versions.length === 0 && (
+                    <p className="text-xs text-center mt-6" style={{ color: SILVER_DIM }}>
+                      생성된 기획서가 없어요
+                    </p>
+                  )}
+                  {(() => {
+                    // 카테고리 분류 — changes_summary 패턴 기반
+                    const cats: { id: string; label: string; icon: string; docs: DocMeta[] }[] = [
+                      { id: "chat", label: "대화 기반", icon: "💬", docs: [] },
+                      { id: "revision", label: "수정 버전", icon: "🪄", docs: [] },
+                      { id: "decision", label: "기획 바이블 기반", icon: "📋", docs: [] },
+                      { id: "other", label: "기타", icon: "📌", docs: [] },
+                    ];
+                    for (const v of versions) {
+                      const s = v.changes_summary ?? "";
+                      if (s.includes("수정 요청")) cats[1].docs.push(v);
+                      else if (s.includes("대화") && s.includes("교차 검증")) cats[0].docs.push(v);
+                      else if (s.includes("결정사항") || s.includes("자동 생성") || s.includes("반영")) cats[2].docs.push(v);
+                      else cats[3].docs.push(v);
+                    }
+
+                    return cats.map(cat => {
+                      if (cat.docs.length === 0) return null;
+                      const isOpen = expandedCats.has(cat.id);
+                      return (
+                        <div key={cat.id} className="mb-2">
+                          <button
+                            onClick={() =>
+                              setExpandedCats(prev => {
+                                const n = new Set(prev);
+                                if (n.has(cat.id)) n.delete(cat.id);
+                                else n.add(cat.id);
+                                return n;
+                              })
+                            }
+                            className="w-full text-left text-xs px-2 py-1.5 rounded flex items-center justify-between font-bold"
+                            style={{ backgroundColor: SILVER_FAINT, color: SILVER }}
+                          >
+                            <span>
+                              {cat.icon} {cat.label}
+                            </span>
+                            <span
+                              className="inline-flex items-center justify-center w-5 h-5 rounded text-base leading-none"
+                              style={{ backgroundColor: "rgba(255,255,255,0.06)", color: SILVER_DIM }}
+                            >
+                              {isOpen ? "−" : "+"}
+                            </span>
+                          </button>
+
+                          {isOpen && (
+                            <div className="mt-1 ml-1 flex flex-col gap-0.5">
+                              {cat.docs.map(d => {
+                                const active = d.id === currentDoc?.id;
+                                return (
+                                  <button
+                                    key={d.id}
+                                    onClick={() => {
+                                      void loadDoc(d.id);
+                                      setShowDocList(false);
+                                    }}
+                                    className="text-left text-xs px-2 py-1.5 rounded"
+                                    style={{
+                                      backgroundColor: active ? "rgba(100,180,255,0.18)" : "transparent",
+                                      border: active ? "1px solid rgba(100,180,255,0.5)" : "1px solid transparent",
+                                      color: active ? "rgba(180,210,255,1)" : "#b8c4d4",
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-1.5">
+                                      <span style={{ color: SILVER_DIM, flexShrink: 0 }}>v{d.version_no}</span>
+                                      <span className="truncate">{d.title}</span>
+                                    </div>
+                                    <div className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>
+                                      {new Date(d.created_at).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })}
+                                      {d.created_by_nickname && ` · ${d.created_by_nickname}`}
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            )}
           </aside>
         )}
 
