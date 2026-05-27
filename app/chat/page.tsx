@@ -1635,7 +1635,7 @@ export default function ChatPage() {
             <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.3)", color: "#34d399" }}>🔍 게임 분석 기반</span>
           </div>
           {/* 헤더 설명 */}
-          <p className="text-xs" style={{ color: SILVER_DIM }}>영웅수집형 게임 기획 전문가 · 다양한 영웅수집형 게임 분석 기반</p>
+          <p className="text-xs" style={{ color: SILVER_DIM }}>안녕, 영웅수집형 게임 디렉터 조던이야. 분석부터 기획까지 같이 풀어가자</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           {/* ─── 선택 모드: 작성 컨트롤만 크게 표시, 다른 헤더 버튼은 숨김 ─── */}
