@@ -194,6 +194,11 @@ export default function ChatPage() {
   const [showContextModal, setShowContextModal] = useState(false);
   // 인라인 신뢰도 라벨 토글 (기본 OFF — 가독성 우선, localStorage에 저장)
   const [showCitations, setShowCitations] = useState(false);
+  // 답변 피드백 상태 — pair_id별로 'accurate' | 'inaccurate' | undefined
+  const [feedbacks, setFeedbacks] = useState<Record<string, "accurate" | "inaccurate">>({});
+  // 부정확 사유 입력 모달 (열린 pair_id)
+  const [reasonInputPairId, setReasonInputPairId] = useState<string | null>(null);
+  const [reasonInputText, setReasonInputText] = useState("");
 
   // 마운트 시 localStorage에서 토글 상태 복원
   useEffect(() => {
@@ -248,6 +253,34 @@ export default function ChatPage() {
       scrollToBottom();
     }
   }, [streamingPair]);
+
+  // pairs 로드 시 각 pair의 기존 피드백 복원 (병렬 fetch)
+  useEffect(() => {
+    if (pairs.length === 0) return;
+    const targetPairs = pairs.filter(p => p.pair_id && feedbacks[p.pair_id] === undefined);
+    if (targetPairs.length === 0) return;
+
+    Promise.all(
+      targetPairs.map(async p => {
+        try {
+          const res = await fetch(`/api/feedback?pair_id=${encodeURIComponent(p.pair_id)}`);
+          const data = await res.json();
+          return data.feedback ? { pairId: p.pair_id, type: data.feedback.feedback_type } : null;
+        } catch {
+          return null;
+        }
+      })
+    ).then(results => {
+      const updates: Record<string, "accurate" | "inaccurate"> = {};
+      for (const r of results) {
+        if (r) updates[r.pairId] = r.type;
+      }
+      if (Object.keys(updates).length > 0) {
+        setFeedbacks(prev => ({ ...prev, ...updates }));
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pairs]);
 
   // 최초 진입·새로고침 시 자동 동작 — 최하단 스크롤 + 입력창 포커스
   // pairs가 실제로 채워진 시점을 감지 (이전 대화 복원 완료 시)
@@ -624,6 +657,51 @@ export default function ChatPage() {
     setTimeout(() => setCopiedId(null), 2000);
   }
 
+  // 피드백 저장 (정확 / 부정확)
+  async function submitFeedback(
+    pairId: string,
+    type: "accurate" | "inaccurate",
+    reason?: string
+  ) {
+    if (!sessionId) return;
+    const pair = pairs.find(p => p.pair_id === pairId);
+    if (!pair) return;
+
+    // 낙관적 업데이트 (UI 즉시 반영)
+    setFeedbacks(prev => ({ ...prev, [pairId]: type }));
+
+    try {
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          pair_id: pairId,
+          feedback_type: type,
+          reason: reason ?? null,
+          question: pair.user?.content,
+          answer: pair.assistant?.content?.slice(0, 1000),
+        }),
+      });
+    } catch (err) {
+      console.error("[feedback] 저장 실패:", err);
+    }
+  }
+
+  // 부정확 클릭 시 사유 입력 모달 열기
+  function openReasonInput(pairId: string) {
+    setReasonInputPairId(pairId);
+    setReasonInputText("");
+  }
+
+  // 사유 입력 후 저장
+  async function submitReason() {
+    if (!reasonInputPairId) return;
+    await submitFeedback(reasonInputPairId, "inaccurate", reasonInputText.trim() || undefined);
+    setReasonInputPairId(null);
+    setReasonInputText("");
+  }
+
   // 기획서 다운로드 (TXT — 마크다운 기호 제거)
   async function downloadDocTxt(content: string) {
     const clean = content
@@ -746,6 +824,37 @@ export default function ChatPage() {
                   <ReactMarkdown>{fixMarkdown(docContent)}</ReactMarkdown>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 부정확 피드백 사유 입력 팝업 */}
+      {reasonInputPairId && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setReasonInputPairId(null)}>
+          <div className="rounded-2xl w-full max-w-md shadow-2xl" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }} onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b" style={{ borderColor: SILVER_FAINT }}>
+              <p className="text-sm font-bold" style={{ color: "rgba(255,180,180,1)" }}>👎 부정확한 부분 알려주세요</p>
+              <p className="text-xs mt-1" style={{ color: SILVER_DIM }}>구체적으로 알려주시면 다음 답변 품질 개선에 활용해요. 비워두고 보내도 OK.</p>
+            </div>
+            <div className="p-4 flex flex-col gap-3">
+              <textarea
+                value={reasonInputText}
+                onChange={(e) => setReasonInputText(e.target.value)}
+                placeholder="예: 5월 14일 업데이트 정보가 잘못됨, 신규 영웅 이름이 다름 등"
+                rows={4}
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none"
+                style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+                autoFocus
+              />
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setReasonInputPairId(null)} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER }}>
+                  취소
+                </button>
+                <button onClick={submitReason} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: "rgba(255,180,180,0.2)", border: "1px solid rgba(255,180,180,0.5)", color: "rgba(255,200,200,1)" }}>
+                  피드백 전송
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1100,7 +1209,7 @@ export default function ChatPage() {
                     </div>
                   )}
 
-                  {/* 버튼 행: 자세한 답변 보기 + 설계 피드백 내용 */}
+                  {/* 버튼 행: 자세한 답변 보기 + 설계 피드백 내용 + 피드백 평가 */}
                   <div className="flex items-center gap-4 ml-1 mt-1 flex-wrap">
                     <button onClick={() => loadDetail(pair.pair_id)} className="text-xs flex items-center gap-1 w-fit" style={{ color: SILVER_DIM }}>
                       {pair.detail_loading ? "⏳ 불러오는 중..." : pair.detail_shown ? "▲ 접기" : "▼ 자세한 답변 보기"}
@@ -1111,6 +1220,33 @@ export default function ChatPage() {
                         {pair.feedback_summary_shown ? "▲ 검토 의견 접기" : "📋 디렉터 검토 의견"}
                       </button>
                     )}
+                    {/* 피드백 평가 — 정확함 / 부정확 */}
+                    <div className="flex items-center gap-2 ml-auto">
+                      <button
+                        onClick={() => submitFeedback(pair.pair_id, "accurate")}
+                        title="답변이 정확함"
+                        className="text-xs px-2 py-1 rounded-md transition-opacity"
+                        style={{
+                          backgroundColor: feedbacks[pair.pair_id] === "accurate" ? "rgba(100,220,160,0.2)" : "transparent",
+                          color: feedbacks[pair.pair_id] === "accurate" ? "rgba(150,255,200,1)" : SILVER_DIM,
+                          opacity: feedbacks[pair.pair_id] === "inaccurate" ? 0.3 : 1,
+                        }}
+                      >
+                        👍
+                      </button>
+                      <button
+                        onClick={() => openReasonInput(pair.pair_id)}
+                        title="답변이 부정확함 (사유 입력)"
+                        className="text-xs px-2 py-1 rounded-md transition-opacity"
+                        style={{
+                          backgroundColor: feedbacks[pair.pair_id] === "inaccurate" ? "rgba(255,140,140,0.2)" : "transparent",
+                          color: feedbacks[pair.pair_id] === "inaccurate" ? "rgba(255,180,180,1)" : SILVER_DIM,
+                          opacity: feedbacks[pair.pair_id] === "accurate" ? 0.3 : 1,
+                        }}
+                      >
+                        👎
+                      </button>
+                    </div>
                   </div>
 
                   {/* 설계 피드백 요약 패널 — 피드백 색상: rgba(100,180,255,...) */}
