@@ -5,6 +5,7 @@ import { classifyQuestion, REGISTERED_GAMES, type RouteDecision } from "../route
 import { ensureGameDomains, type DiscoveredDomain } from "@/lib/domain-discovery";
 import { extractAndSaveDecisions } from "@/lib/decision-extractor";
 import { buildDecisionContext } from "@/lib/decision-context";
+import { buildFeedbackContext } from "@/lib/feedback-context";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -1172,7 +1173,8 @@ async function runMultiAgentPipeline(
   onChunk: (text: string) => void,
   detailed = false,
   showCitations = false,  // 인라인 신뢰도 라벨 노출 여부 (기본 OFF)
-  contextAnchorTime: string | null = null  // 결정사항 cutoff (이후 created_at만 컨텍스트로)
+  contextAnchorTime: string | null = null,  // 결정사항 cutoff (이후 created_at만 컨텍스트로)
+  sessionId: string | null = null  // 피드백 컨텍스트 조회용 (👍/👎 누적 반영)
 ): Promise<string> {
 
   // ── 검색 + 분석 (라우터 → 도메인 발견 → Claude 웹 검색 통합 흐름)
@@ -1185,6 +1187,9 @@ async function runMultiAgentPipeline(
   // anchor 설정돼 있으면 그 시점 이후 결정만 컨텍스트로 포함
   const decisionContext = await buildDecisionContext(undefined, 200, contextAnchorTime);
 
+  // ── 사용자 피드백 누적 컨텍스트 (👍/👎 학습)
+  const feedbackContext = await buildFeedbackContext(sessionId, 20);
+
   // ── 조던 말투로 최종 답변 생성
   onChunk(`__JORDAN_ANSWER_START__`);
 
@@ -1196,9 +1201,10 @@ async function runMultiAgentPipeline(
 - 조던 자문 영역: ${route.needs_jordan_consulting}
 - 신뢰도: ${route.confidence}`;
 
-  // 누적 결정사항 + 라우터 분석 + 검색 데이터를 함께 전달
+  // 누적 결정사항 + 피드백 + 라우터 분석 + 검색 데이터를 함께 전달
   const decisionSection = decisionContext ? `\n\n${decisionContext}` : "";
-  const combinedContext = `${routeContext}${decisionSection}\n\n[실시간 검색 데이터]\n${analysisResult}`;
+  const feedbackSection = feedbackContext ? `\n\n${feedbackContext}` : "";
+  const combinedContext = `${routeContext}${decisionSection}${feedbackSection}\n\n[실시간 검색 데이터]\n${analysisResult}`;
 
   // 공통 시스템 프롬프트 앞부분 (검색 결과 활용 지시 포함)
   const baseSystemPrompt = `당신의 이름은 조던(Jordan)이에요. 영웅수집형 모바일 게임 기획 전문가 AI예요.
@@ -1212,6 +1218,12 @@ async function runMultiAgentPipeline(
 - 이전 결정을 참조해 일관된 답변할 것 (예: "앞서 결정한 가챠 천장 90회를 고려하면...")
 - 이전 결정에 변경 의향이 있다면 사용자가 명시적으로 표명한 경우만 — 그 외에는 기존 결정 존중
 - 결정사항에 없는 영역은 자유롭게 자문 가능
+
+[★ 매우 중요 — 사용자 피드백 반영]
+사용자 메시지에 "[사용자 피드백 누적]" 섹션이 포함될 수 있어요. 이건 이전 답변들에 대한 👍/👎 평가예요.
+- ❌ 부정확 표시 + 사유가 있는 항목: 그 사유로 지적된 패턴(틀린 사실·잘못된 인용·부적절한 톤 등)을 절대 반복하지 마세요. 같은 유형 질문은 더 신중하게.
+- ✅ 정확 평가가 누적된 답변 스타일·접근은 그대로 유지하세요.
+- 피드백이 현재 질문과 직접 관련 없어도, 사용자의 선호 패턴을 학습한 신호로 활용하세요.
 
 [중요 — 검색 데이터 활용]
 당신은 방금 Claude 네이티브 웹 검색을 통해 한국 게임 신뢰 사이트(인벤·게임메카·디스이즈게임·나무위키·디시·네이버 카페/뉴스 등)에서 실시간 정보를 수집했어요.
@@ -1361,7 +1373,8 @@ export async function POST(request: Request) {
             encode,
             detailed,
             show_citations ?? false,  // 기본값 OFF (가독성 우선)
-            context_anchor_time ?? null  // 결정사항 cutoff
+            context_anchor_time ?? null,  // 결정사항 cutoff
+            session_id ?? null  // 피드백 컨텍스트 조회용
           );
           // Supabase에 대화 저장
           if (session_id && pair_id) {
