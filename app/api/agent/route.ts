@@ -436,6 +436,28 @@ function findMatchingGame(userQuery: string, contextCard: string): { game: typeo
   return { game: matched[0][1], gameKey: matched[0][0] };
 }
 
+// 사용자에게 보여줄 질문 유형 한국어 변환
+function questionTypeToKorean(type: RouteDecision["question_type"]): string {
+  switch (type) {
+    case "factual": return "정보 조회";
+    case "opinion": return "유저 반응·평가";
+    case "comparison": return "비교 분석";
+    case "design_consultation": return "기획 자문";
+    case "mixed": return "사실 조회 + 유저 반응";
+    default: return "일반 분석";
+  }
+}
+
+// 도메인 출처 한국어 변환
+function domainSourceToKorean(source: "manual" | "cache" | "auto" | "empty"): string {
+  switch (source) {
+    case "manual": return "검증된 출처";
+    case "cache": return "기존 발견 결과";
+    case "auto": return "신규 발견";
+    case "empty": return "발견 실패";
+  }
+}
+
 // 라우터가 반환한 game_id → GAME_COMMUNITIES의 수동 큐레이션 찾기
 // REGISTERED_GAMES.names를 매개로 두 데이터 구조 연결
 function getManualCurationByGameId(gameId: string): typeof GAME_COMMUNITIES[string] | null {
@@ -472,7 +494,8 @@ async function resolveDomainsForGames(
     });
 
     sources[gameId] = result.source;
-    onProgress?.(`  📚 **${gameNames[0]}** 도메인 확보: ${result.source} (${result.domains.length}개)\n`);
+    const sourceLabel = domainSourceToKorean(result.source);
+    onProgress?.(`   ✓ ${gameNames[0]}: ${sourceLabel} ${result.domains.length}개 사이트\n`);
 
     for (const d of result.domains) {
       allDiscovered.push(d);
@@ -500,26 +523,34 @@ async function analyzeWithWebSearch(
   onProgress?: (text: string) => void
 ): Promise<{ analysis: string; route: RouteDecision }> {
 
-  // ── Step 1: 라우터로 질문 분류 ──
-  onProgress?.(`  🧭 **라우터** 질문 분류 중...\n`);
-  // 타입 안전성: recentMessages role을 user/assistant로 캐스팅
+  // ── Step 1: 라우터로 질문 분류 (백그라운드, 사용자에게 노출 안 함) ──
   const typedRecent = recentMessages.map(m => ({
     role: (m.role === "user" ? "user" : "assistant") as "user" | "assistant",
     content: m.content,
   }));
   const route = await classifyQuestion(userQuery, contextCard, typedRecent);
-  onProgress?.(`  ✅ 분류 완료 — target_games: ${JSON.stringify(route.target_games)}, web=${route.needs_web_search}, consulting=${route.needs_jordan_consulting} (신뢰도 ${route.confidence})\n`);
-  onProgress?.(`     이유: ${route.reasoning}\n`);
 
-  // 조던 자문만 + 웹 검색 불필요 → 검색 skip, 빈 분석 반환 (Jordan이 페르소나로 답변)
+  // 사용자 친화적 표시 — 게임명, 작업 유형만
+  const gameDisplayName = route.target_games.length > 0
+    ? route.target_games
+        .map(gid => REGISTERED_GAMES.find(g => g.id === gid)?.names[0] ?? gid)
+        .join(", ")
+    : "일반 질문";
+  const typeKorean = questionTypeToKorean(route.question_type);
+
+  onProgress?.(`\n**📌 분석 대상**: ${gameDisplayName}\n`);
+  onProgress?.(`**📋 작업 유형**: ${typeKorean}\n`);
+
+  // 조던 자문만 + 웹 검색 불필요 → 검색 skip
   if (!route.needs_web_search) {
-    onProgress?.(`  ⏭️ 웹 검색 불필요 — 조던 자문으로 직접 답변\n`);
+    onProgress?.(`\n💭 조던의 경험과 기획 철학으로 직접 답변할게요.\n\n`);
     return { analysis: "[검색 데이터 없음 — 조던 자문 영역]", route };
   }
 
   // ── Step 2: 도메인 확보 (target_games 있으면 수동/캐시/자동 발견) ──
   let gameDomains: string[] = [];
   if (route.target_games.length > 0) {
+    onProgress?.(`\n📚 **신뢰 출처 확인 중**...\n`);
     const resolved = await resolveDomainsForGames(route.target_games, onProgress);
     gameDomains = resolved.domains;
   }
@@ -530,7 +561,11 @@ async function analyzeWithWebSearch(
     ...KOREAN_GAME_TRUSTED_DOMAINS,
   ].filter(d => d && d.length > 0)));
 
-  onProgress?.(`  🌐 검색 도메인 ${allowedDomains.length}개 확보 (게임 특화 ${gameDomains.length}개 + 일반 신뢰 ${KOREAN_GAME_TRUSTED_DOMAINS.length}개)\n`);
+  if (gameDomains.length > 0) {
+    onProgress?.(`\n🌐 **웹 검색 시작** — 게임 전용 ${gameDomains.length}개 + 한국 게임 신뢰 ${KOREAN_GAME_TRUSTED_DOMAINS.length}개 사이트 대상\n\n`);
+  } else {
+    onProgress?.(`\n🌐 **웹 검색 시작** — 한국 게임 신뢰 ${KOREAN_GAME_TRUSTED_DOMAINS.length}개 사이트 대상\n\n`);
+  }
 
   // 맥락 섹션 구성
   const contextSection = contextCard ? `\n\n[대화 맥락 카드]\n${contextCard}` : "";
@@ -633,13 +668,17 @@ ${userQuery}`;
       }
     }
 
-    // 진행상황 출력
+    // 진행상황 출력 — 사용자 친화적 형식
     if (searchCount > 0) {
-      onProgress?.(`  🔎 웹 검색 ${searchCount}회 수행, 출처 ${citations.length}개 확보\n`);
-      // 상위 출처 URL 표시 (최대 5개)
-      const topCitations = citations.slice(0, 5);
-      for (const c of topCitations) {
-        onProgress?.(`    └ ${c.title.slice(0, 60)} — ${c.url}\n`);
+      onProgress?.(`✅ **검색 완료** — ${searchCount}회 검색, 출처 ${citations.length}개 수집\n\n`);
+
+      if (citations.length > 0) {
+        onProgress?.(`**📑 참고한 출처** (상위 ${Math.min(5, citations.length)}개)\n\n`);
+        const topCitations = citations.slice(0, 5);
+        for (const c of topCitations) {
+          onProgress?.(`• ${c.title.slice(0, 70)}\n`);
+        }
+        onProgress?.(`\n`);
       }
     }
 
@@ -913,10 +952,10 @@ async function runMultiAgentPipeline(
 ): Promise<string> {
 
   // ── 검색 + 분석 (라우터 → 도메인 발견 → Claude 웹 검색 통합 흐름)
-  onChunk(`\n🔍 **통합 분석 시작**\n`);
-  // onChunk를 onProgress로 전달 → 라우팅·도메인·검색 진행상황이 스트림에 실시간 노출됨
+  onChunk(`\n🔍 **분석 시작**\n`);
+  // onChunk를 onProgress로 전달 → 진행상황이 스트림에 실시간 노출됨
   const { analysis: analysisResult, route } = await analyzeWithWebSearch(userQuery, contextCard, recentMessages, onChunk);
-  onChunk(`✅ 분석 완료\n\n---\n\n`);
+  onChunk(`\n---\n\n`);
 
   // ── 조던 말투로 최종 답변 생성
   onChunk(`__JORDAN_ANSWER_START__`);
