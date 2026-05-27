@@ -1490,7 +1490,39 @@ export default function ChatPage() {
           <p className="text-xs" style={{ color: SILVER_DIM }}>영웅수집형 게임 기획 전문가 · 다양한 영웅수집형 게임 분석 기반</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          {/* ① 대화 맥락 — 헤더 맨 앞 */}
+          {/* ① 맥락 시작점 — 헤더 맨 앞 (위치로 이동 / 없으면 안내) */}
+          <Tooltip text={contextAnchorPairId ? "현재 맥락 시작점 위치로 이동" : "맥락 시작점이 설정돼 있지 않아요"}>
+            <button
+              onClick={() => {
+                if (!contextAnchorPairId) {
+                  setNoAnchorNotice(true);
+                  setTimeout(() => setNoAnchorNotice(false), 2000);
+                  return;
+                }
+                const el = document.getElementById(`pair-${contextAnchorPairId}`);
+                if (el) {
+                  el.scrollIntoView({ behavior: "smooth", block: "center" });
+                  el.style.transition = "background-color 0.3s";
+                  const orig = el.style.backgroundColor;
+                  el.style.backgroundColor = "rgba(255,200,100,0.1)";
+                  setTimeout(() => { el.style.backgroundColor = orig; }, 1200);
+                } else {
+                  setNoAnchorNotice(true);
+                  setTimeout(() => setNoAnchorNotice(false), 2000);
+                }
+              }}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium"
+              style={{
+                backgroundColor: contextAnchorPairId ? "rgba(255,200,100,0.15)" : SILVER_FAINT,
+                border: `1px solid ${contextAnchorPairId ? "rgba(255,200,100,0.5)" : SILVER_DIM}`,
+                color: contextAnchorPairId ? "rgba(255,220,150,1)" : SILVER_DIM,
+              }}
+            >
+              📌 맥락 시작점
+            </button>
+          </Tooltip>
+
+          {/* ② 대화 맥락 */}
           <Tooltip text="지금까지 대화의 핵심 맥락 요약. 답변마다 자동 갱신돼요">
             <button
               onClick={() => setShowContextModal(true)}
@@ -1548,39 +1580,7 @@ export default function ChatPage() {
             </button>
           </Tooltip>
 
-          {/* ④ 맥락 시작점 — 현재 위치로 스크롤 (없으면 안내 토스트) */}
-          <Tooltip text={contextAnchorPairId ? "현재 맥락 시작점 위치로 이동" : "맥락 시작점이 설정돼 있지 않아요"}>
-            <button
-              onClick={() => {
-                if (!contextAnchorPairId) {
-                  setNoAnchorNotice(true);
-                  setTimeout(() => setNoAnchorNotice(false), 2000);
-                  return;
-                }
-                const el = document.getElementById(`pair-${contextAnchorPairId}`);
-                if (el) {
-                  el.scrollIntoView({ behavior: "smooth", block: "center" });
-                  // 짧게 하이라이트 효과
-                  el.style.transition = "background-color 0.3s";
-                  const orig = el.style.backgroundColor;
-                  el.style.backgroundColor = "rgba(255,200,100,0.1)";
-                  setTimeout(() => { el.style.backgroundColor = orig; }, 1200);
-                } else {
-                  // anchor pair가 화면에서 사라진 경우 (예: 삭제됨)
-                  setNoAnchorNotice(true);
-                  setTimeout(() => setNoAnchorNotice(false), 2000);
-                }
-              }}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium"
-              style={{
-                backgroundColor: contextAnchorPairId ? "rgba(255,200,100,0.15)" : SILVER_FAINT,
-                border: `1px solid ${contextAnchorPairId ? "rgba(255,200,100,0.5)" : SILVER_DIM}`,
-                color: contextAnchorPairId ? "rgba(255,220,150,1)" : SILVER_DIM,
-              }}
-            >
-              📌 맥락 시작점
-            </button>
-          </Tooltip>
+          {/* 맥락 시작점은 헤더 맨 앞으로 이동됨 */}
 
           {/* ⑤ 출처 표시 */}
           <Tooltip text="답변 문장에 [공식 인용 — N개 일치] 같은 신뢰도 라벨 표시 여부">
