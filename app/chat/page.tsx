@@ -1115,6 +1115,21 @@ export default function ChatPage() {
           >
             🎮 참고 게임
           </button>
+          {/* 관리자 전용: 정민만 게임 도메인 큐레이션 페이지 접근 가능 */}
+          {sessionId?.replace(/^agent:/, "") === "정민" && (
+            <button
+              onClick={() => window.open("/admin/curation", "_blank")}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
+              title="게임 도메인 큐레이션 (관리자 전용)"
+              style={{
+                backgroundColor: "rgba(255,200,100,0.15)",
+                border: "1px solid rgba(255,200,100,0.5)",
+                color: "rgba(255,220,150,1)",
+              }}
+            >
+              🛠️ 큐레이션
+            </button>
+          )}
           {sessionId && (
             <span className="text-xs px-3 py-1 rounded-full" style={{ backgroundColor: SILVER_FAINT, border: `1px solid rgba(192,200,216,0.3)`, color: SILVER }}>{sessionId.replace(/^agent:/, "")}</span>
           )}
