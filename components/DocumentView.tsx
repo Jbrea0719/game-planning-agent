@@ -270,8 +270,18 @@ export default function DocumentView({
               </button>
             </>
           )}
-          <button onClick={onClose} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER }}>
-            ✕ 닫기
+          <button
+            onClick={onClose}
+            title="조던 채팅 화면으로 돌아가기"
+            className="text-xs px-4 py-2 rounded-lg font-bold flex items-center gap-1.5 transition-transform hover:scale-105"
+            style={{
+              backgroundColor: "rgba(100,220,160,0.22)",
+              border: "1.5px solid rgba(100,220,160,0.7)",
+              color: "rgba(150,255,200,1)",
+              boxShadow: "0 2px 10px rgba(100,220,160,0.25)",
+            }}
+          >
+            ← 조던으로 돌아가기
           </button>
         </div>
       </div>
