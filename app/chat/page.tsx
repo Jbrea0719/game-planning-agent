@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
+import React from "react";
 import ReactMarkdown from "react-markdown";
 
 type Message = {
@@ -93,6 +94,78 @@ function fixMarkdown(text: string): string {
   return text
     .replace(/\*\*"([^"]+)"\*\*/g, "**$1**")
     .replace(/\*\*'([^']+)'\*\*/g, "**$1**");
+}
+
+// ════════════════════════════════════════
+// 출처 라벨 스타일 적용 — 핵심 키워드 강조와 시각 분리
+// 예: [공식 인용 — 4개 일치], [유저 의견 다수 — 디시 8건], [확인 안 됨]
+// ════════════════════════════════════════
+const CITATION_PATTERN = /\[(?:공식 인용|언론 인용|위키 인용|유저 의견|\d+개 출처만|확인 안 됨)[^\]]*\]/g;
+
+// 텍스트 내 citation 패턴을 muted color span으로 감싸기
+function renderWithCitations(text: string): React.ReactNode {
+  if (!text || !text.includes("[")) return text;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  const regex = new RegExp(CITATION_PATTERN.source, "g");
+  let idx = 0;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
+    parts.push(
+      <span
+        key={`cite-${idx++}`}
+        style={{
+          color: "rgba(150,160,180,0.55)",  // 차분한 회색 — 본문보다 흐림
+          fontSize: "0.82em",
+          fontWeight: 400,
+          fontStyle: "normal",
+        }}
+      >
+        {match[0]}
+      </span>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts.length > 0 ? parts : text;
+}
+
+// React children 재귀 처리: 모든 text 노드에 citation 스타일 적용
+function processChildrenForCitations(children: React.ReactNode): React.ReactNode {
+  return React.Children.map(children, child => {
+    if (typeof child === "string") return renderWithCitations(child);
+    if (React.isValidElement(child)) {
+      const el = child as React.ReactElement<{ children?: React.ReactNode }>;
+      if (el.props.children) {
+        return React.cloneElement(el, {
+          children: processChildrenForCitations(el.props.children),
+        });
+      }
+    }
+    return child;
+  });
+}
+
+// react-markdown에 넘길 components 객체
+// p, li, strong, em, h1~h6, td 등 텍스트가 들어가는 모든 요소에 적용
+type MdProps = { children?: React.ReactNode };
+const citationComponents = {
+  p: ({ children, ...props }: MdProps) => <p {...props}>{processChildrenForCitations(children)}</p>,
+  li: ({ children, ...props }: MdProps) => <li {...props}>{processChildrenForCitations(children)}</li>,
+  strong: ({ children, ...props }: MdProps) => <strong {...props}>{processChildrenForCitations(children)}</strong>,
+  em: ({ children, ...props }: MdProps) => <em {...props}>{processChildrenForCitations(children)}</em>,
+  h1: ({ children, ...props }: MdProps) => <h1 {...props}>{processChildrenForCitations(children)}</h1>,
+  h2: ({ children, ...props }: MdProps) => <h2 {...props}>{processChildrenForCitations(children)}</h2>,
+  h3: ({ children, ...props }: MdProps) => <h3 {...props}>{processChildrenForCitations(children)}</h3>,
+  h4: ({ children, ...props }: MdProps) => <h4 {...props}>{processChildrenForCitations(children)}</h4>,
+  td: ({ children, ...props }: MdProps) => <td {...props}>{processChildrenForCitations(children)}</td>,
+  blockquote: ({ children, ...props }: MdProps) => <blockquote {...props}>{processChildrenForCitations(children)}</blockquote>,
+};
+
+// 어시스턴트 메시지 렌더러 — 출처 라벨 스타일 자동 적용
+function AssistantMarkdown({ text }: { text: string }) {
+  return <ReactMarkdown components={citationComponents}>{fixMarkdown(text)}</ReactMarkdown>;
 }
 
 // 토큰 한도 초과로 잘린 경우 불완전한 마지막 줄 제거
@@ -985,7 +1058,7 @@ export default function ChatPage() {
                       </span>
                     </button>
                     <div className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm prose prose-sm max-w-none" style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0", backdropFilter: "blur(10px)" }}>
-                      <ReactMarkdown>{fixMarkdown(pair.assistant.content)}</ReactMarkdown>
+                      <AssistantMarkdown text={pair.assistant.content} />
                     </div>
                   </div>
                   {/* 2000자 초과 시 다운로드 버튼 */}
@@ -1031,7 +1104,7 @@ export default function ChatPage() {
                     return (
                       <div className="flex flex-col gap-2">
                         <div className="px-4 py-3 rounded-2xl text-sm prose prose-sm max-w-none" style={{ backgroundColor: "rgba(192,200,216,0.07)", border: `1px solid rgba(192,200,216,0.25)`, color: "#e0e8f0" }}>
-                          <ReactMarkdown>{fixMarkdown(bubbleText)}</ReactMarkdown>
+                          <AssistantMarkdown text={bubbleText} />
                         </div>
                         {fullText && !pair.detail_loading && (
                           <div className="flex flex-col gap-1 ml-1">
@@ -1080,7 +1153,7 @@ export default function ChatPage() {
                   <p className="text-xs ml-1" style={{ color: SILVER }}>조던</p>
                   <div className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm prose prose-sm max-w-none" style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}>
                     {streamingPair.assistant
-                      ? <ReactMarkdown>{fixMarkdown(streamingPair.assistant)}</ReactMarkdown>
+                      ? <AssistantMarkdown text={streamingPair.assistant} />
                       : <span style={{ color: SILVER_DIM }} className="animate-pulse">···</span>}
                     {/* 처리 중 스피너 — 에이전트 단계별 라벨 표시 */}
                     {isLoading && (() => {
