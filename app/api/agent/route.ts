@@ -6,6 +6,7 @@ import { ensureGameDomains, type DiscoveredDomain } from "@/lib/domain-discovery
 import { extractAndSaveDecisions } from "@/lib/decision-extractor";
 import { buildDecisionContext } from "@/lib/decision-context";
 import { buildFeedbackContext } from "@/lib/feedback-context";
+import { fetchLoungeAll, buildLoungeContext } from "@/lib/naver-lounge";
 import { MODEL } from "@/lib/models";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -1191,6 +1192,25 @@ async function runMultiAgentPipeline(
   // ── 사용자 피드백 누적 컨텍스트 (👍/👎 학습)
   const feedbackContext = await buildFeedbackContext(sessionId, 20);
 
+  // ── 네이버 라운지 공식 데이터 (SPA라 웹 검색이 못 잡는 1순위 신뢰 출처)
+  // 등록된 게임이 타겟이면 Jina Reader로 라운지 공지·홈 가져옴
+  let loungeContext = "";
+  if (route.target_games.length > 0) {
+    try {
+      onChunk(`\n📢 **공식 네이버 라운지 확인 중**... (${route.target_games.join(", ")})\n`);
+      const all = await Promise.all(route.target_games.map(gid => fetchLoungeAll(gid)));
+      const flat = all.flat();
+      if (flat.length > 0) {
+        loungeContext = buildLoungeContext(flat);
+        onChunk(`✅ 라운지 ${flat.length}개 페이지 확보 (공지·홈)\n`);
+      } else {
+        onChunk(`⚠️ 라운지 데이터 없음 (해당 게임 라운지 미등록 또는 일시적 접근 실패)\n`);
+      }
+    } catch (err) {
+      console.error("[agent] 네이버 라운지 fetch 실패:", err);
+    }
+  }
+
   // ── 조던 말투로 최종 답변 생성
   onChunk(`__JORDAN_ANSWER_START__`);
 
@@ -1202,10 +1222,12 @@ async function runMultiAgentPipeline(
 - 조던 자문 영역: ${route.needs_jordan_consulting}
 - 신뢰도: ${route.confidence}`;
 
-  // 누적 결정사항 + 피드백 + 라우터 분석 + 검색 데이터를 함께 전달
+  // 누적 결정사항 + 피드백 + 라우터 분석 + 라운지 + 검색 데이터를 함께 전달
+  // 라운지는 1순위 신뢰 출처이므로 검색 데이터보다 앞에 배치
   const decisionSection = decisionContext ? `\n\n${decisionContext}` : "";
   const feedbackSection = feedbackContext ? `\n\n${feedbackContext}` : "";
-  const combinedContext = `${routeContext}${decisionSection}${feedbackSection}\n\n[실시간 검색 데이터]\n${analysisResult}`;
+  const loungeSection = loungeContext ? `\n\n${loungeContext}` : "";
+  const combinedContext = `${routeContext}${decisionSection}${feedbackSection}${loungeSection}\n\n[실시간 검색 데이터]\n${analysisResult}`;
 
   // 현재 날짜 — 학습 데이터 시점과 혼동 방지 위해 명시 주입
   const today = new Date();
