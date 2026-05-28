@@ -7,6 +7,7 @@ import { extractAndSaveDecisions } from "@/lib/decision-extractor";
 import { buildDecisionContext } from "@/lib/decision-context";
 import { buildFeedbackContext } from "@/lib/feedback-context";
 import { fetchLoungeAll, buildLoungeContext } from "@/lib/naver-lounge";
+import { buildWebtoonContext } from "@/lib/webtoon-context";
 import { MODEL } from "@/lib/models";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -1192,6 +1193,9 @@ async function runMultiAgentPipeline(
   // ── 사용자 피드백 누적 컨텍스트 (👍/👎 학습)
   const feedbackContext = await buildFeedbackContext(sessionId, 20);
 
+  // ── 웹툰 IP 컨텍스트 (사용자 질문에 언급된 웹툰 있으면 정보 자동 주입)
+  const webtoonContext = await buildWebtoonContext(userQuery);
+
   // ── 네이버 라운지 공식 데이터 (SPA라 웹 검색이 못 잡는 1순위 신뢰 출처)
   // 등록된 게임이 타겟이면 Jina Reader로 라운지 공지·홈 가져옴
   let loungeContext = "";
@@ -1227,7 +1231,8 @@ async function runMultiAgentPipeline(
   const decisionSection = decisionContext ? `\n\n${decisionContext}` : "";
   const feedbackSection = feedbackContext ? `\n\n${feedbackContext}` : "";
   const loungeSection = loungeContext ? `\n\n${loungeContext}` : "";
-  const combinedContext = `${routeContext}${decisionSection}${feedbackSection}${loungeSection}\n\n[실시간 검색 데이터]\n${analysisResult}`;
+  const webtoonSection = webtoonContext ? `\n\n${webtoonContext}` : "";
+  const combinedContext = `${routeContext}${decisionSection}${feedbackSection}${webtoonSection}${loungeSection}\n\n[실시간 검색 데이터]\n${analysisResult}`;
 
   // 현재 날짜 — 학습 데이터 시점과 혼동 방지 위해 명시 주입
   const today = new Date();
@@ -1251,6 +1256,14 @@ async function runMultiAgentPipeline(
 - 이전 결정을 참조해 일관된 답변할 것 (예: "앞서 결정한 가챠 천장 90회를 고려하면...")
 - 이전 결정에 변경 의향이 있다면 사용자가 명시적으로 표명한 경우만 — 그 외에는 기존 결정 존중
 - 결정사항에 없는 영역은 자유롭게 자문 가능
+
+[★ 웹툰 IP 게임화 — 본 프로젝트 핵심 분야 ★]
+사용자 메시지에 "[등록된 웹툰 IP 라이브러리]" 또는 "[사용자 질문에서 언급된 웹툰 IP]" 섹션이 포함될 수 있어요.
+본 프로젝트는 웹툰 IP를 기반으로 영웅수집형 게임을 만드는 게 목적입니다. 다음 원칙으로 활용:
+- 사용자가 등록된 웹툰을 언급하면 → 해당 IP의 세계관·캐릭터·시스템을 게임 메카닉과 매핑해서 자문
+- "게임화 적합성" 평가와 "참고 포인트"를 적극 활용해 구체적 제안
+- 등록 안 된 웹툰을 물어보면 → 등록 라이브러리 목록 안내 + 등록 권장
+- 웹툰 캐릭터·설정을 추측하지 말 것 (등록 정보에 없으면 "이 부분은 추가 확인 필요" 명시)
 
 [★ 매우 중요 — 사용자 피드백 반영]
 사용자 메시지에 "[사용자 피드백 누적]" 섹션이 포함될 수 있어요. 이건 이전 답변들에 대한 👍/👎 평가예요.
