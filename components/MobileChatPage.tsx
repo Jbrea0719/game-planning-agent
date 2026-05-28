@@ -986,6 +986,22 @@ function MobileSettings({
             </div>
           </section>
 
+          {/* 화면 모드 */}
+          <section>
+            <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>📱 화면 모드</p>
+            <div className="px-3 py-2.5 rounded-lg flex items-center justify-between" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
+              <div className="flex-1">
+                <p className="text-xs font-medium" style={{ color: SILVER }}>PC 뷰로 강제 전환</p>
+                <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>현재 모바일 자동 감지</p>
+              </div>
+              <button
+                onClick={() => { window.location.href = "/chat?view=desktop"; }}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium ml-2 flex-shrink-0"
+                style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
+              >🖥️ 전환</button>
+            </div>
+          </section>
+
           {/* 답변 모델 */}
           <section>
             <p className="text-xs font-bold mb-2" style={{ color: "rgba(200,180,255,1)" }}>🤖 답변 모델</p>

@@ -1519,6 +1519,24 @@ function DesktopChatPage() {
                   </div>
                 </section>
 
+                {/* 5. 화면 모드 전환 */}
+                <section>
+                  <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>📱 화면 모드</p>
+                  <div className="px-3 py-2.5 rounded-lg flex items-center justify-between" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
+                    <div className="flex-1">
+                      <p className="text-xs font-medium" style={{ color: SILVER }}>모바일 뷰로 강제 전환</p>
+                      <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>현재 PC 자동 감지. 강제로 모바일 UI 보기.</p>
+                    </div>
+                    <button
+                      onClick={() => { window.location.href = "/chat?view=mobile"; }}
+                      className="text-xs px-3 py-1.5 rounded-lg font-medium ml-2 flex-shrink-0"
+                      style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
+                    >
+                      📱 전환
+                    </button>
+                  </div>
+                </section>
+
               </div>
             </div>
           </div>
@@ -1564,6 +1582,7 @@ function DesktopChatPage() {
                   <p><b style={{ color: SILVER }}>📄 기획서 작성</b> — 대화 선택 후 [✓ 작성 시작] 누르면 <i>백그라운드로 생성</i>. 작성 중에는 헤더 버튼이 "작성 중... (취소)" 표시 — <b>다시 누르면 작성 취소</b>. 완료 시 알림 토스트 + 자동으로 기획서 리스트에 새 버전 저장.</p>
                   <p><b style={{ color: SILVER }}>📄 기획서</b> — 진입 시 좌측 <b>📚 기획서 리스트</b>가 기본 열림. 리스트는 <b>대 &gt; 중 &gt; 소 &gt; 기획서</b> 4단계 트리. 대(인게임/아웃게임…)는 진한 배경, 중(영웅/PVP…)는 옅은 배경, 소(영웅 등급/스킬…)는 좌측 보더, 기획서는 leaf. 각 단계마다 +/− 토글. 기획서 옆 ✏️로 이름 변경, 📂로 분류 변경. 리스트 헤더의 <b>⚙️</b>로 카테고리 관리 (추가·수정·삭제). 안 본 기획서 옆에는 <b style={{ color: "rgba(255,150,150,1)" }}>빨간 점</b>(클릭하면 영구 해제). 뷰 안에서 <b>🪄 수정 요청</b>으로 자연어 지시 → 같은 기획서를 그 자리에서 갱신. 수정 전 원본은 <b>7일간 백업 폴더에 자동 보관</b>. <b>📥 내보내기</b>는 MD/TXT/HTML/PDF 4가지.</p>
                   <p><b style={{ color: SILVER }}>📖 가이드</b> — 지금 보고 있는 이 화면. 조던의 모든 기능을 한눈에 정리. 기능이 바뀌면 자동 갱신.</p>
+                  <p><b style={{ color: SILVER }}>📱 모바일</b> — 같은 URL을 모바일에서 열면 자동으로 모바일 전용 뷰. 햄버거 메뉴(☰) 안에 모든 도구. 닉네임만 같으면 데이터·기획 바이블·기획서 자동 동기화. <i>?view=desktop</i> 쿼리로 PC 뷰 강제 가능.</p>
                   <p><b style={{ color: SILVER }}>⚙️ 설정</b> — 출처 표시, 참고 게임 라이브러리, 관리 도구(큐레이션·관리자 전용), 답변 모델(관리자 전용)이 한곳에 모임. 비관리자는 뷰어 모드로 일부만 수정 가능.</p>
                   <p><b style={{ color: SILVER }}>📚 기획 바이블</b> — 누적된 모든 기획 결정 자산. 모든 기획서 작성에 자동 참조. 신규 항목 추가 시 빨간 점(클릭/2분 뒤 해제).</p>
                 </div>
