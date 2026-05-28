@@ -97,6 +97,8 @@ export default function DocumentView({
   const [categories, setCategories] = useState<CategoryMainItem[]>([]);
   // 본 적 있는 doc id 추적 (per-doc 레드닷)
   const [viewedDocIds, setViewedDocIds] = useState<Set<string>>(new Set());
+  // 사이드바 접기/펴기 (localStorage 영속)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   // 카테고리 관리 모달
   const [showCatManager, setShowCatManager] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -119,6 +121,22 @@ export default function DocumentView({
       .then(d => setCategories(d.main_categories ?? []))
       .catch(err => console.error("[doc-view] 카테고리 로드 실패:", err));
   }, []);
+
+  // 사이드바 접힘 상태 복원
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = localStorage.getItem("jordan_doc_sidebar_collapsed");
+    if (saved === "true") setSidebarCollapsed(true);
+  }, []);
+  function toggleSidebar() {
+    setSidebarCollapsed(v => {
+      const next = !v;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("jordan_doc_sidebar_collapsed", String(next));
+      }
+      return next;
+    });
+  }
 
   // viewedDocIds — localStorage 복원 (없으면 현재 전체 버전을 초기 viewed로)
   useEffect(() => {
@@ -384,7 +402,23 @@ export default function DocumentView({
     <div className="fixed inset-0 z-50 flex flex-col" style={{ backgroundColor: "#0a0e1a" }}>
       {/* 상단 액션 바 — 모바일에서는 줄바꿈 허용 */}
       <div className="flex flex-wrap items-center justify-between px-3 py-2 md:px-4 md:py-3 flex-shrink-0 gap-2 md:gap-3" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
-        <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
+          {/* 사이드바 토글 — 편집 모드일 때는 숨김 */}
+          {!editing && (
+            <button
+              onClick={toggleSidebar}
+              title={sidebarCollapsed ? "리스트·목차 펼치기" : "리스트·목차 접기 (본문 넓게)"}
+              className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0 transition-colors"
+              style={{
+                backgroundColor: sidebarCollapsed ? "rgba(100,180,255,0.15)" : SILVER_FAINT,
+                border: `1px solid ${sidebarCollapsed ? "rgba(100,180,255,0.4)" : SILVER_DIM}`,
+                color: sidebarCollapsed ? "rgba(180,210,255,1)" : SILVER,
+                fontSize: "14px",
+              }}
+            >
+              {sidebarCollapsed ? "⇥" : "⇤"}
+            </button>
+          )}
           <p className="text-sm font-bold flex-shrink-0" style={{ color: SILVER }}>📄 기획서</p>
           {currentDoc && (
             <span className="text-xs" style={{ color: SILVER_DIM }}>
@@ -483,9 +517,12 @@ export default function DocumentView({
 
       {/* 본문 영역 */}
       <div className="flex-1 flex min-h-0">
-        {/* 좌측 사이드바 — 목차 + 기획서 리스트 오버레이 */}
-        {!editing && (
-          <aside className="relative flex-shrink-0 flex flex-col w-[260px] max-md:w-[220px]" style={{ borderRight: `1px solid ${SILVER_FAINT}` }}>
+        {/* 좌측 사이드바 — 목차 + 기획서 리스트 오버레이 (접기 시 width 0) */}
+        {!editing && !sidebarCollapsed && (
+          <aside
+            className="relative flex-shrink-0 flex flex-col w-[260px] max-md:w-[220px] transition-all duration-200"
+            style={{ borderRight: `1px solid ${SILVER_FAINT}` }}
+          >
             {/* 상단 기획서 리스트 버튼 (카테고리 관리는 리스트 오버레이 안으로 이동됨) */}
             <div className="px-3 pt-3 pb-2 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
               <button
