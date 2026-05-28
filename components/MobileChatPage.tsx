@@ -15,7 +15,15 @@ const SILVER_FAINT = "rgba(192,200,216,0.15)";
 const DEFAULT_PROJECT_ID = "00000000-0000-0000-0000-000000000001";
 
 type Message = { role: "user" | "assistant"; content: string };
-type Pair = { pair_id: string; user: Message; assistant: Message; timestamp?: string };
+type Pair = {
+  pair_id: string;
+  user: Message;
+  assistant: Message;
+  timestamp?: string;
+  detail_content?: string;
+  detail_loading?: boolean;
+  detail_shown?: boolean;
+};
 
 export default function MobileChatPage() {
   const [nickname, setNickname] = useState("");
@@ -101,9 +109,80 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
   const [bibleNewDot, setBibleNewDot] = useState(false);
   const prevCountRef = useRef(0);
 
+  // 답변 피드백
+  const [feedbacks, setFeedbacks] = useState<Record<string, "accurate" | "inaccurate">>({});
+  const [reasonInputPairId, setReasonInputPairId] = useState<string | null>(null);
+  const [reasonInputText, setReasonInputText] = useState("");
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // 자세한 답변 로드
+  async function loadDetail(pairId: string) {
+    const pair = pairs.find(p => p.pair_id === pairId);
+    if (!pair) return;
+    if (pair.detail_content) {
+      setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, detail_shown: !p.detail_shown } : p));
+      return;
+    }
+    setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, detail_loading: true, detail_shown: true } : p));
+    try {
+      const ctx = [
+        { role: "user" as const, content: pair.user.content },
+        { role: "assistant" as const, content: pair.assistant.content },
+        { role: "user" as const, content: "위 답변을 더 자세하고 풍부하게 설명해줘." },
+      ];
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: ctx, detailed: true }),
+      });
+      if (!res.ok || !res.body) throw new Error("err");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let text = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        text += decoder.decode(value);
+        setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, detail_content: text.replace("__TRUNCATED__", "") } : p));
+      }
+    } catch {
+      setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, detail_content: "오류가 발생했어요." } : p));
+    } finally {
+      setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, detail_loading: false } : p));
+    }
+  }
+
+  // 피드백 저장
+  async function submitFeedback(pairId: string, type: "accurate" | "inaccurate", reason?: string) {
+    const pair = pairs.find(p => p.pair_id === pairId);
+    if (!pair) return;
+    setFeedbacks(prev => ({ ...prev, [pairId]: type }));
+    try {
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          pair_id: pairId,
+          feedback_type: type,
+          reason: reason ?? null,
+          question: pair.user.content,
+          answer: pair.assistant.content?.slice(0, 1000),
+        }),
+      });
+    } catch (err) {
+      console.error("[feedback] 저장 실패:", err);
+    }
+  }
+  async function submitReason() {
+    if (!reasonInputPairId) return;
+    await submitFeedback(reasonInputPairId, "inaccurate", reasonInputText.trim() || undefined);
+    setReasonInputPairId(null);
+    setReasonInputText("");
+  }
 
   // 토글·맥락선 localStorage 복원
   useEffect(() => {
@@ -163,6 +242,25 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [pairs, streaming]);
+
+  // 기존 피드백 복원
+  useEffect(() => {
+    if (pairs.length === 0) return;
+    const targets = pairs.filter(p => feedbacks[p.pair_id] === undefined);
+    if (targets.length === 0) return;
+    Promise.all(targets.map(async p => {
+      try {
+        const res = await fetch(`/api/feedback?pair_id=${encodeURIComponent(p.pair_id)}`);
+        const data = await res.json();
+        return data.feedback ? { pid: p.pair_id, type: data.feedback.feedback_type } : null;
+      } catch { return null; }
+    })).then(results => {
+      const updates: Record<string, "accurate" | "inaccurate"> = {};
+      for (const r of results) { if (r) updates[r.pid] = r.type; }
+      if (Object.keys(updates).length > 0) setFeedbacks(prev => ({ ...prev, ...updates }));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pairs]);
 
   // 맥락선 설정/해제
   function setContextAnchor(pairId: string, timestamp: string) {
@@ -419,6 +517,43 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
                       style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}>
                       <ReactMarkdown>{pair.assistant.content}</ReactMarkdown>
                     </div>
+                    {/* 답변 도구 — 자세한 답변 + 피드백 */}
+                    <div className="flex items-center gap-3 mt-1.5 ml-1">
+                      <button
+                        onClick={() => loadDetail(pair.pair_id)}
+                        className="text-[10px]"
+                        style={{ color: SILVER_DIM }}
+                      >
+                        {pair.detail_loading ? "⏳" : pair.detail_shown ? "▲ 접기" : "▼ 자세히"}
+                      </button>
+                      <div className="ml-auto flex items-center gap-1.5">
+                        <button
+                          onClick={() => submitFeedback(pair.pair_id, "accurate")}
+                          className="text-xs px-1.5 py-0.5 rounded"
+                          style={{
+                            backgroundColor: feedbacks[pair.pair_id] === "accurate" ? "rgba(100,220,160,0.2)" : "transparent",
+                            color: feedbacks[pair.pair_id] === "accurate" ? "rgba(150,255,200,1)" : SILVER_DIM,
+                            opacity: feedbacks[pair.pair_id] === "inaccurate" ? 0.3 : 1,
+                          }}
+                        >👍</button>
+                        <button
+                          onClick={() => { setReasonInputPairId(pair.pair_id); setReasonInputText(""); }}
+                          className="text-xs px-1.5 py-0.5 rounded"
+                          style={{
+                            backgroundColor: feedbacks[pair.pair_id] === "inaccurate" ? "rgba(255,140,140,0.2)" : "transparent",
+                            color: feedbacks[pair.pair_id] === "inaccurate" ? "rgba(255,180,180,1)" : SILVER_DIM,
+                            opacity: feedbacks[pair.pair_id] === "accurate" ? 0.3 : 1,
+                          }}
+                        >👎</button>
+                      </div>
+                    </div>
+                    {/* 자세한 답변 본문 */}
+                    {pair.detail_shown && pair.detail_content && (
+                      <div className="px-3 py-2 rounded-2xl text-sm prose prose-sm max-w-none mt-1.5"
+                        style={{ backgroundColor: "rgba(192,200,216,0.07)", border: `1px solid rgba(192,200,216,0.25)`, color: "#e0e8f0" }}>
+                        <ReactMarkdown>{pair.detail_content}</ReactMarkdown>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -509,6 +644,37 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
 
       {/* 가이드 모달 */}
       {showGuide && <MobileGuide onClose={() => setShowGuide(false)} />}
+
+      {/* 부정확 사유 입력 */}
+      {reasonInputPairId && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/60 p-4" onClick={() => setReasonInputPairId(null)}>
+          <div
+            className="w-full rounded-2xl shadow-2xl flex flex-col"
+            style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+              <p className="text-sm font-bold" style={{ color: "rgba(255,180,180,1)" }}>👎 부정확한 부분</p>
+              <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>구체적으로 알려주면 다음 답변에 반영돼요</p>
+            </div>
+            <div className="px-4 py-3 flex flex-col gap-3">
+              <textarea
+                value={reasonInputText}
+                onChange={(e) => setReasonInputText(e.target.value)}
+                placeholder="예: 5월 14일 업데이트 정보가 틀림"
+                rows={3}
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none"
+                style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+                autoFocus
+              />
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setReasonInputPairId(null)} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER }}>취소</button>
+                <button onClick={submitReason} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: "rgba(255,180,180,0.2)", border: "1px solid rgba(255,180,180,0.5)", color: "rgba(255,200,200,1)" }}>전송</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
