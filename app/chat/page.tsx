@@ -11,6 +11,7 @@ import MobileChatPage from "@/components/MobileChatPage";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
 const WireframeEditor = dynamic(() => import("@/components/WireframeEditor"), { ssr: false });
+const MockupGenerator = dynamic(() => import("@/components/MockupGenerator"), { ssr: false });
 
 // 단일 프로젝트 고정 ID (Phase A — 추후 다중 프로젝트 지원 시 변경)
 const DEFAULT_PROJECT_ID = "00000000-0000-0000-0000-000000000001";
@@ -246,6 +247,7 @@ function DesktopChatPage() {
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showWireframe, setShowWireframe] = useState(false);
+  const [showMockup, setShowMockup] = useState(false);
   // 맥락선 없을 때 안내 토스트
   const [noAnchorNotice, setNoAnchorNotice] = useState(false);
   // 기획서 백그라운드 작성 상태 + 취소용 AbortController
@@ -1217,6 +1219,9 @@ function DesktopChatPage() {
         nickname={sessionId?.replace(/^agent:/, "") ?? ""}
       />
 
+      {/* AI 시안 생성기 */}
+      <MockupGenerator open={showMockup} onClose={() => setShowMockup(false)} />
+
       {/* 기획서 생성 중 오버레이 */}
       {generatingDoc && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>
@@ -1462,18 +1467,33 @@ function DesktopChatPage() {
                 {/* 화면 설계 도구 */}
                 <section>
                   <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🎨 화면 설계</p>
-                  <div className="px-3 py-2.5 rounded-lg flex items-center justify-between" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
-                    <div className="flex-1">
-                      <p className="text-xs font-medium" style={{ color: SILVER }}>게임 화면 와이어프레임</p>
-                      <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>Excalidraw로 인게임 UI 시안 만들고 PNG로 저장</p>
+                  <div className="flex flex-col gap-2">
+                    <div className="px-3 py-2.5 rounded-lg flex items-center justify-between" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
+                      <div className="flex-1">
+                        <p className="text-xs font-medium" style={{ color: SILVER }}>와이어프레임 편집기</p>
+                        <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>Excalidraw로 직접 그리기 + 기획서 첨부</p>
+                      </div>
+                      <button
+                        onClick={() => { setShowSettingsModal(false); setShowWireframe(true); }}
+                        className="text-xs px-3 py-1.5 rounded-lg font-medium ml-2 flex-shrink-0"
+                        style={{ backgroundColor: "rgba(100,180,255,0.2)", border: "1px solid rgba(100,180,255,0.5)", color: "rgba(180,210,255,1)" }}
+                      >
+                        열기 →
+                      </button>
                     </div>
-                    <button
-                      onClick={() => { setShowSettingsModal(false); setShowWireframe(true); }}
-                      className="text-xs px-3 py-1.5 rounded-lg font-medium ml-2 flex-shrink-0"
-                      style={{ backgroundColor: "rgba(100,180,255,0.2)", border: "1px solid rgba(100,180,255,0.5)", color: "rgba(180,210,255,1)" }}
-                    >
-                      열기 →
-                    </button>
+                    <div className="px-3 py-2.5 rounded-lg flex items-center justify-between" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
+                      <div className="flex-1">
+                        <p className="text-xs font-medium" style={{ color: SILVER }}>🪄 AI 시안 생성</p>
+                        <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>자연어로 설명 → Opus가 HTML 시안 자동 생성</p>
+                      </div>
+                      <button
+                        onClick={() => { setShowSettingsModal(false); setShowMockup(true); }}
+                        className="text-xs px-3 py-1.5 rounded-lg font-medium ml-2 flex-shrink-0"
+                        style={{ backgroundColor: "rgba(200,180,255,0.2)", border: "1px solid rgba(200,180,255,0.5)", color: "rgba(220,200,255,1)" }}
+                      >
+                        열기 →
+                      </button>
+                    </div>
                   </div>
                 </section>
 

@@ -12,6 +12,7 @@ import DocumentView from "@/components/DocumentView";
 import ExtractedReviewCard, { type ExtractedItem } from "@/components/ExtractedReviewCard";
 
 const WireframeEditor = dynamic(() => import("@/components/WireframeEditor"), { ssr: false });
+const MockupGenerator = dynamic(() => import("@/components/MockupGenerator"), { ssr: false });
 
 const SILVER = "#c0c8d8";
 const SILVER_DIM = "rgba(192,200,216,0.5)";
@@ -97,6 +98,7 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
   const [showSettings, setShowSettings] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showWireframe, setShowWireframe] = useState(false);
+  const [showMockup, setShowMockup] = useState(false);
 
   // 설정 상태
   const [showCitations, setShowCitations] = useState(false);
@@ -600,7 +602,8 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
                 <MenuBtn icon="📝" label="기획서 작성" subtitle="대화 선택해서 기획서 생성" onClick={enterSelectMode} />
               )}
               <MenuBtn icon="📄" label="기획서" subtitle="작성·열람·수정" onClick={() => openMenu("docs")} />
-              <MenuBtn icon="🎨" label="화면 설계" subtitle="와이어프레임 편집기 (Excalidraw)" onClick={() => { setShowMenu(false); setShowWireframe(true); }} />
+              <MenuBtn icon="🎨" label="화면 설계" subtitle="와이어프레임 (Excalidraw)" onClick={() => { setShowMenu(false); setShowWireframe(true); }} />
+              <MenuBtn icon="🪄" label="AI 시안 생성" subtitle="자연어 → HTML 시안 자동 생성" onClick={() => { setShowMenu(false); setShowMockup(true); }} />
               <MenuBtn icon="⚙️" label="설정" subtitle="출처표시·참고게임·관리도구" onClick={() => openMenu("settings")} />
               <MenuBtn icon="📖" label="가이드" subtitle="조던 사용법" onClick={() => openMenu("guide")} />
               <div className="px-4 py-3 mt-2" style={{ borderTop: `1px solid ${SILVER_FAINT}` }}>
@@ -815,6 +818,9 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
 
       {/* 와이어프레임 편집기 */}
       <WireframeEditor open={showWireframe} onClose={() => setShowWireframe(false)} nickname={nickname} />
+
+      {/* AI 시안 생성기 */}
+      <MockupGenerator open={showMockup} onClose={() => setShowMockup(false)} />
 
       {/* 자동 추출 검토 카드 */}
       {showExtractedReview && extractedItems.length > 0 && (
