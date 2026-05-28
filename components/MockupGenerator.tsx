@@ -436,11 +436,30 @@ export default function MockupGenerator({
         {/* 오른쪽: 미리보기 iframe */}
         <div className="flex-1 min-h-0 p-4 flex items-center justify-center" style={{ backgroundColor: "#06080f" }}>
           {!mockupHtml ? (
-            <div className="text-center" style={{ color: SILVER_DIM }}>
-              <p className="text-6xl mb-3">🎨</p>
-              <p className="text-sm font-medium" style={{ color: SILVER }}>{currentPreset.icon} {currentPreset.label}</p>
-              <p className="text-xs mt-1">선택된 프리셋. 왼쪽에서 변경 가능</p>
-              <p className="text-sm mt-4">설명 입력 후 [🪄 시안 생성] 클릭</p>
+            <div className="w-full h-full flex flex-col items-center justify-center gap-3 overflow-auto p-2">
+              {/* 선택된 프리셋 사이즈 미리보기 (반투명 영역) */}
+              <div
+                className="flex flex-col items-center justify-center rounded-xl"
+                style={{
+                  width: `min(${currentPreset.width}px, calc(100% - 16px))`,
+                  height: `min(${currentPreset.height}px, calc(100vh - 220px))`,
+                  backgroundColor: "rgba(100,180,255,0.06)",
+                  border: "2px dashed rgba(100,180,255,0.35)",
+                  flexShrink: 0,
+                }}
+              >
+                <p className="text-4xl mb-2" style={{ opacity: 0.5 }}>{currentPreset.icon}</p>
+                <p className="text-sm font-bold" style={{ color: "rgba(180,210,255,0.9)" }}>
+                  {currentPreset.width} × {currentPreset.height}
+                </p>
+                <p className="text-xs mt-1" style={{ color: SILVER_DIM }}>{currentPreset.label.replace(/\s*\([^)]+\)/, "")}</p>
+                <p className="text-[10px] mt-2 px-3 text-center" style={{ color: SILVER_DIM, opacity: 0.8 }}>
+                  실제 시안이 이 크기로 생성됩니다
+                </p>
+              </div>
+              <p className="text-xs flex-shrink-0" style={{ color: SILVER_DIM }}>
+                ← 왼쪽에서 설명 입력 후 <b style={{ color: SILVER }}>[🪄 시안 생성]</b> 클릭
+              </p>
             </div>
           ) : (
             <div className="w-full h-full flex items-center justify-center overflow-auto p-2">
