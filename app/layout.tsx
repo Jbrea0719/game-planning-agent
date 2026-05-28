@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "조던 에이전트",
-  description: "영웅수집형 게임 기획 전문가 AI 에이전트 — 분석 · 설계 · 검토 파이프라인",
+  title: "조던 (기획)",
+  description: "영웅수집형 게임 기획 전문가 AI — 분석 · 설계 · 검토 파이프라인",
 };
 
 export default function RootLayout({
