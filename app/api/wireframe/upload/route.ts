@@ -24,7 +24,12 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(base64, "base64");
 
     // 파일 이름: {제목}_{타임스탬프}.{ext}
-    const safeName = (title || "wireframe").replace(/[\\/:*?"<>|\s]/g, "_").slice(0, 40);
+    // Supabase Storage 키는 ASCII만 허용 → 한글·특수문자 모두 _ 로 변환
+    const safeName = (title || "wireframe")
+      .replace(/[^a-zA-Z0-9_-]/g, "_")  // ASCII 영문·숫자·_- 만 허용, 나머지는 _
+      .replace(/_+/g, "_")              // 연속된 _ 하나로 압축
+      .replace(/^_|_$/g, "")            // 양쪽 끝 _ 제거
+      .slice(0, 40) || "wireframe";
     const filename = `${safeName}_${Date.now()}.${ext}`;
     const path = `${new Date().toISOString().split("T")[0]}/${filename}`;
 
