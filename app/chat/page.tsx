@@ -1958,6 +1958,7 @@ function DesktopChatPage() {
           {/* ─── 일반 모드: 모든 헤더 버튼 표시 ─── */}
           {!selectMode && (
           <>
+          {/* ───────── 그룹 A: 맥락 (황금/앰버) ───────── */}
           {/* ① 맥락 — 현재 맥락선 위치로 이동 (없으면 안내) */}
           <Tooltip text={contextAnchorPairId ? "현재 맥락선 위치로 이동" : "맥락선이 설정돼 있지 않아요"}>
             <button
@@ -1981,9 +1982,9 @@ function DesktopChatPage() {
               }}
               className="text-xs px-3 py-1.5 rounded-lg font-medium"
               style={{
-                backgroundColor: contextAnchorPairId ? "rgba(255,200,100,0.15)" : SILVER_FAINT,
-                border: `1px solid ${contextAnchorPairId ? "rgba(255,200,100,0.5)" : SILVER_DIM}`,
-                color: contextAnchorPairId ? "rgba(255,220,150,1)" : SILVER_DIM,
+                backgroundColor: contextAnchorPairId ? "rgba(255,200,100,0.18)" : "rgba(255,200,100,0.06)",
+                border: `1px solid ${contextAnchorPairId ? "rgba(255,200,100,0.55)" : "rgba(255,200,100,0.2)"}`,
+                color: contextAnchorPairId ? "rgba(255,220,150,1)" : "rgba(255,210,160,0.55)",
               }}
             >
               📌 맥락
@@ -1995,12 +1996,17 @@ function DesktopChatPage() {
             <button
               onClick={() => setShowContextModal(true)}
               className="text-xs px-3 py-1.5 rounded-lg font-medium"
-              style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
+              style={{
+                backgroundColor: "rgba(255,200,100,0.1)",
+                border: "1px solid rgba(255,200,100,0.32)",
+                color: "rgba(255,215,155,0.92)",
+              }}
             >
               📋 맥락 결정사항
             </button>
           </Tooltip>
 
+          {/* ───────── 그룹 B: 행동·생성 (코랄/주황) ───────── */}
           {/* ②-1 🎤 조던 인터뷰 — 빈 곳 자동 분석해서 다음 질문 받기 */}
           <Tooltip text="조던이 바이블에서 빈 곳을 찾아 다음 결정을 위한 질문을 던져요">
             <button
@@ -2008,14 +2014,14 @@ function DesktopChatPage() {
               disabled={interviewLoading}
               className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 disabled:opacity-40"
               style={{
-                backgroundColor: "rgba(255,180,100,0.18)",
-                border: "1px solid rgba(255,180,100,0.5)",
-                color: "rgba(255,210,160,1)",
+                backgroundColor: "rgba(255,150,110,0.18)",
+                border: "1px solid rgba(255,150,110,0.5)",
+                color: "rgba(255,190,160,1)",
               }}
             >
               {interviewLoading ? (
                 <>
-                  <span className="inline-block w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(255,210,160,0.3)", borderTopColor: "rgba(255,210,160,1)" }} />
+                  <span className="inline-block w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(255,190,160,0.3)", borderTopColor: "rgba(255,190,160,1)" }} />
                   분석 중
                 </>
               ) : (
@@ -2024,16 +2030,16 @@ function DesktopChatPage() {
             </button>
           </Tooltip>
 
-          {/* ③ 기획서 작성 — 백그라운드 작성 중이면 진행 표시 (클릭 시 취소) */}
+          {/* ③ 기획서 작성 (그룹 B: 행동·생성, 코랄) */}
           {activePairs.length > 0 && (
             <Tooltip text={docBackgroundGenerating ? "버튼을 누르면 작성이 취소됩니다" : "맥락선 이하 대화를 중심으로, 기획 바이블도 교차 검증해서 새 기획서 생성"}>
               <button
                 onClick={docBackgroundGenerating ? cancelDocGeneration : enterSelectMode}
                 className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5"
                 style={{
-                  backgroundColor: docBackgroundGenerating ? "rgba(100,180,255,0.18)" : SILVER,
-                  border: docBackgroundGenerating ? "1px solid rgba(100,180,255,0.5)" : "none",
-                  color: docBackgroundGenerating ? "rgba(180,210,255,1)" : "#0a0e1a",
+                  backgroundColor: docBackgroundGenerating ? "rgba(100,180,255,0.18)" : "rgba(255,150,110,0.22)",
+                  border: `1px solid ${docBackgroundGenerating ? "rgba(100,180,255,0.5)" : "rgba(255,150,110,0.6)"}`,
+                  color: docBackgroundGenerating ? "rgba(180,210,255,1)" : "rgba(255,200,170,1)",
                   cursor: "pointer",
                 }}
               >
@@ -2048,6 +2054,7 @@ function DesktopChatPage() {
               </button>
             </Tooltip>
           )}
+          {/* ④ 기획서 (그룹 C: 조회, 하늘파랑) */}
           <Tooltip text={docNewDot ? "신규 기획서 도착 — 확인하기" : "생성된 기획서 버전을 열람·편집·내보내기"}>
             <button
               onClick={() => {
@@ -2059,9 +2066,9 @@ function DesktopChatPage() {
               }}
               className="text-xs px-3 py-1.5 rounded-lg font-medium relative"
               style={{
-                backgroundColor: showDocumentView ? "rgba(100,180,255,0.18)" : SILVER_FAINT,
-                border: `1px solid ${showDocumentView ? "rgba(100,180,255,0.6)" : SILVER_DIM}`,
-                color: showDocumentView ? "rgba(180,210,255,1)" : SILVER,
+                backgroundColor: showDocumentView ? "rgba(100,180,255,0.25)" : "rgba(100,180,255,0.12)",
+                border: `1px solid ${showDocumentView ? "rgba(100,180,255,0.6)" : "rgba(100,180,255,0.35)"}`,
+                color: showDocumentView ? "rgba(180,210,255,1)" : "rgba(170,200,235,0.95)",
               }}
             >
               📄 기획서
