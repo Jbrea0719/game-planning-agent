@@ -5,6 +5,8 @@ import React from "react";
 import ReactMarkdown from "react-markdown";
 import DecisionPanel from "@/components/DecisionPanel";
 import DocumentView from "@/components/DocumentView";
+import MobileChatPage from "@/components/MobileChatPage";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 // 단일 프로젝트 고정 ID (Phase A — 추후 다중 프로젝트 지원 시 변경)
 const DEFAULT_PROJECT_ID = "00000000-0000-0000-0000-000000000001";
@@ -217,6 +219,17 @@ function cleanTruncated(text: string): string {
 }
 
 export default function ChatPage() {
+  // 디바이스 분기 — 모바일이면 MobileChatPage 렌더 (같은 URL, 클라이언트 분기)
+  // SSR/초기 hydration 동안엔 null → 깜빡임 방지 위해 빈 화면
+  const isMobile = useIsMobile();
+  if (isMobile === null) {
+    return <div className="h-screen" style={{ background: "linear-gradient(160deg, #0a0e1a 0%, #0d1525 50%, #0a1020 100%)" }} />;
+  }
+  if (isMobile) return <MobileChatPage />;
+  return <DesktopChatPage />;
+}
+
+function DesktopChatPage() {
   const [pairs, setPairs] = useState<MessagePair[]>([]);
   const [streamingPair, setStreamingPair] = useState<{ user: string; assistant: string } | null>(null);
   const [input, setInput] = useState("");
