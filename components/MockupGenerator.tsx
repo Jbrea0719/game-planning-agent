@@ -13,6 +13,40 @@ interface DocMeta {
   title: string;
 }
 
+// 화면 시안 프리셋 — 게임 기획서 작성용
+interface Preset {
+  id: string;
+  label: string;
+  icon: string;
+  width: number;
+  height: number;
+  hint: string;        // 클로드에게 전달할 사이즈·종류 힌트
+  group: "전체 화면" | "부분 시안";
+}
+
+const PRESETS: Preset[] = [
+  // 전체 화면
+  { id: "pc_landscape", label: "PC 가로 (1280×720)", icon: "🖥️", width: 1280, height: 720, group: "전체 화면",
+    hint: "PC 게임 전체 화면 (1280×720, 16:9 가로). 데스크톱 풀스크린 UI." },
+  { id: "mobile_landscape", label: "모바일 가로 (844×390)", icon: "📱", width: 844, height: 390, group: "전체 화면",
+    hint: "모바일 게임 가로 화면 (844×390, 21:9 가로). 가로 모드 모바일 게임 UI." },
+  { id: "tablet_landscape", label: "태블릿 가로 (1024×768)", icon: "📱", width: 1024, height: 768, group: "전체 화면",
+    hint: "태블릿 가로 화면 (1024×768, 4:3). 태블릿 풀스크린 UI." },
+  // 부분 시안
+  { id: "button", label: "버튼 / 컨트롤 (320×120)", icon: "🔘", width: 320, height: 120, group: "부분 시안",
+    hint: "게임 UI의 단일 버튼·컨트롤 컴포넌트만 (320×120). 한 가지 인터랙션 요소에 집중." },
+  { id: "card", label: "카드 / 아이템 (260×360)", icon: "🃏", width: 260, height: 360, group: "부분 시안",
+    hint: "영웅·아이템·재화 카드 단일 컴포넌트 (260×360, 세로 카드 비례). 한 장의 카드 디자인에 집중." },
+  { id: "popup", label: "팝업 / 모달 (520×640)", icon: "💬", width: 520, height: 640, group: "부분 시안",
+    hint: "다이얼로그·확인 팝업·결과 화면 등 모달 UI (520×640). 중앙 정렬 카드형 컨테이너." },
+  { id: "hud_top", label: "상단 HUD (1200×120)", icon: "📊", width: 1200, height: 120, group: "부분 시안",
+    hint: "게임 화면 상단 HUD 바 (1200×120, 가로). 재화·레벨·로고·메뉴 버튼 같은 헤더 요소." },
+  { id: "side_panel", label: "사이드 패널 (340×720)", icon: "📋", width: 340, height: 720, group: "부분 시안",
+    hint: "사이드 메뉴·캐릭터 패널·인벤토리 등 좌우 패널 (340×720, 세로). 메뉴·리스트 UI." },
+  { id: "tab_bar", label: "탭 바 / 네비 (1200×96)", icon: "📑", width: 1200, height: 96, group: "부분 시안",
+    hint: "하단 탭 바·네비게이션·메뉴 (1200×96, 좁고 긴 가로). 아이콘+텍스트 형태 탭." },
+];
+
 export default function MockupGenerator({
   open,
   onClose,
@@ -28,7 +62,10 @@ export default function MockupGenerator({
   const [generating, setGenerating] = useState(false);
   const [mockupHtml, setMockupHtml] = useState("");
   const [mockupTitle, setMockupTitle] = useState("AI 시안");
+  const [presetId, setPresetId] = useState<string>("pc_landscape");  // 기본: PC 가로
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const currentPreset = PRESETS.find(p => p.id === presetId) ?? PRESETS[0];
 
   // 기획서 첨부 모달
   const [showAttachModal, setShowAttachModal] = useState(false);
@@ -48,11 +85,14 @@ export default function MockupGenerator({
     if (!desc.trim() || generating) return;
     setGenerating(true);
     try {
+      // 프리셋 힌트를 사용자 설명 앞에 붙여서 전달
+      const presetPrefix = `[화면 종류·사이즈]\n${currentPreset.hint}\n\n[요청 내용]\n`;
+      const fullDesc = refine ? desc : `${presetPrefix}${desc}`;
       const res = await fetch("/api/mockup/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          description: desc,
+          description: fullDesc,
           refineFrom: refine ? mockupHtml : undefined,
         }),
       });
@@ -281,16 +321,41 @@ export default function MockupGenerator({
         <div className="md:w-[400px] flex flex-col p-4 gap-3" style={{ borderRight: `1px solid ${SILVER_FAINT}` }}>
           {!mockupHtml ? (
             <>
+              {/* 프리셋 선택 */}
               <div>
-                <p className="text-xs font-bold mb-2" style={{ color: SILVER }}>🎯 화면 설명</p>
+                <p className="text-xs font-bold mb-2" style={{ color: SILVER }}>📐 화면 종류·사이즈</p>
+                <select
+                  value={presetId}
+                  onChange={(e) => setPresetId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-xs outline-none mb-2"
+                  style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+                >
+                  <optgroup label="전체 화면">
+                    {PRESETS.filter(p => p.group === "전체 화면").map(p => (
+                      <option key={p.id} value={p.id}>{p.icon} {p.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="부분 시안 (기획서용)">
+                    {PRESETS.filter(p => p.group === "부분 시안").map(p => (
+                      <option key={p.id} value={p.id}>{p.icon} {p.label}</option>
+                    ))}
+                  </optgroup>
+                </select>
+                <p className="text-[10px]" style={{ color: SILVER_DIM }}>
+                  💡 부분 시안은 특정 버튼·카드·HUD 같은 컴포넌트 단위로 만들어 기획서에 첨부
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs font-bold mb-2" style={{ color: SILVER }}>🎯 시안 설명</p>
                 <p className="text-[10px] mb-2" style={{ color: SILVER_DIM }}>
-                  자세할수록 좋은 결과. 화면 구성·요소 위치·재화·메뉴 등을 구체적으로.
+                  자세할수록 좋은 결과. 구성·요소·색감 등 구체적으로.
                 </p>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="예시:&#10;&#10;캐릭터 컬렉션 화면.&#10;- 상단: 로고 + 골드·다이아 재화 표시&#10;- 가운데: 3x4 격자, 각 카드에 캐릭터 일러스트·이름·등급(별)·레벨&#10;- 하단: 메인 탭 5개 (홈/캐릭터/장비/상점/이벤트)&#10;- 우상단: 정렬 필터 버튼"
-                  rows={14}
+                  placeholder={getPlaceholder(currentPreset)}
+                  rows={11}
                   className="w-full px-3 py-2 rounded-lg text-xs outline-none resize-none"
                   style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0", lineHeight: 1.55 }}
                   autoFocus
@@ -373,20 +438,21 @@ export default function MockupGenerator({
           {!mockupHtml ? (
             <div className="text-center" style={{ color: SILVER_DIM }}>
               <p className="text-6xl mb-3">🎨</p>
-              <p className="text-sm">왼쪽에 화면 설명을 입력하고</p>
-              <p className="text-sm">[🪄 시안 생성]을 눌러보세요</p>
+              <p className="text-sm font-medium" style={{ color: SILVER }}>{currentPreset.icon} {currentPreset.label}</p>
+              <p className="text-xs mt-1">선택된 프리셋. 왼쪽에서 변경 가능</p>
+              <p className="text-sm mt-4">설명 입력 후 [🪄 시안 생성] 클릭</p>
             </div>
           ) : (
-            <div className="w-full h-full flex items-center justify-center">
+            <div className="w-full h-full flex items-center justify-center overflow-auto p-2">
               <iframe
                 ref={iframeRef}
                 srcDoc={mockupHtml}
                 title="mockup preview"
                 sandbox="allow-same-origin allow-scripts"
-                className="rounded-xl shadow-2xl"
+                className="rounded-xl shadow-2xl flex-shrink-0"
                 style={{
-                  width: "min(420px, 100%)",
-                  height: "min(90vh, 800px)",
+                  width: `min(${currentPreset.width}px, 100%)`,
+                  height: `min(${currentPreset.height}px, calc(100vh - 120px))`,
                   border: `1px solid ${SILVER_FAINT}`,
                   backgroundColor: "#000",
                 }}
@@ -473,4 +539,30 @@ export default function MockupGenerator({
       )}
     </div>
   );
+}
+
+// 프리셋별 placeholder 예시 텍스트
+function getPlaceholder(p: Preset): string {
+  switch (p.id) {
+    case "pc_landscape":
+      return "예시:\n\nPC 로비 화면.\n- 좌측: 메인 메뉴 6개 (홈/캐릭터/길드/상점/이벤트/설정)\n- 가운데: 캐릭터 일러스트 + 진행 중인 이벤트 배너\n- 상단: 재화 (골드·다이아·티켓) + 우상단 우편함·알림\n- 하단: 일일 미션 진행도";
+    case "mobile_landscape":
+      return "예시:\n\n전투 화면 (가로 모바일).\n- 좌측: 영웅 1·2·3 카드 + HP/스킬\n- 중앙: 전투 영역 (적 진영)\n- 우측: 자동전투·속도배수·일시정지\n- 상단: 웨이브·시간·재화";
+    case "tablet_landscape":
+      return "예시:\n\n캐릭터 상세 화면 (태블릿).\n- 좌측 60%: 캐릭터 풀바디 일러스트 + 능력치\n- 우측 40%: 스킬·장비·각성·스토리 탭";
+    case "button":
+      return "예시:\n\n가챠 뽑기 버튼 (1회/10회).\n- 좌: 1회 뽑기 (다이아 200)\n- 우: 10회 뽑기 (다이아 1800, 할인 표시)\n- 강조 효과 + 가챠 아이콘";
+    case "card":
+      return "예시:\n\n전설 등급 영웅 카드.\n- 상단: 등급 별 5개 + 클래스 아이콘\n- 중앙: 캐릭터 일러스트 (placeholder)\n- 하단: 이름·레벨·체력바\n- 우상단: 신규 NEW 뱃지";
+    case "popup":
+      return "예시:\n\n뽑기 결과 팝업.\n- 상단: '뽑기 결과!' 헤더\n- 중앙: 획득한 영웅 3장 가로 나열 (등급별 효과)\n- 하단: [다시 뽑기] [확인] 버튼";
+    case "hud_top":
+      return "예시:\n\n인게임 상단 HUD.\n- 좌측: 로고·서버\n- 중앙: 재화 (골드·다이아·체력·티켓) 4종\n- 우측: 우편함·이벤트·설정 아이콘";
+    case "side_panel":
+      return "예시:\n\n캐릭터 사이드 패널.\n- 상단: 검색바 + 정렬 드롭다운\n- 메인: 보유 영웅 리스트 (이미지·이름·레벨·등급)\n- 하단: [강화] [장비] 빠른 진입 버튼";
+    case "tab_bar":
+      return "예시:\n\n메인 메뉴 하단 탭 바.\n- 5개 탭: 홈·캐릭터·전투·상점·더보기\n- 각 탭: 아이콘 + 한글 라벨\n- 현재 활성: 파란색 강조";
+    default:
+      return "화면 구성을 자세히 설명해주세요.";
+  }
 }
