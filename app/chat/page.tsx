@@ -10,8 +10,7 @@ import ExtractedReviewCard from "@/components/ExtractedReviewCard";
 import MobileChatPage from "@/components/MobileChatPage";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
-const WireframeEditor = dynamic(() => import("@/components/WireframeEditor"), { ssr: false });
-const MockupGenerator = dynamic(() => import("@/components/MockupGenerator"), { ssr: false });
+// WireframeEditor·MockupGenerator는 DocumentView 안에서 호출 (📄 기획서 → 🎨 화면 설계 버튼)
 
 // 단일 프로젝트 고정 ID (Phase A — 추후 다중 프로젝트 지원 시 변경)
 const DEFAULT_PROJECT_ID = "00000000-0000-0000-0000-000000000001";
@@ -246,8 +245,7 @@ function DesktopChatPage() {
   const [showGameModal, setShowGameModal] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [showWireframe, setShowWireframe] = useState(false);
-  const [showMockup, setShowMockup] = useState(false);
+  // showWireframe/showMockup state는 DocumentView 안으로 이동됨
   // 맥락선 없을 때 안내 토스트
   const [noAnchorNotice, setNoAnchorNotice] = useState(false);
   // 기획서 백그라운드 작성 상태 + 취소용 AbortController
@@ -1212,19 +1210,7 @@ function DesktopChatPage() {
         reloadKey={docReloadKey}
       />
 
-      {/* 화면 설계 와이어프레임 편집기 */}
-      <WireframeEditor
-        open={showWireframe}
-        onClose={() => setShowWireframe(false)}
-        nickname={sessionId?.replace(/^agent:/, "") ?? ""}
-      />
-
-      {/* AI 시안 생성기 */}
-      <MockupGenerator
-        open={showMockup}
-        onClose={() => setShowMockup(false)}
-        nickname={sessionId?.replace(/^agent:/, "") ?? ""}
-      />
+      {/* 화면 설계는 DocumentView 내부 버튼으로 통합됨 */}
 
       {/* 기획서 생성 중 오버레이 */}
       {generatingDoc && (
@@ -1468,38 +1454,7 @@ function DesktopChatPage() {
                   </div>
                 </section>
 
-                {/* 화면 설계 도구 */}
-                <section>
-                  <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🎨 화면 설계</p>
-                  <div className="flex flex-col gap-2">
-                    <div className="px-3 py-2.5 rounded-lg flex items-center justify-between" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
-                      <div className="flex-1">
-                        <p className="text-xs font-medium" style={{ color: SILVER }}>와이어프레임 편집기</p>
-                        <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>Excalidraw로 직접 그리기 + 기획서 첨부</p>
-                      </div>
-                      <button
-                        onClick={() => { setShowSettingsModal(false); setShowWireframe(true); }}
-                        className="text-xs px-3 py-1.5 rounded-lg font-medium ml-2 flex-shrink-0"
-                        style={{ backgroundColor: "rgba(100,180,255,0.2)", border: "1px solid rgba(100,180,255,0.5)", color: "rgba(180,210,255,1)" }}
-                      >
-                        열기 →
-                      </button>
-                    </div>
-                    <div className="px-3 py-2.5 rounded-lg flex items-center justify-between" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
-                      <div className="flex-1">
-                        <p className="text-xs font-medium" style={{ color: SILVER }}>🪄 AI 시안 생성</p>
-                        <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>자연어로 설명 → Opus가 HTML 시안 자동 생성</p>
-                      </div>
-                      <button
-                        onClick={() => { setShowSettingsModal(false); setShowMockup(true); }}
-                        className="text-xs px-3 py-1.5 rounded-lg font-medium ml-2 flex-shrink-0"
-                        style={{ backgroundColor: "rgba(200,180,255,0.2)", border: "1px solid rgba(200,180,255,0.5)", color: "rgba(220,200,255,1)" }}
-                      >
-                        열기 →
-                      </button>
-                    </div>
-                  </div>
-                </section>
+                {/* 화면 설계는 📄 기획서 뷰의 [🎨 화면 설계] 버튼으로 이동됨 */}
 
                 {/* 2. 참고 게임 라이브러리 */}
                 <section>
@@ -1662,8 +1617,8 @@ function DesktopChatPage() {
                   <p><b style={{ color: SILVER }}>📄 기획서</b> — 진입 시 좌측 <b>📚 기획서 리스트</b>가 기본 열림. 좁다 싶으면 헤더 <b>⇤</b> 버튼으로 사이드바 접고 본문 넓게 보기 (모바일·PC 공통, 설정 영속). <b>모바일에서는 좌→우 스와이프로 펼치기, 우→좌 스와이프로 접기</b>도 가능. 리스트는 <b>대 &gt; 중 &gt; 소 &gt; 기획서</b> 4단계 트리. 대(인게임/아웃게임…)는 진한 배경, 중(영웅/PVP…)는 옅은 배경, 소(영웅 등급/스킬…)는 좌측 보더, 기획서는 leaf. 각 단계마다 +/− 토글. 기획서 옆 ✏️로 이름 변경, 📂로 분류 변경. 리스트 헤더의 <b>⚙️</b>로 카테고리 관리 (추가·수정·삭제). 안 본 기획서 옆에는 <b style={{ color: "rgba(255,150,150,1)" }}>빨간 점</b>(클릭하면 영구 해제). 뷰 안에서 <b>🪄 수정 요청</b>으로 자연어 지시 → 같은 기획서를 그 자리에서 갱신. 수정 전 원본은 <b>7일간 백업 폴더에 자동 보관</b>. <b>📥 내보내기</b>는 MD/TXT/HTML/PDF 4가지.</p>
                   <p><b style={{ color: SILVER }}>📖 가이드</b> — 지금 보고 있는 이 화면. 조던의 모든 기능을 한눈에 정리. 기능이 바뀌면 자동 갱신.</p>
                   <p><b style={{ color: SILVER }}>📱 모바일</b> — 같은 URL을 모바일에서 열면 자동으로 모바일 전용 뷰. 햄버거 메뉴(☰) 안에 모든 도구. 닉네임만 같으면 데이터·기획 바이블·기획서 자동 동기화. <i>?view=desktop</i> 쿼리로 PC 뷰 강제 가능.</p>
-                  <p><b style={{ color: SILVER }}>⚙️ 설정</b> — 출처 표시, 참고 게임 라이브러리, <b>🎨 화면 설계 (Excalidraw 와이어프레임)</b>, 관리 도구(큐레이션·관리자 전용), 답변 모델(관리자 전용)이 한곳에 모임. 비관리자는 뷰어 모드로 일부만 수정 가능.</p>
-                  <p><b style={{ color: SILVER }}>🎨 화면 설계</b> — 인게임 UI/UX 와이어프레임 편집기. 사각형·텍스트로 화면 구성 → <b>📥 PNG 다운로드</b>로 저장 → 기획서에 첨부.</p>
+                  <p><b style={{ color: SILVER }}>⚙️ 설정</b> — 출처 표시, 참고 게임 라이브러리, 관리 도구(큐레이션·관리자 전용), 답변 모델(관리자 전용)이 한곳에 모임. 비관리자는 뷰어 모드로 일부만 수정 가능.</p>
+                  <p><b style={{ color: SILVER }}>🎨 화면 설계</b> — 📄 기획서 뷰의 [🎨 화면 설계] 드롭다운에서 진입. <b>와이어프레임(직접 그리기)</b> 또는 <b>🪄 AI 시안 생성(자연어 → HTML)</b> 두 가지 모드. 작성 후 📎로 현재 기획서에 자동 첨부.</p>
                   <p><b style={{ color: SILVER }}>📚 기획 바이블</b> — 누적된 모든 기획 결정 자산. 모든 기획서 작성에 자동 참조. 신규 항목 추가 시 빨간 점(클릭/2분 뒤 해제).</p>
                 </div>
               </section>

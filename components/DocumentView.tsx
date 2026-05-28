@@ -2,8 +2,12 @@
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
+import dynamic from "next/dynamic";
 import CategoryManager from "./CategoryManager";
 import DocList from "./DocList";
+
+const WireframeEditor = dynamic(() => import("./WireframeEditor"), { ssr: false });
+const MockupGenerator = dynamic(() => import("./MockupGenerator"), { ssr: false });
 import {
   downloadMD as exportMD,
   downloadTXT as exportTXT,
@@ -99,6 +103,9 @@ export default function DocumentView({
   const [viewedDocIds, setViewedDocIds] = useState<Set<string>>(new Set());
   // 사이드바 접기/펴기 (localStorage 영속)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // 화면 설계 메뉴 (와이어프레임 / AI 시안)
+  const [showScreenDesignMenu, setShowScreenDesignMenu] = useState(false);
+  const [screenDesignOpen, setScreenDesignOpen] = useState<"wireframe" | "mockup" | null>(null);
   // 카테고리 관리 모달
   const [showCatManager, setShowCatManager] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -455,6 +462,44 @@ export default function DocumentView({
               >
                 🪄 수정 요청
               </button>
+              {/* 화면 설계 — 와이어프레임 또는 AI 시안 */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowScreenDesignMenu(v => !v)}
+                  disabled={!currentDoc}
+                  title="화면 설계 — 와이어프레임 직접 그리기 또는 AI로 시안 자동 생성"
+                  className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                  style={{
+                    backgroundColor: "rgba(200,180,255,0.18)",
+                    border: "1px solid rgba(200,180,255,0.5)",
+                    color: "rgba(220,200,255,1)",
+                    opacity: currentDoc ? 1 : 0.5,
+                  }}
+                >
+                  🎨 화면 설계 ▾
+                </button>
+                {showScreenDesignMenu && (
+                  <div className="absolute right-0 top-full mt-1 rounded-lg shadow-2xl py-1 z-10" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}`, minWidth: "220px" }}>
+                    <button
+                      onClick={() => { setShowScreenDesignMenu(false); setScreenDesignOpen("wireframe"); }}
+                      className="block w-full text-left text-xs px-3 py-2 hover:bg-white/5"
+                      style={{ color: SILVER }}
+                    >
+                      🎨 와이어프레임 (직접 그리기)
+                    </button>
+                    <button
+                      onClick={() => { setShowScreenDesignMenu(false); setScreenDesignOpen("mockup"); }}
+                      className="block w-full text-left text-xs px-3 py-2 hover:bg-white/5"
+                      style={{ color: SILVER }}
+                    >
+                      🪄 AI 시안 생성 (자연어 → HTML)
+                    </button>
+                    <div className="px-3 py-1.5 text-[10px]" style={{ color: SILVER_DIM, borderTop: `1px solid ${SILVER_FAINT}` }}>
+                      💡 만든 후 📎로 이 기획서에 자동 첨부
+                    </div>
+                  </div>
+                )}
+              </div>
               <div className="relative">
                 <button
                   onClick={() => setShowExportMenu(v => !v)}
@@ -707,6 +752,18 @@ export default function DocumentView({
         open={showCatManager}
         onClose={() => setShowCatManager(false)}
         onChanged={reloadCategories}
+      />
+
+      {/* 화면 설계 도구 — 와이어프레임 / AI 시안 */}
+      <WireframeEditor
+        open={screenDesignOpen === "wireframe"}
+        onClose={() => { setScreenDesignOpen(null); void loadVersions(); }}
+        nickname={nickname}
+      />
+      <MockupGenerator
+        open={screenDesignOpen === "mockup"}
+        onClose={() => { setScreenDesignOpen(null); void loadVersions(); }}
+        nickname={nickname}
       />
 
       {/* 카테고리 변경 모달 */}

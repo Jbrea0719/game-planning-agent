@@ -11,8 +11,7 @@ import DecisionPanel from "@/components/DecisionPanel";
 import DocumentView from "@/components/DocumentView";
 import ExtractedReviewCard, { type ExtractedItem } from "@/components/ExtractedReviewCard";
 
-const WireframeEditor = dynamic(() => import("@/components/WireframeEditor"), { ssr: false });
-const MockupGenerator = dynamic(() => import("@/components/MockupGenerator"), { ssr: false });
+// WireframeEditor·MockupGenerator는 DocumentView 안에서 호출 (📄 기획서 → 🎨 화면 설계)
 
 const SILVER = "#c0c8d8";
 const SILVER_DIM = "rgba(192,200,216,0.5)";
@@ -97,8 +96,7 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
   const [showDocs, setShowDocs] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
-  const [showWireframe, setShowWireframe] = useState(false);
-  const [showMockup, setShowMockup] = useState(false);
+  // 화면 설계는 기획서 뷰에서 진입 (📄 → 🎨 화면 설계)
 
   // 설정 상태
   const [showCitations, setShowCitations] = useState(false);
@@ -602,8 +600,7 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
                 <MenuBtn icon="📝" label="기획서 작성" subtitle="대화 선택해서 기획서 생성" onClick={enterSelectMode} />
               )}
               <MenuBtn icon="📄" label="기획서" subtitle="작성·열람·수정" onClick={() => openMenu("docs")} />
-              <MenuBtn icon="🎨" label="화면 설계" subtitle="와이어프레임 (Excalidraw)" onClick={() => { setShowMenu(false); setShowWireframe(true); }} />
-              <MenuBtn icon="🪄" label="AI 시안 생성" subtitle="자연어 → HTML 시안 자동 생성" onClick={() => { setShowMenu(false); setShowMockup(true); }} />
+              {/* 화면 설계는 📄 기획서 뷰의 [🎨 화면 설계] 버튼으로 통합됨 */}
               <MenuBtn icon="⚙️" label="설정" subtitle="출처표시·참고게임·관리도구" onClick={() => openMenu("settings")} />
               <MenuBtn icon="📖" label="가이드" subtitle="조던 사용법" onClick={() => openMenu("guide")} />
               <div className="px-4 py-3 mt-2" style={{ borderTop: `1px solid ${SILVER_FAINT}` }}>
@@ -816,11 +813,7 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
       {/* 가이드 모달 */}
       {showGuide && <MobileGuide onClose={() => setShowGuide(false)} />}
 
-      {/* 와이어프레임 편집기 */}
-      <WireframeEditor open={showWireframe} onClose={() => setShowWireframe(false)} nickname={nickname} />
-
-      {/* AI 시안 생성기 */}
-      <MockupGenerator open={showMockup} onClose={() => setShowMockup(false)} nickname={nickname} />
+      {/* 화면 설계는 DocumentView 안으로 통합됨 */}
 
       {/* 자동 추출 검토 카드 */}
       {showExtractedReview && extractedItems.length > 0 && (
