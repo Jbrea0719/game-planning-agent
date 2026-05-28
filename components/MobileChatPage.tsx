@@ -6,8 +6,11 @@
 
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
+import dynamic from "next/dynamic";
 import DecisionPanel from "@/components/DecisionPanel";
 import DocumentView from "@/components/DocumentView";
+
+const WireframeEditor = dynamic(() => import("@/components/WireframeEditor"), { ssr: false });
 
 const SILVER = "#c0c8d8";
 const SILVER_DIM = "rgba(192,200,216,0.5)";
@@ -92,6 +95,7 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
   const [showDocs, setShowDocs] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [showWireframe, setShowWireframe] = useState(false);
 
   // 설정 상태
   const [showCitations, setShowCitations] = useState(false);
@@ -582,6 +586,7 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
                 <MenuBtn icon="📝" label="기획서 작성" subtitle="대화 선택해서 기획서 생성" onClick={enterSelectMode} />
               )}
               <MenuBtn icon="📄" label="기획서" subtitle="작성·열람·수정" onClick={() => openMenu("docs")} />
+              <MenuBtn icon="🎨" label="화면 설계" subtitle="와이어프레임 편집기 (Excalidraw)" onClick={() => { setShowMenu(false); setShowWireframe(true); }} />
               <MenuBtn icon="⚙️" label="설정" subtitle="출처표시·참고게임·관리도구" onClick={() => openMenu("settings")} />
               <MenuBtn icon="📖" label="가이드" subtitle="조던 사용법" onClick={() => openMenu("guide")} />
               <div className="px-4 py-3 mt-2" style={{ borderTop: `1px solid ${SILVER_FAINT}` }}>
@@ -793,6 +798,9 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
 
       {/* 가이드 모달 */}
       {showGuide && <MobileGuide onClose={() => setShowGuide(false)} />}
+
+      {/* 와이어프레임 편집기 */}
+      <WireframeEditor open={showWireframe} onClose={() => setShowWireframe(false)} />
 
       {/* 메시지 액션 시트 (bottom sheet) */}
       {actionForPair && (() => {
