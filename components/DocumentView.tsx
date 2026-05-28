@@ -523,36 +523,46 @@ export default function DocumentView({
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        {/* 사이드바 토글 탭 — 경계에 붙어있는 직관적 위치 (VSCode·Notion 스타일) */}
+        {/* 사이드바 토글 탭 — 크고 반투명, 사이드바 끝을 따라 슬라이드 */}
         {!editing && (
           <button
             onClick={toggleSidebar}
             title={sidebarCollapsed ? "리스트·목차 펼치기 (또는 좌→우 스와이프)" : "리스트·목차 접기 (또는 우→좌 스와이프)"}
-            className="absolute z-20 flex items-center justify-center transition-all hover:opacity-100"
+            className={`absolute z-20 flex items-center justify-center transition-all duration-300 ease-in-out hover:!opacity-100 group ${
+              sidebarCollapsed
+                ? "left-0"
+                : "left-[260px] max-md:left-[220px]"
+            }`}
             style={{
               top: "50%",
-              transform: "translateY(-50%)",
-              left: 0,
-              width: "18px",
-              height: "56px",
-              backgroundColor: sidebarCollapsed ? "rgba(100,180,255,0.18)" : "rgba(192,200,216,0.12)",
-              border: `1px solid ${sidebarCollapsed ? "rgba(100,180,255,0.5)" : SILVER_DIM}`,
-              borderLeft: "none",
-              borderRadius: "0 8px 8px 0",
+              transform: "translateY(-50%) translateX(-50%)",
+              width: "26px",
+              height: "80px",
+              backgroundColor: sidebarCollapsed ? "rgba(100,180,255,0.35)" : "rgba(192,200,216,0.22)",
+              border: `1px solid ${sidebarCollapsed ? "rgba(100,180,255,0.5)" : "rgba(192,200,216,0.35)"}`,
+              borderRadius: "10px",
               color: sidebarCollapsed ? "rgba(180,210,255,1)" : SILVER,
-              fontSize: "12px",
-              opacity: 0.7,
+              fontSize: "18px",
+              fontWeight: 700,
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
+              opacity: 0.55,
               cursor: "pointer",
             }}
           >
             {sidebarCollapsed ? "›" : "‹"}
           </button>
         )}
-        {/* 좌측 사이드바 — 목차 + 기획서 리스트 오버레이 (접기 시 width 0) */}
-        {!editing && !sidebarCollapsed && (
+        {/* 좌측 사이드바 — width 슬라이드 애니메이션 (항상 DOM에 마운트) */}
+        {!editing && (
           <aside
-            className="relative flex-shrink-0 flex flex-col w-[260px] max-md:w-[220px] transition-all duration-200"
-            style={{ borderRight: `1px solid ${SILVER_FAINT}` }}
+            className={`relative flex-shrink-0 flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${
+              sidebarCollapsed
+                ? "w-0 opacity-0 pointer-events-none"
+                : "w-[260px] max-md:w-[220px] opacity-100"
+            }`}
+            style={{ borderRight: sidebarCollapsed ? "none" : `1px solid ${SILVER_FAINT}` }}
           >
             {/* 상단 기획서 리스트 버튼 (카테고리 관리는 리스트 오버레이 안으로 이동됨) */}
             <div className="px-3 pt-3 pb-2 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
