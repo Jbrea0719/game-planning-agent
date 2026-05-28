@@ -535,19 +535,24 @@ export default function DocumentView({
             }`}
             style={{
               top: "50%",
-              transform: "translateY(-50%) translateX(-50%)",
-              width: "26px",
-              height: "80px",
-              backgroundColor: sidebarCollapsed ? "rgba(100,180,255,0.35)" : "rgba(192,200,216,0.22)",
-              border: `1px solid ${sidebarCollapsed ? "rgba(100,180,255,0.5)" : "rgba(192,200,216,0.35)"}`,
-              borderRadius: "10px",
+              // 접힘: 전체가 화면 안에 (translateX 없음) + 모바일 터치 영역 ↑
+              // 펴짐: 사이드바 경계에 절반씩 걸침
+              transform: sidebarCollapsed
+                ? "translateY(-50%)"
+                : "translateY(-50%) translateX(-50%)",
+              width: sidebarCollapsed ? "32px" : "26px",
+              height: sidebarCollapsed ? "96px" : "80px",
+              backgroundColor: sidebarCollapsed ? "rgba(100,180,255,0.4)" : "rgba(192,200,216,0.22)",
+              border: `1px solid ${sidebarCollapsed ? "rgba(100,180,255,0.55)" : "rgba(192,200,216,0.35)"}`,
+              borderRadius: sidebarCollapsed ? "0 12px 12px 0" : "10px",
+              borderLeft: sidebarCollapsed ? "none" : `1px solid rgba(192,200,216,0.35)`,
               color: sidebarCollapsed ? "rgba(180,210,255,1)" : SILVER,
-              fontSize: "18px",
+              fontSize: sidebarCollapsed ? "22px" : "18px",
               fontWeight: 700,
               backdropFilter: "blur(8px)",
               WebkitBackdropFilter: "blur(8px)",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
-              opacity: 0.55,
+              boxShadow: sidebarCollapsed ? "2px 2px 10px rgba(0,0,0,0.4)" : "0 2px 8px rgba(0,0,0,0.35)",
+              opacity: sidebarCollapsed ? 0.75 : 0.55,
               cursor: "pointer",
             }}
           >
