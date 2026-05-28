@@ -114,6 +114,16 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
   const [reasonInputPairId, setReasonInputPairId] = useState<string | null>(null);
   const [reasonInputText, setReasonInputText] = useState("");
 
+  // 기획서 작성 — 대화 선택 모드
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedPairIds, setSelectedPairIds] = useState<Set<string>>(new Set());
+  const [docBackgroundGenerating, setDocBackgroundGenerating] = useState(false);
+  const [docCompletedNotice, setDocCompletedNotice] = useState<{ title: string } | null>(null);
+  const docGenAbortRef = useRef<AbortController | null>(null);
+
+  // 메시지 액션 시트 (모바일에서는 메시지 탭 시 액션 메뉴)
+  const [actionForPair, setActionForPair] = useState<string | null>(null);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -363,6 +373,96 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
     setIsLoading(false);
   }
 
+  // 기획서 작성 모드 진입 — 기본 선택값: 맥락선 이하 또는 전체
+  function enterSelectMode() {
+    let defaultIds: string[];
+    if (contextAnchorPairId) {
+      const idx = pairs.findIndex(p => p.pair_id === contextAnchorPairId);
+      defaultIds = idx >= 0 ? pairs.slice(idx).map(p => p.pair_id) : pairs.map(p => p.pair_id);
+    } else {
+      defaultIds = pairs.map(p => p.pair_id);
+    }
+    setSelectedPairIds(new Set(defaultIds));
+    setSelectMode(true);
+    setShowMenu(false);
+  }
+  function togglePairSelect(pid: string) {
+    setSelectedPairIds(prev => {
+      const n = new Set(prev);
+      if (n.has(pid)) n.delete(pid); else n.add(pid);
+      return n;
+    });
+  }
+  function cancelSelectMode() {
+    setSelectMode(false);
+    setSelectedPairIds(new Set());
+  }
+
+  async function generateDocument() {
+    const selectedMsgs = pairs
+      .filter(p => selectedPairIds.has(p.pair_id))
+      .flatMap(p => [
+        { role: p.user.role, content: p.user.content },
+        { role: p.assistant.role, content: p.assistant.content },
+      ]);
+    if (selectedMsgs.length === 0) return;
+
+    setSelectMode(false);
+    setSelectedPairIds(new Set());
+    setDocBackgroundGenerating(true);
+    const controller = new AbortController();
+    docGenAbortRef.current = controller;
+
+    try {
+      const res = await fetch("/api/document", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: selectedMsgs,
+          project_id: DEFAULT_PROJECT_ID,
+          nickname,
+        }),
+        signal: controller.signal,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error ?? "fail");
+      const title = data.doc?.title ?? "새 기획서";
+      setDocCompletedNotice({ title });
+      setDocNewDot(true);
+      localStorage.setItem("jordan_doc_new_dot", "true");
+      setDocReloadKey(k => k + 1);
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") { /* 취소 */ }
+      else alert(`기획서 작성 실패: ${String(err)}`);
+    } finally {
+      docGenAbortRef.current = null;
+      setDocBackgroundGenerating(false);
+    }
+  }
+  function cancelDocGen() {
+    docGenAbortRef.current?.abort();
+    docGenAbortRef.current = null;
+    setDocBackgroundGenerating(false);
+  }
+
+  // 메시지 삭제·복사
+  async function deletePair(pid: string) {
+    if (!confirm("이 대화를 삭제할까요?")) return;
+    setPairs(prev => prev.filter(p => p.pair_id !== pid));
+    setActionForPair(null);
+    try {
+      await fetch("/api/messages", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pair_id: pid, is_deleted: true }),
+      });
+    } catch { /* 무시 */ }
+  }
+  async function copyMessage(text: string) {
+    try { await navigator.clipboard.writeText(text); } catch { /* 무시 */ }
+    setActionForPair(null);
+  }
+
   function handleKey(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && e.altKey) { e.preventDefault(); setInput(p => p + "\n"); }
     else if (e.key === "Enter" && !e.shiftKey && !e.altKey) { e.preventDefault(); sendMessage(); }
@@ -384,7 +484,28 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
 
   return (
     <>
-      {/* 헤더 */}
+      {/* 선택 모드 헤더 (기획서 작성용) */}
+      {selectMode && (
+        <header className="px-3 py-2.5 flex items-center gap-2 flex-shrink-0" style={{ backgroundColor: "rgba(0,0,0,0.5)", borderBottom: `1px solid rgba(100,180,255,0.4)` }}>
+          <span className="text-xs font-medium flex-1" style={{ color: SILVER }}>
+            <b style={{ color: "rgba(180,210,255,1)" }}>{selectedPairIds.size}개</b> 선택됨
+          </span>
+          <button
+            onClick={generateDocument}
+            disabled={selectedPairIds.size === 0}
+            className="text-xs px-3 py-1.5 rounded-lg font-bold disabled:opacity-40"
+            style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
+          >✓ 작성</button>
+          <button
+            onClick={cancelSelectMode}
+            className="text-xs px-3 py-1.5 rounded-lg"
+            style={{ backgroundColor: SILVER_FAINT, color: SILVER }}
+          >취소</button>
+        </header>
+      )}
+
+      {/* 일반 헤더 */}
+      {!selectMode && (
       <header className="px-3 py-2.5 flex items-center gap-2 flex-shrink-0" style={{ backgroundColor: "rgba(0,0,0,0.4)", borderBottom: `1px solid ${SILVER_FAINT}` }}>
         <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0" style={{ border: `1px solid ${SILVER_DIM}` }}>
           <img src="/avatar.jpg" alt="조던" className="w-full h-full object-cover" />
@@ -419,6 +540,17 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
               style={{ backgroundColor: "rgba(255,80,80,0.95)" }} />
           )}
         </button>
+        {docBackgroundGenerating && (
+          <button
+            onClick={cancelDocGen}
+            className="flex items-center justify-center px-2 h-9 rounded-lg flex-shrink-0 gap-1"
+            title="기획서 작성 중 — 누르면 취소"
+            style={{ backgroundColor: "rgba(100,180,255,0.18)", border: "1px solid rgba(100,180,255,0.5)", color: "rgba(180,210,255,1)", fontSize: "10px" }}
+          >
+            <span className="inline-block w-2.5 h-2.5 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(180,210,255,0.3)", borderTopColor: "rgba(180,210,255,1)" }} />
+            작성중
+          </button>
+        )}
         <button
           onClick={() => setShowMenu(v => !v)}
           className="flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0"
@@ -428,6 +560,7 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
           <span style={{ fontSize: "16px" }}>☰</span>
         </button>
       </header>
+      )}
 
       {/* 햄버거 드로어 */}
       {showMenu && (
@@ -445,6 +578,9 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
               <MenuBtn icon="📌" label={contextAnchorPairId ? "맥락선 해제" : "맥락선"} subtitle={contextAnchorPairId ? "이 시점부터 조던에게 전달 중" : "설정 안 됨"}
                 onClick={() => { setShowMenu(false); if (contextAnchorPairId) clearContextAnchor(); }} />
               <MenuBtn icon="📚" label="기획 바이블" subtitle={`현재 ${decisionCount}개 누적`} onClick={() => openMenu("bible")} />
+              {pairs.length > 0 && !docBackgroundGenerating && (
+                <MenuBtn icon="📝" label="기획서 작성" subtitle="대화 선택해서 기획서 생성" onClick={enterSelectMode} />
+              )}
               <MenuBtn icon="📄" label="기획서" subtitle="작성·열람·수정" onClick={() => openMenu("docs")} />
               <MenuBtn icon="⚙️" label="설정" subtitle="출처표시·참고게임·관리도구" onClick={() => openMenu("settings")} />
               <MenuBtn icon="📖" label="가이드" subtitle="조던 사용법" onClick={() => openMenu("guide")} />
@@ -480,8 +616,17 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
             const anchorIdx = contextAnchorPairId ? pairs.findIndex(p => p.pair_id === contextAnchorPairId) : -1;
             const myIdx = pairs.findIndex(p => p.pair_id === pair.pair_id);
             const isBeforeAnchor = anchorIdx >= 0 && myIdx < anchorIdx;
+            const isSelected = selectedPairIds.has(pair.pair_id);
             return (
-              <div key={pair.pair_id} className="space-y-2" style={{ opacity: isBeforeAnchor ? 0.4 : 1 }}>
+              <div
+                key={pair.pair_id}
+                onClick={selectMode ? () => togglePairSelect(pair.pair_id) : undefined}
+                className={`space-y-2 ${selectMode ? "cursor-pointer rounded-lg p-1" : ""}`}
+                style={{
+                  opacity: isBeforeAnchor ? 0.4 : 1,
+                  backgroundColor: selectMode && isSelected ? "rgba(100,180,255,0.08)" : undefined,
+                  border: selectMode ? `1px solid ${isSelected ? "rgba(100,180,255,0.4)" : "transparent"}` : undefined,
+                }}>
                 {isAnchor && (
                   <div className="flex items-center gap-2 py-1" style={{ color: "rgba(255,200,100,0.9)" }}>
                     <div className="flex-1" style={{ borderTop: "1px dashed rgba(255,200,100,0.6)" }} />
@@ -495,7 +640,7 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
                 {/* 내 질문 */}
                 <div className="flex justify-end items-end gap-1">
                   <button
-                    onClick={() => setContextAnchor(pair.pair_id, pair.timestamp ?? new Date().toISOString())}
+                    onClick={(e) => { e.stopPropagation(); setContextAnchor(pair.pair_id, pair.timestamp ?? new Date().toISOString()); }}
                     className="text-[10px] px-1.5 py-0.5 rounded"
                     style={{
                       backgroundColor: isAnchor ? "rgba(255,200,100,0.3)" : "rgba(255,200,100,0.1)",
@@ -503,7 +648,11 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
                     }}
                     title="이 시점에 맥락선 설정"
                   >📌</button>
-                  <div className="max-w-[80%] px-3 py-2 rounded-2xl rounded-tr-sm text-sm whitespace-pre-wrap" style={{ backgroundColor: SILVER, color: "#0a0e1a" }}>
+                  <div
+                    onClick={(e) => { if (!selectMode) { e.stopPropagation(); setActionForPair(pair.pair_id); } }}
+                    className="max-w-[80%] px-3 py-2 rounded-2xl rounded-tr-sm text-sm whitespace-pre-wrap"
+                    style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
+                  >
                     {pair.user.content}
                   </div>
                 </div>
@@ -644,6 +793,69 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
 
       {/* 가이드 모달 */}
       {showGuide && <MobileGuide onClose={() => setShowGuide(false)} />}
+
+      {/* 메시지 액션 시트 (bottom sheet) */}
+      {actionForPair && (() => {
+        const p = pairs.find(p => p.pair_id === actionForPair);
+        if (!p) return null;
+        return (
+          <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={() => setActionForPair(null)}>
+            <div
+              className="w-full rounded-t-2xl flex flex-col"
+              style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-4 py-3" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+                <p className="text-xs" style={{ color: SILVER_DIM }}>메시지 동작</p>
+              </div>
+              <button
+                onClick={() => copyMessage(p.user.content)}
+                className="px-4 py-3 text-left text-sm hover:bg-white/5 flex items-center gap-2"
+                style={{ color: SILVER }}
+              >
+                <span>⎘</span> 내 질문 복사
+              </button>
+              <button
+                onClick={() => copyMessage(p.assistant.content)}
+                className="px-4 py-3 text-left text-sm hover:bg-white/5 flex items-center gap-2"
+                style={{ color: SILVER }}
+              >
+                <span>⎘</span> 조던 답변 복사
+              </button>
+              <button
+                onClick={() => deletePair(p.pair_id)}
+                className="px-4 py-3 text-left text-sm hover:bg-white/5 flex items-center gap-2"
+                style={{ color: "rgba(255,180,180,0.9)" }}
+              >
+                <span>🗑️</span> 이 대화 삭제
+              </button>
+              <button
+                onClick={() => setActionForPair(null)}
+                className="px-4 py-3 text-center text-sm font-medium"
+                style={{ backgroundColor: SILVER_FAINT, color: SILVER, borderTop: `1px solid ${SILVER_FAINT}` }}
+              >취소</button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 기획서 작성 완료 알림 */}
+      {docCompletedNotice && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 text-sm max-w-[90vw]"
+          style={{ backgroundColor: "rgba(15,25,40,0.97)", border: "1px solid rgba(100,180,255,0.6)", color: "rgba(180,210,255,1)" }}>
+          <span style={{ fontSize: "16px" }}>📄</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-xs">기획서 완료</p>
+            <p className="text-[10px] truncate" style={{ color: "rgba(180,210,255,0.7)" }}>{docCompletedNotice.title}</p>
+          </div>
+          <button
+            onClick={() => { setDocCompletedNotice(null); setShowDocs(true); setDocNewDot(false); localStorage.removeItem("jordan_doc_new_dot"); }}
+            className="text-[10px] px-2 py-1 rounded-lg font-medium"
+            style={{ backgroundColor: "rgba(100,180,255,0.25)", border: "1px solid rgba(100,180,255,0.5)", color: "rgba(180,210,255,1)" }}
+          >바로 보기</button>
+          <button onClick={() => setDocCompletedNotice(null)} className="text-[10px] px-1.5" style={{ color: "rgba(180,210,255,0.6)" }}>✕</button>
+        </div>
+      )}
 
       {/* 부정확 사유 입력 */}
       {reasonInputPairId && (
