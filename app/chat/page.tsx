@@ -248,6 +248,8 @@ function DesktopChatPage() {
   // showWireframe/showMockup state는 DocumentView 안으로 이동됨
   // 맥락선 없을 때 안내 토스트
   const [noAnchorNotice, setNoAnchorNotice] = useState(false);
+  // 조던 인터뷰 모드
+  const [interviewLoading, setInterviewLoading] = useState(false);
   // 기획서 백그라운드 작성 상태 + 취소용 AbortController
   const [docBackgroundGenerating, setDocBackgroundGenerating] = useState(false);
   const docGenAbortRef = useRef<AbortController | null>(null);
@@ -556,6 +558,64 @@ function DesktopChatPage() {
     localStorage.setItem("jordan_agent_nickname", trimmed);
     setSessionId("agent:" + trimmed);
     setShowModal(false);
+  }
+
+  // 조던 인터뷰 시작 — 빈 카테고리 자동 분석 → 질문 생성 → 채팅에 주입
+  async function startInterview() {
+    if (interviewLoading || !sessionId) return;
+    setInterviewLoading(true);
+    try {
+      // 최근 인터뷰 주제 추출 — 최근 10개 user 메시지 중 짧은 것들
+      const recentTopics = pairs.slice(-10)
+        .map(p => p.user.content.slice(0, 40))
+        .filter(c => c.length < 50);
+
+      const res = await fetch("/api/jordan-interview/next-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_id: DEFAULT_PROJECT_ID,
+          recent_topics: recentTopics,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(`인터뷰 질문 생성 실패: ${data.error ?? "알 수 없는 오류"}`);
+        return;
+      }
+
+      const pairId = crypto.randomUUID();
+      const userMsg = "🎤 결정 안 된 영역 점검해줘";
+      const interviewQuestion = `**🎤 조던 인터뷰** — ${data.category_hint ? `\`${data.category_hint}\` 영역에서 한 가지 물어볼게요.` : "다음 결정을 위해 한 가지 물어볼게요."}\n\n${data.question}\n\n_답변해주시면 자동으로 바이블에 추가돼요._`;
+
+      // DB에 저장 (정상 대화처럼)
+      await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [
+            { session_id: sessionId, pair_id: pairId, role: "user", content: userMsg, universes: "게임기획" },
+            { session_id: sessionId, pair_id: pairId, role: "assistant", content: interviewQuestion, universes: "게임기획" },
+          ],
+        }),
+      }).catch(() => {});
+
+      // 클라이언트 상태 추가
+      setPairs(prev => [...prev, {
+        pair_id: pairId,
+        user: { role: "user", content: userMsg, pair_id: pairId } as Message,
+        assistant: { role: "assistant", content: interviewQuestion, pair_id: pairId } as Message,
+        is_deleted: false,
+        timestamp: getTime(),
+      }]);
+
+      // 입력창에 포커스
+      setTimeout(() => inputRef.current?.focus(), 100);
+    } catch (err) {
+      alert(`인터뷰 시작 실패: ${String(err)}`);
+    } finally {
+      setInterviewLoading(false);
+    }
   }
 
   async function sendMessage() {
@@ -1635,6 +1695,16 @@ function DesktopChatPage() {
                 </div>
               </section>
 
+              {/* 섹션 — 조던 인터뷰 */}
+              <section>
+                <p className="text-xs font-bold mb-2" style={{ color: "rgba(255,210,160,1)" }}>🎤 조던 인터뷰 (능동 질문)</p>
+                <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
+                  <p><b style={{ color: SILVER }}>답변 끝 후속 질문</b> — 모든 답변 끝에 조던이 다음 결정에 도움될 질문 1~2개를 자연스럽게 제안. 선택지 포함이라 답변 부담 ↓.</p>
+                  <p><b style={{ color: SILVER }}>🎤 조던에게 질문 받기 버튼</b> — 헤더(또는 모바일 ☰)에서 클릭 시, 조던이 바이블의 빈 영역을 자동 분석해 가장 중요한 미결정 항목 1개를 질문. 답변하면 자동으로 바이블에 추가.</p>
+                  <p>두 가지 모두 사용자가 주도하지 않아도 조던이 능동적으로 결정 영역을 채워나가도록 유도.</p>
+                </div>
+              </section>
+
               {/* 섹션 4 — 자동 기능 */}
               <section>
                 <p className="text-xs font-bold mb-2" style={{ color: "rgba(255,180,180,1)" }}>⚙️ 자동 기능</p>
@@ -1917,6 +1987,29 @@ function DesktopChatPage() {
               }}
             >
               📌 맥락
+            </button>
+          </Tooltip>
+
+          {/* ②-0 🎤 조던 인터뷰 — 빈 곳 자동 분석해서 다음 질문 받기 */}
+          <Tooltip text="조던이 바이블에서 빈 곳을 찾아 다음 결정을 위한 질문을 던져요">
+            <button
+              onClick={startInterview}
+              disabled={interviewLoading}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 disabled:opacity-40"
+              style={{
+                backgroundColor: "rgba(255,180,100,0.18)",
+                border: "1px solid rgba(255,180,100,0.5)",
+                color: "rgba(255,210,160,1)",
+              }}
+            >
+              {interviewLoading ? (
+                <>
+                  <span className="inline-block w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(255,210,160,0.3)", borderTopColor: "rgba(255,210,160,1)" }} />
+                  분석 중
+                </>
+              ) : (
+                <>🎤 조던에게 질문 받기</>
+              )}
             </button>
           </Tooltip>
 

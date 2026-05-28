@@ -133,6 +133,51 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
   const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
   const [showExtractedReview, setShowExtractedReview] = useState(false);
 
+  // 조던 인터뷰
+  const [interviewLoading, setInterviewLoading] = useState(false);
+
+  async function startInterview() {
+    if (interviewLoading) return;
+    setInterviewLoading(true);
+    try {
+      const recentTopics = pairs.slice(-10).map(p => p.user.content.slice(0, 40)).filter(c => c.length < 50);
+      const res = await fetch("/api/jordan-interview/next-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_id: DEFAULT_PROJECT_ID, recent_topics: recentTopics }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) { alert(`질문 생성 실패: ${data.error ?? "오류"}`); return; }
+
+      const pairId = crypto.randomUUID();
+      const userMsg = "🎤 결정 안 된 영역 점검해줘";
+      const question = `**🎤 조던 인터뷰** — ${data.category_hint ? `\`${data.category_hint}\` 영역.` : ""}\n\n${data.question}\n\n_답변해주시면 자동으로 바이블에 추가돼요._`;
+
+      await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [
+            { session_id: sessionId, pair_id: pairId, role: "user", content: userMsg },
+            { session_id: sessionId, pair_id: pairId, role: "assistant", content: question },
+          ],
+        }),
+      }).catch(() => {});
+
+      setPairs(prev => [...prev, {
+        pair_id: pairId,
+        user: { role: "user", content: userMsg },
+        assistant: { role: "assistant", content: question },
+      }]);
+      setShowMenu(false);
+      setTimeout(() => inputRef.current?.focus(), 100);
+    } catch (err) {
+      alert(`인터뷰 실패: ${String(err)}`);
+    } finally {
+      setInterviewLoading(false);
+    }
+  }
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -593,6 +638,7 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
               <button onClick={() => setShowMenu(false)} className="text-xs px-2 py-1 rounded" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>✕</button>
             </div>
             <div className="flex-1 overflow-y-auto py-2">
+              <MenuBtn icon="🎤" label={interviewLoading ? "분석 중..." : "조던에게 질문 받기"} subtitle="빈 영역 자동 분석 → 다음 결정 질문" onClick={startInterview} />
               <MenuBtn icon="📌" label={contextAnchorPairId ? "맥락선 해제" : "맥락선"} subtitle={contextAnchorPairId ? "이 시점부터 조던에게 전달 중" : "설정 안 됨"}
                 onClick={() => { setShowMenu(false); if (contextAnchorPairId) clearContextAnchor(); }} />
               <MenuBtn icon="📚" label="기획 바이블" subtitle={`현재 ${decisionCount}개 누적`} onClick={() => openMenu("bible")} />
