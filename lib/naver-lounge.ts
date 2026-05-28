@@ -81,12 +81,53 @@ export async function fetchLoungePage(
   };
 }
 
-// 라운지의 핵심 페이지들 일괄 fetch (병렬)
+// 목록 마크다운에서 게시글 detail URL 추출 (최신순 상위 N개)
+function extractArticleUrls(listMd: string, loungeId: string, max: number = 4): string[] {
+  // 패턴: [제목](https://game.naver.com/lounge/{loungeId}/board/detail/{articleId})
+  const re = new RegExp(`\\(https://game\\.naver\\.com/lounge/${loungeId}/board/detail/(\\d+)\\)`, "g");
+  const ids = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(listMd)) !== null && ids.size < max) {
+    ids.add(m[1]);
+  }
+  return Array.from(ids).map(id => `/board/detail/${id}`);
+}
+
+// 게시글 본문에서 노이즈 제거 (댓글·관련글·푸터 등)
+function trimArticleBody(md: string): string {
+  // "댓글" 섹션 이하 잘라내기
+  const commentIdx = md.search(/^\s*(댓글|❤|👍|관련 게시글|관련글|다음 게시글|이전 게시글)/m);
+  if (commentIdx > 0) md = md.slice(0, commentIdx);
+  return md.trim();
+}
+
+// 라운지의 핵심 페이지 + 최신 공지 본문 N개 가져오기 (병렬)
 export async function fetchLoungeAll(loungeId: string): Promise<LoungeFetchResult[]> {
-  const results = await Promise.all(
+  // 1) 핵심 페이지 (공지 목록·홈) 먼저
+  const baseResults = await Promise.all(
     LOUNGE_PATHS.map(({ name, path }) => fetchLoungePage(loungeId, path, name))
   );
-  return results.filter((r): r is LoungeFetchResult => r !== null);
+  const filtered = baseResults.filter((r): r is LoungeFetchResult => r !== null);
+
+  // 2) 공지 목록 페이지에서 게시글 URL 추출
+  const noticeList = filtered.find(r => r.pageName === "공지사항");
+  if (!noticeList) return filtered;
+
+  const articlePaths = extractArticleUrls(noticeList.content, loungeId, 4);
+  if (articlePaths.length === 0) return filtered;
+
+  // 3) 게시글 본문 병렬 fetch
+  const articleResults = await Promise.all(
+    articlePaths.map((path, i) => fetchLoungePage(loungeId, path, `공지 본문 #${i + 1}`))
+  );
+  for (const r of articleResults) {
+    if (r) {
+      r.content = trimArticleBody(r.content).slice(0, 5000);  // 본문은 좀 더 길게 허용
+      filtered.push(r);
+    }
+  }
+
+  return filtered;
 }
 
 // 답변 컨텍스트에 주입할 형태로 빌드
