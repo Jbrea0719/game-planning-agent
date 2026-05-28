@@ -9,6 +9,7 @@ import ReactMarkdown from "react-markdown";
 import dynamic from "next/dynamic";
 import DecisionPanel from "@/components/DecisionPanel";
 import DocumentView from "@/components/DocumentView";
+import ExtractedReviewCard, { type ExtractedItem } from "@/components/ExtractedReviewCard";
 
 const WireframeEditor = dynamic(() => import("@/components/WireframeEditor"), { ssr: false });
 
@@ -127,6 +128,10 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
 
   // 메시지 액션 시트 (모바일에서는 메시지 탭 시 액션 메뉴)
   const [actionForPair, setActionForPair] = useState<string | null>(null);
+
+  // 자동 추출 검토 카드
+  const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
+  const [showExtractedReview, setShowExtractedReview] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -351,9 +356,18 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
       if (extractedMatch && parseInt(extractedMatch[1], 10) > 0) {
         setDecisionReloadKey(k => k + 1);
       }
+      // 추출 데이터 파싱 → 검토 카드
+      const dataMatch = text.match(/__DECISIONS_DATA__([\s\S]+?)__END__/);
+      if (dataMatch) {
+        try {
+          const items = JSON.parse(dataMatch[1]) as ExtractedItem[];
+          if (items.length > 0) { setExtractedItems(items); setShowExtractedReview(true); }
+        } catch { /* 무시 */ }
+      }
       const startIdx = clean.indexOf("__JORDAN_ANSWER_START__");
       if (startIdx !== -1) clean = clean.slice(startIdx + "__JORDAN_ANSWER_START__".length).trimStart();
       clean = clean.replace(/\n__JORDAN_CRITIC_START__[\s\S]*?__JORDAN_CRITIC_END__/, "");
+      clean = clean.replace(/__DECISIONS_DATA__[\s\S]+?__END__/, "");
       clean = clean.replace(/__DECISIONS_(EXTRACTED|HELD)__\d+/g, "");
       clean = clean.replace("__TRUNCATED__", "").trimEnd();
 
@@ -801,6 +815,15 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
 
       {/* 와이어프레임 편집기 */}
       <WireframeEditor open={showWireframe} onClose={() => setShowWireframe(false)} nickname={nickname} />
+
+      {/* 자동 추출 검토 카드 */}
+      {showExtractedReview && extractedItems.length > 0 && (
+        <ExtractedReviewCard
+          items={extractedItems}
+          onClose={() => { setShowExtractedReview(false); setExtractedItems([]); }}
+          onChanged={() => setDecisionReloadKey(k => k + 1)}
+        />
+      )}
 
       {/* 메시지 액션 시트 (bottom sheet) */}
       {actionForPair && (() => {

@@ -207,15 +207,24 @@ export function shouldRegisterDecision(d: ExtractedDecision): boolean {
 
 // ── 자동 저장 함수 ───────────────────────────────────────────────────
 // 반환: { saved: 실제 등록된 개수, held: 조던 반대·우려로 등록 보류된 개수 }
+// 저장된 결정사항 메타 (UI 검토용)
+export interface SavedDecisionMeta {
+  id: string;
+  content: string;
+  confidence: "decided" | "review" | "tentative" | string;
+  sub_category_id: string | null;
+  sub_category_label: string | null;
+}
+
 export async function extractAndSaveDecisions(opts: {
   userQuery: string;
   jordanAnswer: string;
   sessionId?: string;
   pairId?: string;
   nickname?: string;
-}): Promise<{ saved: number; held: number }> {
+}): Promise<{ saved: number; held: number; savedItems: SavedDecisionMeta[] }> {
   const decisions = await extractDecisions(opts.userQuery, opts.jordanAnswer);
-  if (decisions.length === 0) return { saved: 0, held: 0 };
+  if (decisions.length === 0) return { saved: 0, held: 0, savedItems: [] };
 
   // 등록 자격 필터링
   const toSave = decisions.filter(shouldRegisterDecision);
@@ -225,7 +234,7 @@ export async function extractAndSaveDecisions(opts: {
     if (held > 0) {
       console.log(`[decision-extractor] ${held}개 보류 (조던 반대·우려, 사용자 강제 요청 없음)`);
     }
-    return { saved: 0, held };
+    return { saved: 0, held, savedItems: [] };
   }
 
   const rows = toSave.map(d => ({
@@ -240,13 +249,28 @@ export async function extractAndSaveDecisions(opts: {
     created_by_nickname: opts.nickname ?? null,
   }));
 
-  const { error } = await supabase.from("decisions").insert(rows);
+  const { data: insertedData, error } = await supabase.from("decisions").insert(rows).select("id, content, confidence, sub_category_id");
   if (error) {
     console.error("[decision-extractor] 저장 실패:", error.message);
-    return { saved: 0, held };
+    return { saved: 0, held, savedItems: [] };
   }
   console.log(`[decision-extractor] ${toSave.length}개 등록 / ${held}개 보류`);
-  return { saved: toSave.length, held };
+
+  // 카테고리 라벨 매핑
+  const subs = await getCachedCategories();
+  const subMap = new Map<string, string>();
+  for (const s of subs) {
+    subMap.set(s.id, s.area_name ? `${s.area_name} > ${s.name_ko}` : s.name_ko);
+  }
+  const savedItems: SavedDecisionMeta[] = (insertedData ?? []).map(d => ({
+    id: d.id as string,
+    content: d.content as string,
+    confidence: d.confidence as string,
+    sub_category_id: d.sub_category_id as string | null,
+    sub_category_label: d.sub_category_id ? (subMap.get(d.sub_category_id as string) ?? null) : null,
+  }));
+
+  return { saved: toSave.length, held, savedItems };
 }
 
 // ── 헬퍼: 대카테고리 ID → 한국어 이름 ─────────────────────────────────

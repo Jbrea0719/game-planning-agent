@@ -1468,6 +1468,8 @@ export async function POST(request: Request) {
             if (result.saved > 0) {
               // 클라이언트에 결정사항 추가됨 신호 — 트래커 자동 reload
               encode(`__DECISIONS_EXTRACTED__${result.saved}`);
+              // 추출 데이터도 함께 전달 → 사용자 즉시 검토 모달
+              encode(`__DECISIONS_DATA__${JSON.stringify(result.savedItems)}__END__`);
             }
             if (result.held > 0) {
               // 보류된 결정 알림 — "조던 우려로 등록 안 됨" 같은 안내

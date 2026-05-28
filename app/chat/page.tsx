@@ -6,6 +6,7 @@ import ReactMarkdown from "react-markdown";
 import dynamic from "next/dynamic";
 import DecisionPanel from "@/components/DecisionPanel";
 import DocumentView from "@/components/DocumentView";
+import ExtractedReviewCard from "@/components/ExtractedReviewCard";
 import MobileChatPage from "@/components/MobileChatPage";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
@@ -286,6 +287,10 @@ function DesktopChatPage() {
   const [decisionReloadKey, setDecisionReloadKey] = useState(0);
   // 자동 추출 알림 (사용자에게 잠시 노출)
   const [extractedNotice, setExtractedNotice] = useState<number | null>(null);
+  // 추출된 결정사항 검토 모달
+  type ExtractedItem = { id: string; content: string; confidence: string; sub_category_label: string | null };
+  const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
+  const [showExtractedReview, setShowExtractedReview] = useState(false);
   // 보류된 결정 알림 (조던이 반대·우려)
   const [heldNotice, setHeldNotice] = useState<number | null>(null);
   // 기획서 뷰
@@ -625,16 +630,28 @@ function DesktopChatPage() {
         cleanText = assistantText.replace(/\n__JORDAN_CRITIC_START__[\s\S]*?__JORDAN_CRITIC_END__/, "");
       }
 
-      // 자동 추출 마커 감지 → 트래커 새로고침 + 알림
+      // 자동 추출 마커 감지 → 트래커 새로고침 + 알림 + 검토 모달
       const extractedMatch = assistantText.match(/__DECISIONS_EXTRACTED__(\d+)/);
       if (extractedMatch) {
         const cnt = parseInt(extractedMatch[1], 10);
         if (cnt > 0) {
-          setDecisionReloadKey(k => k + 1);    // DecisionPanel 자동 새로고침
-          setExtractedNotice(cnt);              // 알림 표시
-          setTimeout(() => setExtractedNotice(null), 5000);  // 5초 후 자동 숨김
+          setDecisionReloadKey(k => k + 1);
+          setExtractedNotice(cnt);
+          setTimeout(() => setExtractedNotice(null), 7000);
         }
         cleanText = cleanText.replace(/__DECISIONS_EXTRACTED__\d+/, "");
+      }
+      // 추출된 결정 데이터 파싱 → 검토 모달용 보관
+      const dataMatch = assistantText.match(/__DECISIONS_DATA__([\s\S]+?)__END__/);
+      if (dataMatch) {
+        try {
+          const items = JSON.parse(dataMatch[1]) as ExtractedItem[];
+          if (items.length > 0) {
+            setExtractedItems(items);
+            setShowExtractedReview(true);
+          }
+        } catch { /* 무시 */ }
+        cleanText = cleanText.replace(/__DECISIONS_DATA__[\s\S]+?__END__/, "");
       }
 
       // 보류 마커 감지 — 조던 반대·우려로 등록 안 된 결정
@@ -1249,6 +1266,15 @@ function DesktopChatPage() {
             ✕
           </button>
         </div>
+      )}
+
+      {/* 자동 추출 결정사항 검토 모달 — 우상단 카드 */}
+      {showExtractedReview && extractedItems.length > 0 && (
+        <ExtractedReviewCard
+          items={extractedItems}
+          onClose={() => { setShowExtractedReview(false); setExtractedItems([]); }}
+          onChanged={() => setDecisionReloadKey(k => k + 1)}
+        />
       )}
 
       {/* 맥락선 없음 안내 토스트 (2초) */}
