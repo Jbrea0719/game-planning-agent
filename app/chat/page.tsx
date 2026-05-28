@@ -1990,7 +1990,18 @@ function DesktopChatPage() {
             </button>
           </Tooltip>
 
-          {/* ②-0 🎤 조던 인터뷰 — 빈 곳 자동 분석해서 다음 질문 받기 */}
+          {/* ② 맥락 결정사항 — 맥락선 이하 기획 바이블에 추가된 결정 목록 */}
+          <Tooltip text={contextAnchorPairId ? "맥락선 이하 추가된 기획 결정사항 보기" : "현재 기획 바이블에 누적된 결정사항 보기"}>
+            <button
+              onClick={() => setShowContextModal(true)}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium"
+              style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
+            >
+              📋 맥락 결정사항
+            </button>
+          </Tooltip>
+
+          {/* ②-1 🎤 조던 인터뷰 — 빈 곳 자동 분석해서 다음 질문 받기 */}
           <Tooltip text="조던이 바이블에서 빈 곳을 찾아 다음 결정을 위한 질문을 던져요">
             <button
               onClick={startInterview}
@@ -2010,17 +2021,6 @@ function DesktopChatPage() {
               ) : (
                 <>🎤 조던에게 질문 받기</>
               )}
-            </button>
-          </Tooltip>
-
-          {/* ② 맥락 결정사항 — 맥락선 이하 기획 바이블에 추가된 결정 목록 */}
-          <Tooltip text={contextAnchorPairId ? "맥락선 이하 추가된 기획 결정사항 보기" : "현재 기획 바이블에 누적된 결정사항 보기"}>
-            <button
-              onClick={() => setShowContextModal(true)}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium"
-              style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
-            >
-              📋 맥락 결정사항
             </button>
           </Tooltip>
 
