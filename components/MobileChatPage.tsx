@@ -820,7 +820,7 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
       <WireframeEditor open={showWireframe} onClose={() => setShowWireframe(false)} nickname={nickname} />
 
       {/* AI 시안 생성기 */}
-      <MockupGenerator open={showMockup} onClose={() => setShowMockup(false)} />
+      <MockupGenerator open={showMockup} onClose={() => setShowMockup(false)} nickname={nickname} />
 
       {/* 자동 추출 검토 카드 */}
       {showExtractedReview && extractedItems.length > 0 && (

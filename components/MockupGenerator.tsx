@@ -8,19 +8,40 @@ const SILVER = "#c0c8d8";
 const SILVER_DIM = "rgba(192,200,216,0.5)";
 const SILVER_FAINT = "rgba(192,200,216,0.15)";
 
+interface DocMeta {
+  id: string;
+  title: string;
+}
+
 export default function MockupGenerator({
   open,
   onClose,
+  nickname,
 }: {
   open: boolean;
   onClose: () => void;
+  nickname?: string;
 }) {
   const [description, setDescription] = useState("");
   const [refineMode, setRefineMode] = useState(false);
   const [refineInput, setRefineInput] = useState("");
   const [generating, setGenerating] = useState(false);
   const [mockupHtml, setMockupHtml] = useState("");
+  const [mockupTitle, setMockupTitle] = useState("AI 시안");
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // 기획서 첨부 모달
+  const [showAttachModal, setShowAttachModal] = useState(false);
+  const [docs, setDocs] = useState<DocMeta[]>([]);
+  const [selectedDocId, setSelectedDocId] = useState<string>("");
+  const [docSections, setDocSections] = useState<string[]>([]);
+  const [attachPosition, setAttachPosition] = useState<"end" | "after_section" | "top">("end");
+  const [selectedSection, setSelectedSection] = useState<string>("");
+  const [attaching, setAttaching] = useState(false);
+  const [uploadedUrl, setUploadedUrl] = useState<string>("");
+  const [capturingPng, setCapturingPng] = useState(false);
+
+  const DEFAULT_PROJECT_ID = "00000000-0000-0000-0000-000000000001";
 
   async function generateMockup(refine: boolean) {
     const desc = refine ? refineInput : description;
@@ -48,18 +69,150 @@ export default function MockupGenerator({
     } finally { setGenerating(false); }
   }
 
-  // PNG 캡처는 클라이언트 측 html2canvas 필요 — 일단 HTML 다운로드만 제공
   function downloadHtml() {
     if (!mockupHtml) return;
     const blob = new Blob([mockupHtml], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `mockup_${Date.now()}.html`;
+    const safe = mockupTitle.replace(/[\\/:*?"<>|]/g, "_").trim() || "mockup";
+    a.download = `${safe}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  // iframe 안의 HTML을 PNG로 캡쳐 (html2canvas)
+  // Tailwind CDN 로드 대기 후 캡쳐
+  async function captureIframeAsPng(): Promise<string | null> {
+    const iframe = iframeRef.current;
+    if (!iframe) return null;
+    const doc = iframe.contentDocument;
+    if (!doc) return null;
+
+    // Tailwind CDN 로드 대기 (최대 3초)
+    await new Promise<void>((resolve) => {
+      let elapsed = 0;
+      const tick = () => {
+        const ready = doc.readyState === "complete";
+        if (ready || elapsed >= 3000) resolve();
+        else { elapsed += 100; setTimeout(tick, 100); }
+      };
+      tick();
+    });
+    // 추가 안정화 (Tailwind 스타일 적용 시간)
+    await new Promise(r => setTimeout(r, 500));
+
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const canvas = await html2canvas(doc.documentElement, {
+        backgroundColor: null,
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        width: doc.documentElement.scrollWidth,
+        height: doc.documentElement.scrollHeight,
+      });
+      return canvas.toDataURL("image/png");
+    } catch (err) {
+      console.error("[mockup] PNG 캡쳐 실패:", err);
+      return null;
+    }
+  }
+
+  // PNG 다운로드
+  async function downloadPng() {
+    setCapturingPng(true);
+    try {
+      const dataUrl = await captureIframeAsPng();
+      if (!dataUrl) { alert("PNG 변환 실패"); return; }
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      const safe = mockupTitle.replace(/[\\/:*?"<>|]/g, "_").trim() || "mockup";
+      a.download = `${safe}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } finally { setCapturingPng(false); }
+  }
+
+  // 기획서 첨부 흐름 — PNG 변환 → 업로드 → 기획서 목록 fetch → 모달
+  async function startAttachFlow() {
+    setCapturingPng(true);
+    try {
+      const dataUrl = await captureIframeAsPng();
+      if (!dataUrl) { alert("PNG 변환 실패"); return; }
+
+      // 업로드
+      const uploadRes = await fetch("/api/wireframe/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataUrl, title: mockupTitle }),
+      });
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok || !uploadData.success) {
+        alert(`업로드 실패: ${uploadData.error ?? "알 수 없는 오류"}`);
+        return;
+      }
+      setUploadedUrl(uploadData.url);
+
+      // 기획서 목록 fetch
+      const docsRes = await fetch(`/api/design-docs?project_id=${DEFAULT_PROJECT_ID}`);
+      const docsData = await docsRes.json();
+      const list = (docsData.docs ?? []) as DocMeta[];
+      setDocs(list);
+      if (list.length > 0) {
+        setSelectedDocId(list[0].id);
+        await loadDocSections(list[0].id);
+      }
+      setShowAttachModal(true);
+    } catch (err) {
+      alert(`첨부 준비 실패: ${String(err)}`);
+    } finally { setCapturingPng(false); }
+  }
+
+  async function loadDocSections(docId: string) {
+    try {
+      const res = await fetch(`/api/design-docs/${docId}`);
+      const data = await res.json();
+      const md = (data.doc?.content_markdown as string) ?? "";
+      const sections: string[] = [];
+      for (const line of md.split("\n")) {
+        const m = line.match(/^##\s+(.+)/);
+        if (m) sections.push(m[1].trim().replace(/[*_`]/g, ""));
+      }
+      setDocSections(sections);
+      setSelectedSection(sections[0] ?? "");
+    } catch { setDocSections([]); }
+  }
+
+  async function submitAttach() {
+    if (!selectedDocId || !uploadedUrl) return;
+    setAttaching(true);
+    try {
+      const res = await fetch("/api/design-docs/attach-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          doc_id: selectedDocId,
+          image_url: uploadedUrl,
+          alt_text: mockupTitle,
+          position: attachPosition,
+          section_title: attachPosition === "after_section" ? selectedSection : undefined,
+          nickname,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(`첨부 실패: ${data.error ?? "알 수 없는 오류"}`);
+        return;
+      }
+      alert(`✅ "${docs.find(d => d.id === selectedDocId)?.title}" 기획서에 첨부됐어요`);
+      setShowAttachModal(false);
+    } catch (err) {
+      alert(`첨부 실패: ${String(err)}`);
+    } finally { setAttaching(false); }
   }
 
   function resetAll() {
@@ -77,6 +230,15 @@ export default function MockupGenerator({
       {/* 상단 액션 바 */}
       <div className="px-4 py-2.5 flex items-center gap-2 flex-shrink-0 flex-wrap" style={{ backgroundColor: "rgba(0,0,0,0.4)", borderBottom: `1px solid ${SILVER_FAINT}` }}>
         <p className="text-sm font-bold flex-shrink-0" style={{ color: SILVER }}>🪄 AI 시안 생성</p>
+        {mockupHtml && (
+          <input
+            value={mockupTitle}
+            onChange={(e) => setMockupTitle(e.target.value)}
+            className="text-xs px-2.5 py-1.5 rounded-lg outline-none flex-shrink-0"
+            style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0", maxWidth: "240px" }}
+            placeholder="시안 이름"
+          />
+        )}
         <div className="flex-1" />
         {mockupHtml && (
           <>
@@ -86,10 +248,24 @@ export default function MockupGenerator({
               style={{ backgroundColor: SILVER_FAINT, color: SILVER }}
             >🔄 새로 시작</button>
             <button
+              onClick={startAttachFlow}
+              disabled={capturingPng}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium disabled:opacity-40"
+              style={{ backgroundColor: "rgba(200,180,255,0.2)", border: "1px solid rgba(200,180,255,0.5)", color: "rgba(220,200,255,1)" }}
+            >
+              {capturingPng ? "변환 중..." : "📎 기획서에 첨부"}
+            </button>
+            <button
+              onClick={downloadPng}
+              disabled={capturingPng}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium disabled:opacity-40"
+              style={{ backgroundColor: "rgba(100,180,255,0.2)", border: "1px solid rgba(100,180,255,0.5)", color: "rgba(180,210,255,1)" }}
+            >📥 PNG</button>
+            <button
               onClick={downloadHtml}
               className="text-xs px-3 py-1.5 rounded-lg font-medium"
-              style={{ backgroundColor: "rgba(100,180,255,0.2)", border: "1px solid rgba(100,180,255,0.5)", color: "rgba(180,210,255,1)" }}
-            >📥 HTML 다운로드</button>
+              style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
+            >📥 HTML</button>
           </>
         )}
         <button
@@ -219,6 +395,82 @@ export default function MockupGenerator({
           )}
         </div>
       </div>
+
+      {/* 기획서 첨부 모달 */}
+      {showAttachModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4" onClick={() => !attaching && setShowAttachModal(false)}>
+          <div
+            className="rounded-2xl w-full max-w-md shadow-2xl flex flex-col"
+            style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+              <p className="text-sm font-bold" style={{ color: SILVER }}>📎 기획서에 첨부</p>
+              <button onClick={() => setShowAttachModal(false)} disabled={attaching} className="text-xs px-2 py-1 rounded" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>✕</button>
+            </div>
+            <div className="px-5 py-4 flex flex-col gap-3">
+              {docs.length === 0 ? (
+                <p className="text-xs text-center py-6" style={{ color: SILVER_DIM }}>생성된 기획서가 없어요. 먼저 기획서를 만들고 시도하세요.</p>
+              ) : (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs" style={{ color: SILVER_DIM }}>대상 기획서</label>
+                    <select
+                      value={selectedDocId}
+                      onChange={(e) => { setSelectedDocId(e.target.value); loadDocSections(e.target.value); }}
+                      className="px-3 py-2 rounded-lg text-xs outline-none"
+                      style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+                    >
+                      {docs.map(d => <option key={d.id} value={d.id}>{d.title}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs" style={{ color: SILVER_DIM }}>삽입 위치</label>
+                    <select
+                      value={attachPosition}
+                      onChange={(e) => setAttachPosition(e.target.value as "end" | "after_section" | "top")}
+                      className="px-3 py-2 rounded-lg text-xs outline-none"
+                      style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+                    >
+                      <option value="end">맨 끝</option>
+                      <option value="top">맨 위 (제목 바로 아래)</option>
+                      <option value="after_section">특정 섹션 바로 아래</option>
+                    </select>
+                  </div>
+                  {attachPosition === "after_section" && (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs" style={{ color: SILVER_DIM }}>섹션</label>
+                      <select
+                        value={selectedSection}
+                        onChange={(e) => setSelectedSection(e.target.value)}
+                        className="px-3 py-2 rounded-lg text-xs outline-none"
+                        style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+                      >
+                        {docSections.length === 0 && <option value="">(섹션 없음)</option>}
+                        {docSections.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <p className="text-[10px] mt-1" style={{ color: SILVER_DIM }}>
+                    💡 시안이 PNG로 변환돼 클라우드에 영구 저장. 첨부 전 원본 백업 자동 생성.
+                  </p>
+                  <div className="flex gap-2 justify-end mt-2">
+                    <button onClick={() => setShowAttachModal(false)} disabled={attaching} className="text-xs px-4 py-2 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER }}>취소</button>
+                    <button
+                      onClick={submitAttach}
+                      disabled={attaching || !selectedDocId}
+                      className="text-xs px-4 py-2 rounded-lg font-bold disabled:opacity-40"
+                      style={{ backgroundColor: "rgba(200,180,255,0.25)", border: "1px solid rgba(200,180,255,0.6)", color: "rgba(220,200,255,1)" }}
+                    >
+                      {attaching ? "첨부 중..." : "📎 첨부"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1220,7 +1220,11 @@ function DesktopChatPage() {
       />
 
       {/* AI 시안 생성기 */}
-      <MockupGenerator open={showMockup} onClose={() => setShowMockup(false)} />
+      <MockupGenerator
+        open={showMockup}
+        onClose={() => setShowMockup(false)}
+        nickname={sessionId?.replace(/^agent:/, "") ?? ""}
+      />
 
       {/* 기획서 생성 중 오버레이 */}
       {generatingDoc && (
