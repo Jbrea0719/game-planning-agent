@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "조던 (기획)",
+  title: "Jordan - Game Design",
   description: "영웅수집형 게임 기획 전문가 AI — 분석 · 설계 · 검토 파이프라인",
 };
 
