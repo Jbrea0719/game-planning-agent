@@ -800,7 +800,7 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
       {showGuide && <MobileGuide onClose={() => setShowGuide(false)} />}
 
       {/* 와이어프레임 편집기 */}
-      <WireframeEditor open={showWireframe} onClose={() => setShowWireframe(false)} />
+      <WireframeEditor open={showWireframe} onClose={() => setShowWireframe(false)} nickname={nickname} />
 
       {/* 메시지 액션 시트 (bottom sheet) */}
       {actionForPair && (() => {

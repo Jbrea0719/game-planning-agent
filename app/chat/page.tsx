@@ -1197,6 +1197,7 @@ function DesktopChatPage() {
       <WireframeEditor
         open={showWireframe}
         onClose={() => setShowWireframe(false)}
+        nickname={sessionId?.replace(/^agent:/, "") ?? ""}
       />
 
       {/* 기획서 생성 중 오버레이 */}
