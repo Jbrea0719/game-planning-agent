@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import CategoryManager from "./CategoryManager";
 import DocList from "./DocList";
@@ -128,14 +128,32 @@ export default function DocumentView({
     const saved = localStorage.getItem("jordan_doc_sidebar_collapsed");
     if (saved === "true") setSidebarCollapsed(true);
   }, []);
-  function toggleSidebar() {
-    setSidebarCollapsed(v => {
-      const next = !v;
-      if (typeof window !== "undefined") {
-        localStorage.setItem("jordan_doc_sidebar_collapsed", String(next));
-      }
-      return next;
-    });
+  function setSidebar(next: boolean) {
+    setSidebarCollapsed(next);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("jordan_doc_sidebar_collapsed", String(next));
+    }
+  }
+  function toggleSidebar() { setSidebar(!sidebarCollapsed); }
+
+  // ── 모바일 터치 스와이프 — 사이드바 열기/닫기 ────────────────────
+  // 좌→우 스와이프 (60px+, 세로 30px 이하) → 사이드바 열기
+  // 우→좌 스와이프 → 사이드바 닫기
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  function handleTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0];
+    touchStartRef.current = { x: t.clientX, y: t.clientY };
+  }
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (!touchStartRef.current) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartRef.current.x;
+    const dy = t.clientY - touchStartRef.current.y;
+    touchStartRef.current = null;
+    // 수평 60px 이상, 수직 30px 이내일 때만 스와이프로 판정 (스크롤·텍스트 선택 방해 X)
+    if (Math.abs(dx) < 60 || Math.abs(dy) > 30) return;
+    if (dx > 0 && sidebarCollapsed) setSidebar(false);     // → 펴기
+    else if (dx < 0 && !sidebarCollapsed) setSidebar(true); // ← 접기
   }
 
   // viewedDocIds — localStorage 복원 (없으면 현재 전체 버전을 초기 viewed로)
@@ -515,8 +533,12 @@ export default function DocumentView({
         </div>
       </div>
 
-      {/* 본문 영역 */}
-      <div className="flex-1 flex min-h-0">
+      {/* 본문 영역 — 모바일 터치 스와이프로 사이드바 토글 */}
+      <div
+        className="flex-1 flex min-h-0"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         {/* 좌측 사이드바 — 목차 + 기획서 리스트 오버레이 (접기 시 width 0) */}
         {!editing && !sidebarCollapsed && (
           <aside
