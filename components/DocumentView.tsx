@@ -421,22 +421,6 @@ export default function DocumentView({
       {/* 상단 액션 바 — 모바일에서는 줄바꿈 허용 */}
       <div className="flex flex-wrap items-center justify-between px-3 py-2 md:px-4 md:py-3 flex-shrink-0 gap-2 md:gap-3" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
         <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
-          {/* 사이드바 토글 — 편집 모드일 때는 숨김 */}
-          {!editing && (
-            <button
-              onClick={toggleSidebar}
-              title={sidebarCollapsed ? "리스트·목차 펼치기" : "리스트·목차 접기 (본문 넓게)"}
-              className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0 transition-colors"
-              style={{
-                backgroundColor: sidebarCollapsed ? "rgba(100,180,255,0.15)" : SILVER_FAINT,
-                border: `1px solid ${sidebarCollapsed ? "rgba(100,180,255,0.4)" : SILVER_DIM}`,
-                color: sidebarCollapsed ? "rgba(180,210,255,1)" : SILVER,
-                fontSize: "14px",
-              }}
-            >
-              {sidebarCollapsed ? "⇥" : "⇤"}
-            </button>
-          )}
           <p className="text-sm font-bold flex-shrink-0" style={{ color: SILVER }}>📄 기획서</p>
           {currentDoc && (
             <span className="text-xs" style={{ color: SILVER_DIM }}>
@@ -535,10 +519,35 @@ export default function DocumentView({
 
       {/* 본문 영역 — 모바일 터치 스와이프로 사이드바 토글 */}
       <div
-        className="flex-1 flex min-h-0"
+        className="flex-1 flex min-h-0 relative"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
+        {/* 사이드바 토글 탭 — 경계에 붙어있는 직관적 위치 (VSCode·Notion 스타일) */}
+        {!editing && (
+          <button
+            onClick={toggleSidebar}
+            title={sidebarCollapsed ? "리스트·목차 펼치기 (또는 좌→우 스와이프)" : "리스트·목차 접기 (또는 우→좌 스와이프)"}
+            className="absolute z-20 flex items-center justify-center transition-all hover:opacity-100"
+            style={{
+              top: "50%",
+              transform: "translateY(-50%)",
+              left: 0,
+              width: "18px",
+              height: "56px",
+              backgroundColor: sidebarCollapsed ? "rgba(100,180,255,0.18)" : "rgba(192,200,216,0.12)",
+              border: `1px solid ${sidebarCollapsed ? "rgba(100,180,255,0.5)" : SILVER_DIM}`,
+              borderLeft: "none",
+              borderRadius: "0 8px 8px 0",
+              color: sidebarCollapsed ? "rgba(180,210,255,1)" : SILVER,
+              fontSize: "12px",
+              opacity: 0.7,
+              cursor: "pointer",
+            }}
+          >
+            {sidebarCollapsed ? "›" : "‹"}
+          </button>
+        )}
         {/* 좌측 사이드바 — 목차 + 기획서 리스트 오버레이 (접기 시 width 0) */}
         {!editing && !sidebarCollapsed && (
           <aside
