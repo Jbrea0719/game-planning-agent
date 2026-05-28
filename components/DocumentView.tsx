@@ -382,8 +382,8 @@ export default function DocumentView({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ backgroundColor: "#0a0e1a" }}>
-      {/* 상단 액션 바 */}
-      <div className="flex items-center justify-between px-4 py-3 flex-shrink-0 gap-3" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+      {/* 상단 액션 바 — 모바일에서는 줄바꿈 허용 */}
+      <div className="flex flex-wrap items-center justify-between px-3 py-2 md:px-4 md:py-3 flex-shrink-0 gap-2 md:gap-3" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <p className="text-sm font-bold flex-shrink-0" style={{ color: SILVER }}>📄 기획서</p>
           {currentDoc && (
@@ -485,7 +485,7 @@ export default function DocumentView({
       <div className="flex-1 flex min-h-0">
         {/* 좌측 사이드바 — 목차 + 기획서 리스트 오버레이 */}
         {!editing && (
-          <aside className="relative flex-shrink-0 flex flex-col" style={{ width: "260px", borderRight: `1px solid ${SILVER_FAINT}` }}>
+          <aside className="relative flex-shrink-0 flex flex-col w-[260px] max-md:w-[220px]" style={{ borderRight: `1px solid ${SILVER_FAINT}` }}>
             {/* 상단 기획서 리스트 버튼 (카테고리 관리는 리스트 오버레이 안으로 이동됨) */}
             <div className="px-3 pt-3 pb-2 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
               <button

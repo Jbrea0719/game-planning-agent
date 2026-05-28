@@ -229,7 +229,7 @@ export default function DecisionPanel({
       <div
         className="fixed top-0 right-0 h-full z-40 flex flex-col shadow-2xl"
         style={{
-          width: "min(440px, 90vw)",
+          width: "min(440px, 95vw)",
           backgroundColor: "#0a0f1c",
           borderLeft: `1px solid ${SILVER_FAINT}`,
         }}
