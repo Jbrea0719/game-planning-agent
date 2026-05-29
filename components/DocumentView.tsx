@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import ReactMarkdown from "react-markdown";
 import dynamic from "next/dynamic";
 import CategoryManager from "./CategoryManager";
+import ReclassifyReview from "./ReclassifyReview";
 import DocList from "./DocList";
 
 const WireframeEditor = dynamic(() => import("./WireframeEditor"), { ssr: false });
@@ -67,12 +68,16 @@ export default function DocumentView({
   projectId,
   nickname,
   reloadKey,
+  onCategoriesChanged,
+  onDecisionsChanged,
 }: {
   open: boolean;
   onClose: () => void;
   projectId: string;
   nickname: string;
   reloadKey?: number;  // 외부에서 새 기획서 생성 시 갱신용
+  onCategoriesChanged?: () => void;  // 카테고리 변경 시 부모에 알림 (바이블 패널 실시간 동기화용)
+  onDecisionsChanged?: () => void;   // 결정사항 변경 시 부모에 알림 (AI 재분류 적용 후 바이블 새로고침용)
 }) {
   const [versions, setVersions] = useState<DocMeta[]>([]);
   const [currentDoc, setCurrentDoc] = useState<DocFull | null>(null);
@@ -108,6 +113,8 @@ export default function DocumentView({
   const [screenDesignOpen, setScreenDesignOpen] = useState<"wireframe" | "mockup" | null>(null);
   // 카테고리 관리 모달
   const [showCatManager, setShowCatManager] = useState(false);
+  // AI 재분류 검토 모달 — 카테고리 삭제로 미분류된 결정사항 id 목록 (null이면 닫힘)
+  const [reclassifyIds, setReclassifyIds] = useState<string[] | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   // 카테고리 재로드 (관리 모달에서 변경 시)
@@ -118,8 +125,10 @@ export default function DocumentView({
       .catch(err => console.error("[doc-view] 카테고리 재로드 실패:", err));
     // 기획서도 새로 fetch — 카테고리 삭제 시 category 필드가 null이 됐을 수 있어서
     void loadVersions();
+    // 부모에 알림 → 바이블 패널도 같은 카테고리로 즉시 동기화
+    onCategoriesChanged?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [onCategoriesChanged]);
 
   // 카테고리 트리 로드 (한 번)
   useEffect(() => {
@@ -752,6 +761,17 @@ export default function DocumentView({
         open={showCatManager}
         onClose={() => setShowCatManager(false)}
         onChanged={reloadCategories}
+        onOrphaned={(ids) => setReclassifyIds(ids)}
+      />
+
+      {/* AI 재분류 검토 모달 — 카테고리 삭제로 미분류된 결정사항을 새 위치로 제안 */}
+      <ReclassifyReview
+        open={reclassifyIds !== null}
+        projectId={projectId}
+        decisionIds={reclassifyIds ?? []}
+        nickname={nickname}
+        onClose={() => setReclassifyIds(null)}
+        onApplied={() => { onDecisionsChanged?.(); }}
       />
 
       {/* 화면 설계 도구 — 와이어프레임 / AI 시안 */}

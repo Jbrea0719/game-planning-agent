@@ -31,10 +31,12 @@ export default function CategoryManager({
   open,
   onClose,
   onChanged,
+  onOrphaned,
 }: {
   open: boolean;
   onClose: () => void;
   onChanged: () => void;   // 변경 발생 시 호출 (외부에서 카테고리 다시 로드)
+  onOrphaned?: (decisionIds: string[]) => void;  // 소카테고리 삭제로 미분류된 결정사항 id (AI 재분류 검토용)
 }) {
   const [mains, setMains] = useState<MainItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -163,7 +165,13 @@ export default function CategoryManager({
   async function deleteSub(id: string, name: string) {
     if (!confirm(`소카테고리 "${name}"을 삭제할까요? 이 카테고리에 연결된 결정사항·기획서는 분류가 해제돼요.`)) return;
     const ok = await api(`/api/categories/sub/${id}`, { method: "DELETE" });
-    if (ok) { await load(); onChanged(); }
+    if (ok) {
+      await load();
+      onChanged();
+      // 미분류로 떨어진 결정사항이 있으면 AI 재분류 검토 트리거
+      const orphaned = (ok.orphaned_decision_ids ?? []) as string[];
+      if (orphaned.length > 0) onOrphaned?.(orphaned);
+    }
   }
   async function renameArea(mainId: string, areaCode: string, newName: string) {
     if (!newName.trim()) return;

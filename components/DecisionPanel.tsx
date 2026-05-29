@@ -46,6 +46,7 @@ export default function DecisionPanel({
   nickname,
   onCountChange,
   reloadKey,
+  categoryReloadKey,
   onGenerateDoc,
 }: {
   open: boolean;
@@ -54,6 +55,7 @@ export default function DecisionPanel({
   nickname: string;
   onCountChange?: (total: number) => void;
   reloadKey?: number;
+  categoryReloadKey?: number;   // 외부에서 카테고리 변경 시 증가 → 카테고리 다시 fetch (기획서와 실시간 동기화)
   onGenerateDoc?: () => void;   // 기획서 제작 버튼 클릭 시 호출 (부모가 실제 생성 처리)
 }) {
   const [categories, setCategories] = useState<MainCategoryItem[]>([]);
@@ -72,13 +74,20 @@ export default function DecisionPanel({
   const [collapsedMains, setCollapsedMains] = useState<Set<string>>(new Set());
   const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
 
-  // ── 카테고리 로드 (한 번만) ──────────────────────────────────────────
-  useEffect(() => {
+  // ── 카테고리 로드 ────────────────────────────────────────────────────
+  const loadCategories = useCallback(() => {
     fetch("/api/categories")
       .then(r => r.json())
       .then(d => setCategories(d.main_categories ?? []))
       .catch(err => console.error("[panel] 카테고리 로드 실패:", err));
   }, []);
+
+  // 마운트 시 1회
+  useEffect(() => { loadCategories(); }, [loadCategories]);
+  // 외부에서 카테고리 변경 → 다시 fetch (기획서 쪽 카테고리 관리와 실시간 동기화)
+  useEffect(() => {
+    if (categoryReloadKey !== undefined && categoryReloadKey > 0) loadCategories();
+  }, [categoryReloadKey, loadCategories]);
 
   // ── 결정사항 로드 ──────────────────────────────────────────────────
   const loadDecisions = useCallback(async () => {

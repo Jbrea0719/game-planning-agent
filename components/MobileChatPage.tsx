@@ -108,6 +108,8 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   const [decisionCount, setDecisionCount] = useState(0);
   const [decisionReloadKey, setDecisionReloadKey] = useState(0);
   const [docReloadKey, setDocReloadKey] = useState(0);
+  // 카테고리 변경 시 증가 → 바이블 패널 카테고리 실시간 동기화
+  const [categoryReloadKey, setCategoryReloadKey] = useState(0);
 
   // 기획서 신규 알림
   const [docNewDot, setDocNewDot] = useState(false);
@@ -897,6 +899,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         nickname={nickname}
         onCountChange={setDecisionCount}
         reloadKey={decisionReloadKey}
+        categoryReloadKey={categoryReloadKey}
       />
       <DocumentView
         open={showDocs}
@@ -904,6 +907,8 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         projectId={DEFAULT_PROJECT_ID}
         nickname={nickname}
         reloadKey={docReloadKey}
+        onCategoriesChanged={() => setCategoryReloadKey(k => k + 1)}
+        onDecisionsChanged={() => setDecisionReloadKey(k => k + 1)}
       />
 
       {/* 설정 모달 */}

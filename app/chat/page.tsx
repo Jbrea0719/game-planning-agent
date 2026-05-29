@@ -341,6 +341,8 @@ function DesktopChatPage() {
   // 기획서 뷰
   const [showDocumentView, setShowDocumentView] = useState(false);
   const [docReloadKey, setDocReloadKey] = useState(0);
+  // categoryReloadKey 증가 → DecisionPanel이 카테고리 다시 fetch (기획서 쪽 변경과 실시간 동기화)
+  const [categoryReloadKey, setCategoryReloadKey] = useState(0);
   const [generatingDoc, setGeneratingDoc] = useState(false);
   // 답변 피드백 상태 — pair_id별로 'accurate' | 'inaccurate' | undefined
   const [feedbacks, setFeedbacks] = useState<Record<string, "accurate" | "inaccurate">>({});
@@ -1331,6 +1333,7 @@ function DesktopChatPage() {
         nickname={sessionId?.replace(/^agent:/, "") ?? ""}
         onCountChange={setDecisionCount}
         reloadKey={decisionReloadKey}
+        categoryReloadKey={categoryReloadKey}
         onGenerateDoc={handleGenerateDoc}
       />
 
@@ -1341,6 +1344,8 @@ function DesktopChatPage() {
         projectId={DEFAULT_PROJECT_ID}
         nickname={sessionId?.replace(/^agent:/, "") ?? ""}
         reloadKey={docReloadKey}
+        onCategoriesChanged={() => setCategoryReloadKey(k => k + 1)}
+        onDecisionsChanged={() => setDecisionReloadKey(k => k + 1)}
       />
 
       {/* 화면 설계는 DocumentView 내부 버튼으로 통합됨 */}
