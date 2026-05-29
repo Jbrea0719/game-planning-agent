@@ -65,7 +65,8 @@ export default function MobileChatPage({ simulateKeyboard = false }: { simulateK
               placeholder="닉네임"
               autoFocus
               className="w-full px-3 py-2.5 rounded-lg text-sm outline-none mb-3"
-              style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+              // fontSize 16px: iOS 자동 확대(줌인) 방지
+              style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0", fontSize: "16px" }}
             />
             <button
               onClick={confirmNickname}
@@ -851,7 +852,8 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           disabled={isLoading}
           rows={1}
           className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none resize-none"
-          style={{ backgroundColor: "rgba(255,255,255,0.07)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0", maxHeight: "120px", lineHeight: "1.45" }}
+          // fontSize 16px: iOS 사파리는 16px 미만 입력칸에 포커스 시 화면을 자동 확대하므로 16px로 고정해 줌인 방지
+          style={{ backgroundColor: "rgba(255,255,255,0.07)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0", maxHeight: "120px", lineHeight: "1.45", fontSize: "16px" }}
           onInput={(e) => {
             const el = e.currentTarget;
             el.style.height = "auto";
@@ -1054,7 +1056,8 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                 placeholder="예: 5월 14일 업데이트 정보가 틀림"
                 rows={3}
                 className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none"
-                style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+                // fontSize 16px: iOS 자동 확대(줌인) 방지
+                style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0", fontSize: "16px" }}
                 autoFocus
               />
               <div className="flex gap-2 justify-end">
