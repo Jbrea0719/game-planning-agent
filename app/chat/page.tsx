@@ -2275,12 +2275,13 @@ function DesktopChatPage() {
                       <AssistantMarkdown text={pair.assistant.content} />
                     </div>
                   </div>
-                  {/* 2000자 초과 시 다운로드 버튼 */}
-                  {pair.assistant.content.length > 2000 && (
-                    <div className="flex items-center gap-2 ml-1 mt-1">
-                      <span className="text-xs" style={{ color: SILVER_DIM }}>다운로드:</span>
+                  {/* 1200자 초과 시 다운로드 + 길이 안내 */}
+                  {pair.assistant.content.length > 1200 && (
+                    <div className="flex items-center gap-2 ml-1 mt-1 flex-wrap">
+                      <span className="text-xs" style={{ color: SILVER_DIM }}>📥 다운로드:</span>
                       <button onClick={() => downloadFile(pair.assistant.content, "txt")} className="text-xs px-2.5 py-1 rounded-lg" style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_FAINT}`, color: SILVER }}>📄 TXT</button>
                       <button onClick={() => downloadFile(pair.assistant.content, "md")} className="text-xs px-2.5 py-1 rounded-lg" style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_FAINT}`, color: SILVER }}>📝 MD</button>
+                      <span className="text-[10px]" style={{ color: SILVER_DIM }}>· {pair.assistant.content.length.toLocaleString()}자</span>
                     </div>
                   )}
 
@@ -2348,11 +2349,14 @@ function DesktopChatPage() {
                           <AssistantMarkdown text={bubbleText} />
                         </div>
                         {fullText && !pair.detail_loading && (
-                          <div className="flex flex-col gap-1 ml-1">
-                            <p className="text-xs" style={{ color: SILVER_DIM }}>📎 전체 내용이 길어 요약본을 표시했어요. 전체 답변은 다운로드로 확인하세요.</p>
-                            <div className="flex gap-2">
-                              <button onClick={() => downloadFile(fullText, "txt")} className="text-xs px-3 py-1.5 rounded-lg font-medium" style={{ backgroundColor: "rgba(192,200,216,0.15)", border: `1px solid ${SILVER_DIM}`, color: SILVER }}>📄 TXT 전체 다운로드</button>
-                              <button onClick={() => downloadFile(fullText, "md")} className="text-xs px-3 py-1.5 rounded-lg font-medium" style={{ backgroundColor: "rgba(192,200,216,0.15)", border: `1px solid ${SILVER_DIM}`, color: SILVER }}>📝 MD 전체 다운로드</button>
+                          <div className="flex flex-col gap-2 ml-1 px-3 py-2.5 rounded-xl" style={{ backgroundColor: "rgba(100,180,255,0.08)", border: "1px solid rgba(100,180,255,0.35)" }}>
+                            <p className="text-xs font-bold" style={{ color: "rgba(180,210,255,1)" }}>📎 전체 답변은 더 길어요 — 문서로 다운로드</p>
+                            <p className="text-[10px]" style={{ color: SILVER_DIM }}>
+                              위 요약: {bubbleText.length.toLocaleString()}자 · 전체: <b style={{ color: "rgba(180,210,255,1)" }}>{fullText.length.toLocaleString()}자</b>
+                            </p>
+                            <div className="flex gap-2 mt-1 flex-wrap">
+                              <button onClick={() => downloadFile(fullText, "txt")} className="text-xs px-3 py-1.5 rounded-lg font-medium" style={{ backgroundColor: "rgba(100,180,255,0.22)", border: "1px solid rgba(100,180,255,0.55)", color: "rgba(180,210,255,1)" }}>📄 TXT 전체 다운로드</button>
+                              <button onClick={() => downloadFile(fullText, "md")} className="text-xs px-3 py-1.5 rounded-lg font-medium" style={{ backgroundColor: "rgba(100,180,255,0.22)", border: "1px solid rgba(100,180,255,0.55)", color: "rgba(180,210,255,1)" }}>📝 MD 전체 다운로드</button>
                             </div>
                           </div>
                         )}
