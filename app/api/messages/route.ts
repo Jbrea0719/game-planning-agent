@@ -1,6 +1,10 @@
 import { supabase } from "@/lib/supabase";
 
 // 대화 기록 불러오기
+// 최신 대화 우선 — 최근 500개 메시지(=250쌍)를 가져옴
+// (기존 ascending+limit(100)은 "오래된 100개"만 불러와, 대화가 50쌍을 넘으면
+//  최신 대화가 화면에서 누락됐음. 인터뷰 등 최근 대화가 안 보이던 원인.)
+// ※ 무한 스크롤(점진 로딩)은 클라이언트 수정과 함께 한 세션에서 작업 예정.
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const sessionId = searchParams.get("session_id");
@@ -13,14 +17,16 @@ export async function GET(request: Request) {
     .from("messages")
     .select("role, content, pair_id, is_deleted, detail_content, detail_shown")
     .eq("session_id", sessionId)
-    .order("created_at", { ascending: true })
-    .limit(100);
+    .order("created_at", { ascending: false })  // 내림차순(최신 먼저)으로 가져와서
+    .limit(500);
 
   if (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
 
-  return Response.json({ messages: data });
+  // 화면 표시용으로 오래된→최신 순서로 뒤집어 반환 (대화 흐름 유지)
+  const messages = (data ?? []).reverse();
+  return Response.json({ messages });
 }
 
 // 메시지 직접 저장 (인터뷰 모드 등 외부에서 만든 페어 저장용)
