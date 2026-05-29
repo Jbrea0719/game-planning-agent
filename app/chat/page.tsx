@@ -8,7 +8,7 @@ import DecisionPanel from "@/components/DecisionPanel";
 import DocumentView from "@/components/DocumentView";
 import ExtractedReviewCard from "@/components/ExtractedReviewCard";
 import MobileChatPage from "@/components/MobileChatPage";
-import { useIsMobile } from "@/hooks/useIsMobile";
+import { useDeviceMode, DEVICE_FRAMES } from "@/hooks/useIsMobile";
 
 // WireframeEditor·MockupGenerator는 DocumentView 안에서 호출 (📄 기획서 → 🎨 화면 설계 버튼)
 
@@ -225,11 +225,48 @@ function cleanTruncated(text: string): string {
 export default function ChatPage() {
   // 디바이스 분기 — 모바일이면 MobileChatPage 렌더 (같은 URL, 클라이언트 분기)
   // SSR/초기 hydration 동안엔 null → 깜빡임 방지 위해 빈 화면
-  const isMobile = useIsMobile();
+  const { isMobile, frameKind } = useDeviceMode();
   if (isMobile === null) {
     return <div className="h-screen" style={{ background: "linear-gradient(160deg, #0a0e1a 0%, #0d1525 50%, #0a1020 100%)" }} />;
   }
-  if (isMobile) return <MobileChatPage />;
+  if (isMobile) {
+    // PC에서 모바일 뷰 강제 (frameKind 있음) → 디바이스 프레임 안에 렌더
+    if (frameKind) {
+      const frame = DEVICE_FRAMES[frameKind];
+      return (
+        <div className="h-screen flex items-center justify-center p-6" style={{ background: "linear-gradient(160deg, #1a1f30 0%, #14182a 100%)" }}>
+          <div className="flex flex-col gap-3">
+            {/* 프레임 헤더 */}
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-bold" style={{ color: "#c0c8d8" }}>
+                {frameKind === "ios" ? "📱" : "🤖"} PC에서 모바일 뷰 ({frame.label})
+              </p>
+              <a
+                href="/chat?view=desktop"
+                className="text-xs px-3 py-1.5 rounded-lg"
+                style={{ backgroundColor: "rgba(192,200,216,0.15)", border: "1px solid rgba(192,200,216,0.4)", color: "#c0c8d8" }}
+              >
+                🖥️ PC 뷰로 돌아가기
+              </a>
+            </div>
+            {/* 디바이스 프레임 */}
+            <div
+              className="rounded-[36px] overflow-hidden shadow-2xl border-[8px]"
+              style={{
+                width: `${frame.width}px`,
+                height: `${frame.height}px`,
+                borderColor: frameKind === "ios" ? "#222" : "#2a2a30",
+                backgroundColor: "#000",
+              }}
+            >
+              <MobileChatPage />
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return <MobileChatPage />;
+  }
   return <DesktopChatPage />;
 }
 
@@ -533,21 +570,33 @@ function DesktopChatPage() {
     }
   }
 
-  function groupIntoPairs(messages: Message[]): MessagePair[] {
-    const pairMap = new Map<string, { user?: Message; assistant?: Message; is_deleted: boolean }>();
+  function groupIntoPairs(messages: (Message & { detail_content?: string; detail_shown?: boolean })[]): MessagePair[] {
+    const pairMap = new Map<string, { user?: Message; assistant?: Message; is_deleted: boolean; detail_content?: string; detail_shown?: boolean }>();
     const order: string[] = [];
     for (const msg of messages) {
       const pid = msg.pair_id ?? "unknown";
       if (!pairMap.has(pid)) { pairMap.set(pid, { is_deleted: msg.is_deleted ?? false }); order.push(pid); }
       const entry = pairMap.get(pid)!;
       if (msg.role === "user") entry.user = msg;
-      else entry.assistant = msg;
+      else {
+        entry.assistant = msg;
+        // assistant row에 저장된 자세한 답변 복원
+        if (msg.detail_content) entry.detail_content = msg.detail_content;
+        if (msg.detail_shown) entry.detail_shown = msg.detail_shown;
+      }
       if (msg.is_deleted) entry.is_deleted = true;
     }
     return order.map((pid) => {
       const entry = pairMap.get(pid)!;
       if (!entry.user || !entry.assistant) return null;
-      return { pair_id: pid, user: entry.user, assistant: entry.assistant, is_deleted: entry.is_deleted };
+      return {
+        pair_id: pid,
+        user: entry.user,
+        assistant: entry.assistant,
+        is_deleted: entry.is_deleted,
+        detail_content: entry.detail_content,
+        detail_shown: entry.detail_shown,
+      };
     }).filter(Boolean) as MessagePair[];
   }
 
@@ -778,11 +827,27 @@ function DesktopChatPage() {
     setShowAnswerCompleteBtn(false);
   }
 
+  // 자세한 답변 영속성 저장 (DB)
+  async function persistDetail(pairId: string, opts: { detail_content?: string; detail_shown?: boolean }) {
+    try {
+      await fetch("/api/messages/detail", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pair_id: pairId, ...opts }),
+      });
+    } catch (err) {
+      console.warn("[detail] 저장 실패:", err);
+    }
+  }
+
   async function loadDetail(pairId: string) {
     const pair = pairs.find((p) => p.pair_id === pairId);
     if (!pair) return;
+    // 이미 저장된 자세한 답변 있으면 → 토글만 (재요청 X)
     if (pair.detail_content) {
-      setPairs((prev) => prev.map((p) => p.pair_id === pairId ? { ...p, detail_shown: !p.detail_shown } : p));
+      const nextShown = !pair.detail_shown;
+      setPairs((prev) => prev.map((p) => p.pair_id === pairId ? { ...p, detail_shown: nextShown } : p));
+      void persistDetail(pairId, { detail_shown: nextShown });
       return;
     }
     isSubLoadingRef.current = true;
@@ -814,6 +879,8 @@ function DesktopChatPage() {
       const hadScrolledUp = userScrolledUpRef.current;
       const finalDetailText = text.includes("__TRUNCATED__") ? cleanTruncated(text) : text;
       setPairs((prev) => prev.map((p) => p.pair_id === pairId ? { ...p, detail_content: finalDetailText } : p));
+      // DB에 영속화 — 다음번 진입 시 펼친 상태로 복원
+      void persistDetail(pairId, { detail_content: finalDetailText, detail_shown: true });
       if (hadScrolledUp) {
         setShowAnswerCompleteBtn(true);
       } else {
@@ -1133,7 +1200,7 @@ function DesktopChatPage() {
   const deletedPairs = pairs.filter((p) => p.is_deleted);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden" style={{ background: "linear-gradient(160deg, #0a0e1a 0%, #0d1525 50%, #0a1020 100%)" }}>
+    <div className="flex flex-col h-[100dvh] overflow-hidden" style={{ background: "linear-gradient(160deg, #0a0e1a 0%, #0d1525 50%, #0a1020 100%)" }}>
 
       {/* 닉네임 입력 모달 */}
       {showModal && (
@@ -1615,19 +1682,34 @@ function DesktopChatPage() {
 
                 {/* 5. 화면 모드 전환 */}
                 <section>
-                  <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>📱 화면 모드</p>
-                  <div className="px-3 py-2.5 rounded-lg flex items-center justify-between" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
-                    <div className="flex-1">
-                      <p className="text-xs font-medium" style={{ color: SILVER }}>모바일 뷰로 강제 전환</p>
-                      <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>현재 PC 자동 감지. 강제로 모바일 UI 보기.</p>
+                  <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>📱 화면 모드 미리보기 (PC → 모바일)</p>
+                  <div className="px-3 py-2.5 rounded-lg flex flex-col gap-2" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
+                    <p className="text-[10px]" style={{ color: SILVER_DIM }}>
+                      PC에서 모바일 사용감을 미리 보고 싶을 때. 디바이스 프레임 안에 모바일 UI가 렌더됩니다.
+                    </p>
+                    <div className="flex gap-2 flex-wrap">
+                      <button
+                        onClick={() => { window.location.href = "/chat?view=mobile-ios"; }}
+                        className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                        style={{ backgroundColor: "rgba(100,180,255,0.18)", border: "1px solid rgba(100,180,255,0.5)", color: "rgba(180,210,255,1)" }}
+                      >
+                        📱 iPhone 14 (390×844)
+                      </button>
+                      <button
+                        onClick={() => { window.location.href = "/chat?view=mobile-android"; }}
+                        className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                        style={{ backgroundColor: "rgba(100,220,160,0.18)", border: "1px solid rgba(100,220,160,0.5)", color: "rgba(150,255,200,1)" }}
+                      >
+                        🤖 Pixel 7 (412×915)
+                      </button>
+                      <button
+                        onClick={() => { window.location.href = "/chat?view=mobile"; }}
+                        className="text-xs px-3 py-1.5 rounded-lg"
+                        style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
+                      >
+                        풀스크린 모바일
+                      </button>
                     </div>
-                    <button
-                      onClick={() => { window.location.href = "/chat?view=mobile"; }}
-                      className="text-xs px-3 py-1.5 rounded-lg font-medium ml-2 flex-shrink-0"
-                      style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
-                    >
-                      📱 전환
-                    </button>
                   </div>
                 </section>
 

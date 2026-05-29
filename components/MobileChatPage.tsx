@@ -51,7 +51,7 @@ export default function MobileChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden" style={{ background: "linear-gradient(160deg, #0a0e1a 0%, #0d1525 50%, #0a1020 100%)" }}>
+    <div className="flex flex-col h-[100dvh] overflow-hidden" style={{ background: "linear-gradient(160deg, #0a0e1a 0%, #0d1525 50%, #0a1020 100%)" }}>
       {showNicknameModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="rounded-2xl p-6 w-full max-w-xs shadow-2xl" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}>
@@ -713,9 +713,18 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
                     }}
                     title="이 시점에 맥락선 설정"
                   >📌</button>
+                  {!selectMode && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setActionForPair(pair.pair_id); }}
+                      className="text-xs px-1.5 py-0.5 rounded flex-shrink-0"
+                      style={{ backgroundColor: "rgba(192,200,216,0.15)", color: SILVER_DIM, fontSize: "14px" }}
+                      title="복사·삭제 메뉴"
+                      aria-label="메시지 액션 메뉴"
+                    >⋯</button>
+                  )}
                   <div
                     onClick={(e) => { if (!selectMode) { e.stopPropagation(); setActionForPair(pair.pair_id); } }}
-                    className="max-w-[80%] px-3 py-2 rounded-2xl rounded-tr-sm text-sm whitespace-pre-wrap"
+                    className="max-w-[78%] px-3 py-2 rounded-2xl rounded-tr-sm text-sm whitespace-pre-wrap"
                     style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
                   >
                     {pair.user.content}

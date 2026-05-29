@@ -11,7 +11,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabase
     .from("messages")
-    .select("role, content, pair_id, is_deleted")
+    .select("role, content, pair_id, is_deleted, detail_content, detail_shown")
     .eq("session_id", sessionId)
     .order("created_at", { ascending: true })
     .limit(100);
