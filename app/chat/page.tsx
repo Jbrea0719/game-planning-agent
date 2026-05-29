@@ -234,33 +234,34 @@ export default function ChatPage() {
     if (frameKind) {
       const frame = DEVICE_FRAMES[frameKind];
       return (
-        <div className="h-[100dvh] flex items-center justify-center p-6" style={{ background: "linear-gradient(160deg, #1a1f30 0%, #14182a 100%)" }}>
-          <div className="flex flex-col gap-3">
-            {/* 프레임 헤더 */}
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-bold" style={{ color: "#c0c8d8" }}>
-                {frameKind === "ios" ? "📱" : "🤖"} PC에서 모바일 뷰 ({frame.label})
-              </p>
-              <a
-                href="/chat?view=desktop"
-                className="text-xs px-3 py-1.5 rounded-lg"
-                style={{ backgroundColor: "rgba(192,200,216,0.15)", border: "1px solid rgba(192,200,216,0.4)", color: "#c0c8d8" }}
-              >
-                🖥️ PC 뷰로 돌아가기
-              </a>
-            </div>
-            {/* 디바이스 프레임 — 챗 + 키보드 시뮬레이션 영역 */}
-            <div
-              className="rounded-[36px] overflow-hidden shadow-2xl border-[8px]"
-              style={{
-                width: `${frame.width}px`,
-                height: `${frame.height}px`,
-                borderColor: frameKind === "ios" ? "#222" : "#2a2a30",
-                backgroundColor: "#000",
-              }}
+        <div className="h-[100dvh] flex flex-col items-center justify-center p-4 gap-3 overflow-hidden" style={{ background: "linear-gradient(160deg, #1a1f30 0%, #14182a 100%)" }}>
+          {/* 프레임 헤더 */}
+          <div className="flex items-center justify-between gap-3 flex-shrink-0" style={{ width: `${frame.width}px`, maxWidth: "calc(100vw - 32px)" }}>
+            <p className="text-sm font-bold truncate" style={{ color: "#c0c8d8" }}>
+              {frameKind === "ios" ? "📱" : "🤖"} PC에서 모바일 뷰 ({frame.label})
+            </p>
+            <a
+              href="/chat?view=desktop"
+              className="text-xs px-3 py-1.5 rounded-lg flex-shrink-0"
+              style={{ backgroundColor: "rgba(192,200,216,0.15)", border: "1px solid rgba(192,200,216,0.4)", color: "#c0c8d8" }}
             >
-              <MobileChatPage simulateKeyboard />
-            </div>
+              🖥️ PC 뷰로 돌아가기
+            </a>
+          </div>
+          {/* 디바이스 프레임 — 뷰포트 높이에 맞춰 자동 축소 (비율 유지) */}
+          <div
+            className="rounded-[36px] overflow-hidden shadow-2xl border-[8px] flex-shrink"
+            style={{
+              width: `${frame.width}px`,
+              height: `${frame.height}px`,
+              maxHeight: "calc(100dvh - 90px)",
+              maxWidth: "calc(100vw - 32px)",
+              aspectRatio: `${frame.width} / ${frame.height}`,
+              borderColor: frameKind === "ios" ? "#222" : "#2a2a30",
+              backgroundColor: "#000",
+            }}
+          >
+            <MobileChatPage simulateKeyboard />
           </div>
         </div>
       );
