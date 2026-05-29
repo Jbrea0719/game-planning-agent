@@ -8,14 +8,26 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  /* 이모지는 Twemoji(전 기기 동일) → 글자는 한글 웹폰트 Pretendard 순으로 통일 */
+  --font-sans: "Twemoji", "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
   --font-mono: var(--font-geist-mono);
+}
+
+/* 이모지 통일용 컬러 웹폰트 — Twemoji(트위터 이모지). 자체 호스팅 465KB, 첫 1회만 받고 캐시 */
+@font-face {
+  font-family: "Twemoji";
+  src: url("/fonts/twemoji.woff2") format("woff2");
+  font-display: swap;
+  /* 이모지 코드포인트에만 적용 → 한글·영문 텍스트 렌더에는 전혀 영향 없음.
+     (☰ ➤ ✕ 같은 UI 기호 문자는 Twemoji에 글자가 없어 자동으로 다음 글꼴로 폴백됨) */
+  unicode-range: U+203C, U+2049, U+2122, U+2139, U+2194-21AA, U+231A-231B, U+2328, U+23CF, U+23E9-23F3, U+23F8-23FA, U+24C2, U+25AA-25FF, U+2600-27BF, U+2934-2935, U+2B00-2BFF, U+3030, U+303D, U+3297, U+3299, U+1F000-1FAFF, U+FE00-FE0F, U+200D, U+20E3, U+E0020-E007F, U+1F1E6-1F1FF;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* 이모지(Twemoji) → 한글·영문(Pretendard) → 기기 기본 폴백 순 */
+  font-family: "Twemoji", "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
 }
 
 /* prose 기본 구조 (typography 플러그인 대체) */
