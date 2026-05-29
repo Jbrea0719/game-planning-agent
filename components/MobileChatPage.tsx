@@ -10,6 +10,7 @@ import dynamic from "next/dynamic";
 import DecisionPanel from "@/components/DecisionPanel";
 import DocumentView from "@/components/DocumentView";
 import ExtractedReviewCard, { type ExtractedItem } from "@/components/ExtractedReviewCard";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 
 // WireframeEditor·MockupGenerator는 DocumentView 안에서 호출 (📄 기획서 → 🎨 화면 설계)
 
@@ -184,6 +185,26 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // 음성 입력 — 받아쓰기 시작 시점의 기존 입력값을 보관 → 인식 결과를 그 뒤에 이어붙임
+  const voiceBaseRef = useRef("");
+  const { supported: voiceSupported, listening: voiceListening, start: startVoice } = useSpeechRecognition({
+    lang: "ko-KR",
+    onTranscript: (sessionText) => {
+      // 기존 입력 + 이번 발화 누적 텍스트 (말하는 도중 실시간 갱신)
+      const base = voiceBaseRef.current;
+      setInput(base ? `${base} ${sessionText}` : sessionText);
+    },
+    onError: (err) => {
+      if (err === "not-allowed" || err === "service-not-allowed") {
+        alert("마이크 권한이 필요해요. 브라우저 설정에서 마이크를 허용해 주세요.");
+      }
+      // no-speech·aborted 등은 조용히 무시
+    },
+  });
+  function toggleVoice() {
+    if (!voiceListening) voiceBaseRef.current = input.trim();
+    startVoice();  // 듣는 중이면 훅 내부에서 토글로 중지됨
+  }
 
   // 자세한 답변 로드
   async function loadDetail(pairId: string) {
@@ -837,6 +858,22 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
             el.style.height = Math.min(el.scrollHeight, 120) + "px";
           }}
         />
+        {voiceSupported && (
+          <button
+            onClick={toggleVoice}
+            disabled={isLoading}
+            title={voiceListening ? "음성 입력 중지" : "음성으로 입력"}
+            className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 disabled:opacity-40"
+            style={{
+              backgroundColor: voiceListening ? "rgba(255,90,90,0.85)" : "rgba(255,255,255,0.07)",
+              border: `1px solid ${voiceListening ? "rgba(255,120,120,0.9)" : SILVER_FAINT}`,
+              color: voiceListening ? "#fff" : SILVER,
+              animation: voiceListening ? "voicePulse 1.2s ease-in-out infinite" : undefined,
+            }}
+          >
+            🎤
+          </button>
+        )}
         <button
           onClick={sendMessage}
           disabled={isLoading || !input.trim()}

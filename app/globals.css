@@ -30,6 +30,12 @@ body {
   font-family: "Twemoji", "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
 }
 
+/* 음성 입력 버튼 — 듣는 중 깜빡임(녹음 표시) */
+@keyframes voicePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,90,90,0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(255,90,90,0); }
+}
+
 /* prose 기본 구조 (typography 플러그인 대체) */
 .prose { font-size: 0.875rem; line-height: 1.6; max-width: none; }
 .prose p { margin-top: 0.3rem; margin-bottom: 0.3rem; }
