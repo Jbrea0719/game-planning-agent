@@ -716,11 +716,15 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
                   {!selectMode && (
                     <button
                       onClick={(e) => { e.stopPropagation(); setActionForPair(pair.pair_id); }}
-                      className="text-xs px-1.5 py-0.5 rounded flex-shrink-0"
-                      style={{ backgroundColor: "rgba(192,200,216,0.15)", color: SILVER_DIM, fontSize: "14px" }}
-                      title="복사·삭제 메뉴"
+                      className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 flex items-center gap-0.5"
+                      style={{
+                        backgroundColor: "rgba(255,140,140,0.12)",
+                        border: "1px solid rgba(255,140,140,0.3)",
+                        color: "rgba(255,180,180,0.9)",
+                      }}
+                      title="이 대화 복사·삭제"
                       aria-label="메시지 액션 메뉴"
-                    >⋯</button>
+                    >🗑️</button>
                   )}
                   <div
                     onClick={(e) => { if (!selectMode) { e.stopPropagation(); setActionForPair(pair.pair_id); } }}
