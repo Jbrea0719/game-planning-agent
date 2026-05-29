@@ -52,5 +52,5 @@ export function useDeviceMode(): DeviceMode {
 // 디바이스 프레임 비율 (PC에서 모바일 뷰 미리보기용)
 export const DEVICE_FRAMES = {
   ios: { width: 390, height: 844, label: "iPhone 14 (390×844)" },
-  android: { width: 412, height: 915, label: "Pixel 7 (412×915)" },
+  android: { width: 412, height: 915, label: "Android (412×915)" },
 } as const;

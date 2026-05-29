@@ -1700,7 +1700,7 @@ function DesktopChatPage() {
                         className="text-xs px-3 py-1.5 rounded-lg font-medium"
                         style={{ backgroundColor: "rgba(100,220,160,0.18)", border: "1px solid rgba(100,220,160,0.5)", color: "rgba(150,255,200,1)" }}
                       >
-                        🤖 Pixel 7 (412×915)
+                        🤖 Android (412×915)
                       </button>
                       <button
                         onClick={() => { window.location.href = "/chat?view=mobile"; }}
