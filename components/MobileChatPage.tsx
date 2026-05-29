@@ -208,11 +208,27 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   }
 
   // 자세한 답변 로드
+  // 자세한 답변 본문·표시상태를 DB(assistant row)에 영속화 — 다음 진입 시 펼친 상태 복원
+  async function persistDetail(pairId: string, opts: { detail_content?: string; detail_shown?: boolean }) {
+    try {
+      await fetch("/api/messages/detail", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pair_id: pairId, ...opts }),
+      });
+    } catch (err) {
+      console.warn("[detail] 저장 실패:", err);
+    }
+  }
+
   async function loadDetail(pairId: string) {
     const pair = pairs.find(p => p.pair_id === pairId);
     if (!pair) return;
+    // 이미 불러온 자세한 답변이 있으면 → 펼침/접힘 토글만 (재요청 X) + 상태 저장
     if (pair.detail_content) {
-      setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, detail_shown: !p.detail_shown } : p));
+      const nextShown = !pair.detail_shown;
+      setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, detail_shown: nextShown } : p));
+      void persistDetail(pairId, { detail_shown: nextShown });
       return;
     }
     setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, detail_loading: true, detail_shown: true } : p));
@@ -237,6 +253,10 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         text += decoder.decode(value);
         setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, detail_content: text.replace("__TRUNCATED__", "") } : p));
       }
+      const finalDetailText = text.replace("__TRUNCATED__", "");
+      setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, detail_content: finalDetailText } : p));
+      // DB에 영속화 — 다음번 진입 시 펼친 상태로 복원
+      void persistDetail(pairId, { detail_content: finalDetailText, detail_shown: true });
     } catch {
       setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, detail_content: "오류가 발생했어요." } : p));
     } finally {
@@ -307,19 +327,26 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       .then(r => r.json())
       .then(data => {
         if (data.messages?.length > 0) {
-          const pairMap = new Map<string, { user?: Message; assistant?: Message }>();
+          // detail_content·detail_shown은 assistant row에 저장됨 → pair로 복원해 펼친 상태 유지
+          const pairMap = new Map<string, { user?: Message; assistant?: Message; detail_content?: string; detail_shown?: boolean }>();
           const order: string[] = [];
           for (const m of data.messages) {
             if (m.is_deleted) continue;
             const pid = m.pair_id ?? "unknown";
             if (!pairMap.has(pid)) { pairMap.set(pid, {}); order.push(pid); }
-            if (m.role === "user") pairMap.get(pid)!.user = m;
-            else pairMap.get(pid)!.assistant = m;
+            const entry = pairMap.get(pid)!;
+            if (m.role === "user") {
+              entry.user = m;
+            } else {
+              entry.assistant = m;
+              if (m.detail_content) entry.detail_content = m.detail_content;
+              if (m.detail_shown) entry.detail_shown = m.detail_shown;
+            }
           }
           setPairs(order.map(pid => {
             const e = pairMap.get(pid)!;
             if (!e.user || !e.assistant) return null;
-            return { pair_id: pid, user: e.user, assistant: e.assistant };
+            return { pair_id: pid, user: e.user, assistant: e.assistant, detail_content: e.detail_content, detail_shown: e.detail_shown };
           }).filter(Boolean) as Pair[]);
         }
       })
