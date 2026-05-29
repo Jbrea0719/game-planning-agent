@@ -234,7 +234,7 @@ export default function ChatPage() {
     if (frameKind) {
       const frame = DEVICE_FRAMES[frameKind];
       return (
-        <div className="h-screen flex items-center justify-center p-6" style={{ background: "linear-gradient(160deg, #1a1f30 0%, #14182a 100%)" }}>
+        <div className="h-[100dvh] flex items-center justify-center p-6" style={{ background: "linear-gradient(160deg, #1a1f30 0%, #14182a 100%)" }}>
           <div className="flex flex-col gap-3">
             {/* 프레임 헤더 */}
             <div className="flex items-center justify-between gap-3">
@@ -249,7 +249,7 @@ export default function ChatPage() {
                 🖥️ PC 뷰로 돌아가기
               </a>
             </div>
-            {/* 디바이스 프레임 */}
+            {/* 디바이스 프레임 — 챗 + 키보드 시뮬레이션 영역 */}
             <div
               className="rounded-[36px] overflow-hidden shadow-2xl border-[8px]"
               style={{
@@ -259,13 +259,18 @@ export default function ChatPage() {
                 backgroundColor: "#000",
               }}
             >
-              <MobileChatPage />
+              <MobileChatPage simulateKeyboard />
             </div>
           </div>
         </div>
       );
     }
-    return <MobileChatPage />;
+    // 실제 모바일 — 100dvh로 전체 채움
+    return (
+      <div className="h-[100dvh]">
+        <MobileChatPage />
+      </div>
+    );
   }
   return <DesktopChatPage />;
 }

@@ -29,7 +29,7 @@ type Pair = {
   detail_shown?: boolean;
 };
 
-export default function MobileChatPage() {
+export default function MobileChatPage({ simulateKeyboard = false }: { simulateKeyboard?: boolean }) {
   const [nickname, setNickname] = useState("");
   const [nicknameInput, setNicknameInput] = useState("");
   const [showNicknameModal, setShowNicknameModal] = useState(false);
@@ -51,7 +51,7 @@ export default function MobileChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[100dvh] overflow-hidden" style={{ background: "linear-gradient(160deg, #0a0e1a 0%, #0d1525 50%, #0a1020 100%)" }}>
+    <div className="flex flex-col h-full overflow-hidden" style={{ background: "linear-gradient(160deg, #0a0e1a 0%, #0d1525 50%, #0a1020 100%)" }}>
       {showNicknameModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="rounded-2xl p-6 w-full max-w-xs shadow-2xl" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}>
@@ -78,13 +78,14 @@ export default function MobileChatPage() {
         </div>
       )}
 
-      {sessionId && <MobileChat sessionId={sessionId} nickname={nickname} />}
+      {sessionId && <MobileChat sessionId={sessionId} nickname={nickname} simulateKeyboard={simulateKeyboard} />}
     </div>
   );
 }
 
 // ── 본 챗 영역 ────────────────────────────────────────────────────
-function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: string }) {
+function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: string; nickname: string; simulateKeyboard?: boolean }) {
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [pairs, setPairs] = useState<Pair[]>([]);
   const [streaming, setStreaming] = useState<{ user: string; assistant: string } | null>(null);
   const [input, setInput] = useState("");
@@ -821,6 +822,8 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}
+          onFocus={() => simulateKeyboard && setKeyboardOpen(true)}
+          onBlur={() => simulateKeyboard && setKeyboardOpen(false)}
           placeholder="질문해줘..."
           disabled={isLoading}
           rows={1}
@@ -841,6 +844,50 @@ function MobileChat({ sessionId, nickname }: { sessionId: string; nickname: stri
           ➤
         </button>
       </div>
+
+      {/* PC 프레임 모드 — 가짜 키보드 시뮬레이션 (실제 모바일에선 진짜 키보드가 뜸) */}
+      {simulateKeyboard && keyboardOpen && (
+        <div
+          className="flex-shrink-0 flex flex-col"
+          style={{
+            height: "280px",
+            backgroundColor: "#1c1c1e",
+            borderTop: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          {/* 키보드 상단 toolbar */}
+          <div className="flex items-center justify-between px-3 py-1.5" style={{ backgroundColor: "rgba(255,255,255,0.04)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+            <button
+              onMouseDown={(e) => { e.preventDefault(); inputRef.current?.blur(); }}
+              className="text-xs"
+              style={{ color: "#8e8e93" }}
+            >완료</button>
+            <p className="text-[10px]" style={{ color: "#6e6e73" }}>🎹 가짜 키보드 (시뮬레이션)</p>
+          </div>
+          {/* 자판 (단순 시각화) */}
+          <div className="flex-1 p-2 grid grid-cols-10 gap-1">
+            {["ㅂ","ㅈ","ㄷ","ㄱ","ㅅ","ㅛ","ㅕ","ㅑ","ㅐ","ㅔ",
+              "ㅁ","ㄴ","ㅇ","ㄹ","ㅎ","ㅗ","ㅓ","ㅏ","ㅣ",".",
+              "ㅋ","ㅌ","ㅊ","ㅍ","ㅠ","ㅜ","ㅡ","","",""].map((k, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-center rounded-md text-xs"
+                style={{
+                  backgroundColor: k ? "rgba(255,255,255,0.12)" : "transparent",
+                  color: "#fff",
+                  minHeight: "32px",
+                }}
+              >{k}</div>
+            ))}
+          </div>
+          {/* 키보드 하단 */}
+          <div className="flex items-center justify-around px-3 py-2" style={{ backgroundColor: "rgba(255,255,255,0.04)" }}>
+            <span className="text-[10px]" style={{ color: "#8e8e93" }}>한/영</span>
+            <span className="text-[10px]" style={{ color: "#8e8e93" }}>스페이스</span>
+            <span className="text-[10px]" style={{ color: "#8e8e93" }}>↵</span>
+          </div>
+        </div>
+      )}
 
       {/* 모달들 — 기존 컴포넌트 재사용 */}
       <DecisionPanel
