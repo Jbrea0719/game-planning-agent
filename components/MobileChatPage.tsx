@@ -4,8 +4,9 @@
 // 데스크톱과 동일한 백엔드(/api/agent, Supabase)를 호출 — 데이터 자동 공유
 // 기존 모달 컴포넌트(DecisionPanel·DocumentView)는 재사용
 
-import { useState, useRef, useEffect, KeyboardEvent } from "react";
+import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm"; // GFM 지원 — 표(table)·취소선 등 마크다운 확장 렌더링
 import dynamic from "next/dynamic";
 import DecisionPanel from "@/components/DecisionPanel";
 import DocumentView from "@/components/DocumentView";
@@ -578,11 +579,6 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     setActionForPair(null);
   }
 
-  function handleKey(e: KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && e.altKey) { e.preventDefault(); setInput(p => p + "\n"); }
-    else if (e.key === "Enter" && !e.shiftKey && !e.altKey) { e.preventDefault(); sendMessage(); }
-  }
-
   function openMenu(key: "bible" | "docs" | "settings" | "guide") {
     setShowMenu(false);
     if (key === "bible") { setShowBible(true); setBibleNewDot(false); }
@@ -794,7 +790,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                   <div className="flex-1 min-w-0">
                     <div className="px-3 py-2 rounded-2xl rounded-tl-sm text-sm prose prose-sm max-w-none"
                       style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}>
-                      <ReactMarkdown>{pair.assistant.content}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{pair.assistant.content}</ReactMarkdown>
                     </div>
                     {/* 답변 도구 — 자세한 답변 + 피드백 */}
                     <div className="flex items-center gap-3 mt-1.5 ml-1">
@@ -830,7 +826,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                     {pair.detail_shown && pair.detail_content && (
                       <div className="px-3 py-2 rounded-2xl text-sm prose prose-sm max-w-none mt-1.5"
                         style={{ backgroundColor: "rgba(192,200,216,0.07)", border: `1px solid rgba(192,200,216,0.25)`, color: "#e0e8f0" }}>
-                        <ReactMarkdown>{pair.detail_content}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{pair.detail_content}</ReactMarkdown>
                       </div>
                     )}
                   </div>
@@ -857,7 +853,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                 <div className="flex-1 min-w-0">
                   <div className="px-3 py-2 rounded-2xl rounded-tl-sm text-sm prose prose-sm max-w-none"
                     style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}>
-                    {streaming.assistant ? <ReactMarkdown>{streaming.assistant}</ReactMarkdown> : <span style={{ color: SILVER_DIM }} className="animate-pulse">···</span>}
+                    {streaming.assistant ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{streaming.assistant}</ReactMarkdown> : <span style={{ color: SILVER_DIM }} className="animate-pulse">···</span>}
                   </div>
                 </div>
               </div>
@@ -872,7 +868,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKey}
+          // 모바일은 Enter=줄바꿈(기본 동작), 전송은 ➤ 버튼만 담당 (자판 엔터로 실수 전송 방지)
           onFocus={() => simulateKeyboard && setKeyboardOpen(true)}
           onBlur={() => simulateKeyboard && setKeyboardOpen(false)}
           placeholder="질문해줘..."

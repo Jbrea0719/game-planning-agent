@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import React from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm"; // GFM 지원 — 표(table)·취소선 등 마크다운 확장 렌더링
 import dynamic from "next/dynamic";
 import DecisionPanel from "@/components/DecisionPanel";
 import DocumentView from "@/components/DocumentView";
@@ -176,7 +177,7 @@ const citationComponents = {
 
 // 어시스턴트 메시지 렌더러 — 출처 라벨 스타일 자동 적용
 function AssistantMarkdown({ text }: { text: string }) {
-  return <ReactMarkdown components={citationComponents}>{fixMarkdown(text)}</ReactMarkdown>;
+  return <ReactMarkdown remarkPlugins={[remarkGfm]} components={citationComponents}>{fixMarkdown(text)}</ReactMarkdown>;
 }
 
 // ── 헤더 버튼용 커스텀 툴팁 ──
@@ -1286,7 +1287,7 @@ function DesktopChatPage() {
               )}
               {docContent && (
                 <div className="prose prose-sm max-w-none" style={{ color: "#e0e8f0" }}>
-                  <ReactMarkdown>{fixMarkdown(docContent)}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{fixMarkdown(docContent)}</ReactMarkdown>
                 </div>
               )}
             </div>
@@ -2422,7 +2423,7 @@ function DesktopChatPage() {
                   {pair.feedback_summary_shown && pair.feedback_summary && (
                     <div className="px-4 py-3 rounded-2xl text-sm prose prose-sm max-w-none" style={{ backgroundColor: "rgba(100,180,255,0.06)", border: "1px solid rgba(100,180,255,0.2)", color: "#e0e8f0" }}>
                       <p className="text-xs font-semibold mb-2 not-prose" style={{ color: "rgba(100,180,255,0.85)" }}>📋 디렉터 검토 의견</p>
-                      <ReactMarkdown>{pair.feedback_summary}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{pair.feedback_summary}</ReactMarkdown>
                     </div>
                   )}
 

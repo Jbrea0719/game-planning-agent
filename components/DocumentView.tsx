@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm"; // GFM 지원 — 표(table)·취소선 등 마크다운 확장 렌더링
 import dynamic from "next/dynamic";
 import CategoryManager from "./CategoryManager";
 import ReclassifyReview from "./ReclassifyReview";
@@ -446,7 +447,8 @@ export default function DocumentView({
           )}
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
+        {/* 버튼 그룹 — 모바일에선 화면 폭 넘으면 줄바꿈·우측정렬(짤림 방지), PC(md↑)는 한 줄 유지 */}
+        <div className="flex flex-wrap items-center justify-end gap-1.5 md:gap-2 md:flex-nowrap">
           {!editing ? (
             <>
               <button
@@ -741,7 +743,7 @@ export default function DocumentView({
           )}
           {currentDoc && !editing && (
             <article className="prose prose-sm max-w-3xl mx-auto" style={{ color: "#e0e8f0" }}>
-              <ReactMarkdown>{currentDoc.content_markdown}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentDoc.content_markdown}</ReactMarkdown>
             </article>
           )}
           {currentDoc && editing && (
