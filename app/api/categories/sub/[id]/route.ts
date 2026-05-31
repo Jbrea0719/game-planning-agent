@@ -44,7 +44,12 @@ export async function DELETE(request: Request, context: RouteContext) {
       .update({ sub_category_id: null })
       .eq("sub_category_id", id)
       .select("id");
-    await supabase.from("design_docs").update({ category_sub_id: null }).eq("category_sub_id", id);
+    // 기획서도 detach하면서 미분류된 id 수집 → 프론트에서 기획서 AI 재분류 검토에 사용
+    const { data: orphanedDocs } = await supabase
+      .from("design_docs")
+      .update({ category_sub_id: null })
+      .eq("category_sub_id", id)
+      .select("id");
 
     const { error } = await supabase
       .from("sub_categories")
@@ -54,6 +59,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     return Response.json({
       ok: true,
       orphaned_decision_ids: ((orphaned ?? []) as Array<{ id: string }>).map(d => d.id),
+      orphaned_doc_ids: ((orphanedDocs ?? []) as Array<{ id: string }>).map(d => d.id),
     });
   } catch (err) {
     return Response.json({ error: String(err) }, { status: 500 });

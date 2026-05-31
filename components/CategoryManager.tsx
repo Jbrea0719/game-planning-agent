@@ -32,11 +32,13 @@ export default function CategoryManager({
   onClose,
   onChanged,
   onOrphaned,
+  onOrphanedDocs,
 }: {
   open: boolean;
   onClose: () => void;
   onChanged: () => void;   // 변경 발생 시 호출 (외부에서 카테고리 다시 로드)
   onOrphaned?: (decisionIds: string[]) => void;  // 소카테고리 삭제로 미분류된 결정사항 id (AI 재분류 검토용)
+  onOrphanedDocs?: (docIds: string[]) => void;   // 소카테고리 삭제로 미분류된 기획서 id (AI 재분류 검토용)
 }) {
   const [mains, setMains] = useState<MainItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -168,9 +170,11 @@ export default function CategoryManager({
     if (ok) {
       await load();
       onChanged();
-      // 미분류로 떨어진 결정사항이 있으면 AI 재분류 검토 트리거
+      // 미분류로 떨어진 결정사항·기획서가 있으면 각각 AI 재분류 검토 트리거
       const orphaned = (ok.orphaned_decision_ids ?? []) as string[];
       if (orphaned.length > 0) onOrphaned?.(orphaned);
+      const orphanedDocs = (ok.orphaned_doc_ids ?? []) as string[];
+      if (orphanedDocs.length > 0) onOrphanedDocs?.(orphanedDocs);
     }
   }
   async function renameArea(mainId: string, areaCode: string, newName: string) {

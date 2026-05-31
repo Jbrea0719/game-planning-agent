@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm"; // GFM 지원 — 표(table)·취소선 등 
 import dynamic from "next/dynamic";
 import CategoryManager from "./CategoryManager";
 import ReclassifyReview from "./ReclassifyReview";
+import DocReclassifyReview from "./DocReclassifyReview";
 import DocList from "./DocList";
 
 const WireframeEditor = dynamic(() => import("./WireframeEditor"), { ssr: false });
@@ -121,6 +122,8 @@ export default function DocumentView({
   const [showCatManager, setShowCatManager] = useState(false);
   // AI 재분류 검토 모달 — 카테고리 삭제로 미분류된 결정사항 id 목록 (null이면 닫힘)
   const [reclassifyIds, setReclassifyIds] = useState<string[] | null>(null);
+  // 기획서 AI 재분류 검토 모달 — 카테고리 삭제로 미분류된 기획서 id 목록 (null이면 닫힘)
+  const [reclassifyDocIds, setReclassifyDocIds] = useState<string[] | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   // 카테고리 재로드 (관리 모달에서 변경 시)
@@ -807,6 +810,7 @@ export default function DocumentView({
         onClose={() => setShowCatManager(false)}
         onChanged={reloadCategories}
         onOrphaned={(ids) => setReclassifyIds(ids)}
+        onOrphanedDocs={(ids) => setReclassifyDocIds(ids)}
       />
 
       {/* AI 재분류 검토 모달 — 카테고리 삭제로 미분류된 결정사항을 새 위치로 제안 */}
@@ -817,6 +821,14 @@ export default function DocumentView({
         nickname={nickname}
         onClose={() => setReclassifyIds(null)}
         onApplied={() => { onDecisionsChanged?.(); }}
+      />
+
+      {/* 기획서 AI 재분류 검토 모달 — 카테고리 삭제로 미분류된 기획서를 새 위치로 제안 */}
+      <DocReclassifyReview
+        open={reclassifyDocIds !== null}
+        docIds={reclassifyDocIds ?? []}
+        onClose={() => setReclassifyDocIds(null)}
+        onApplied={() => { void loadVersions(); }}
       />
 
       {/* 화면 설계 도구 — 와이어프레임 / AI 시안 */}

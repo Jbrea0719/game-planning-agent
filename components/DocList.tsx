@@ -70,6 +70,8 @@ export default function DocList({
   onClose: () => void;
 }) {
   const [filter, setFilter] = useState<FilterMode>("all");
+  // 완성/빈항목 필터에선 기본 펼침이라, 접기 상태를 별도 Set으로 관리(전체 탭은 부모 expandedCats 사용)
+  const [collapsedInFilter, setCollapsedInFilter] = useState<Set<string>>(new Set());
 
   // ── 1. 카테고리 전체로 빈 트리 생성 ───────────────────────────────
   const mains: MainNode[] = [];
@@ -124,8 +126,17 @@ export default function DocList({
   // ── 4. 필터 ────────────────────────────────────────────────────────
   const passes = (leaf: Leaf) =>
     filter === "all" ? true : filter === "filled" ? leaf.docs.length > 0 : leaf.docs.length === 0;
-  // 필터 적용 시(전체 아닐 때)는 매칭된 항목을 모두 펼쳐 보여줌
-  const isOpen = (key: string) => filter !== "all" || expandedCats.has(key);
+  // 전체 탭: 부모 expandedCats로 펼침 제어 / 필터 탭: 기본 펼침이되 collapsedInFilter로 개별 접기 허용
+  const isOpen = (key: string) => filter === "all" ? expandedCats.has(key) : !collapsedInFilter.has(key);
+  // +/- 토글 — 탭에 따라 알맞은 상태를 갱신 (필터 탭에서도 버튼이 동작하도록)
+  const tog = (key: string) => {
+    if (filter === "all") { toggleCat(key); return; }
+    setCollapsedInFilter(prev => {
+      const n = new Set(prev);
+      if (n.has(key)) n.delete(key); else n.add(key);
+      return n;
+    });
+  };
   const showUncategorized = filter !== "empty"; // '분류 안 됨'(소분류 지정 필요) 기획서는 '빈 항목' 필터에선 숨김
 
   const areaVisible = (a: AreaNode) => a.subs.some(passes);
@@ -157,6 +168,7 @@ export default function DocList({
       <div key={d.id} className="flex items-center gap-1" style={{ paddingLeft: `${depth * 12}px` }}>
         <button
           onClick={() => onLoadDoc(d.id)}
+          title={d.title}  // 이름이 길어 …으로 잘릴 때 마우스오버(PC)·롱프레스(모바일)로 풀네임 표시
           // min-w-0: 제목이 길어도 버튼을 밀어내지 않고 자기 영역 안에서 …으로 잘리도록
           className="flex-1 min-w-0 text-left text-xs px-2 py-1.5 rounded flex items-center gap-1.5 transition-colors"
           // 선택된 기획서: 파란 카테고리와 헷갈리지 않게 선명한 민트그린 + 왼쪽 강조바 + 글로우로 확실히 구분
@@ -210,7 +222,7 @@ export default function DocList({
         >
           <span className="flex items-center gap-1 min-w-0">
             <span style={{ flexShrink: 0, fontSize: "8px" }}>▸</span>
-            <span className="truncate font-medium">{leaf.label}</span>
+            <span className="truncate font-medium" title={leaf.label}>{leaf.label}</span>
           </span>
           <button
             onClick={() => onStartWriting?.(leaf.id, leaf.label)}
@@ -226,13 +238,13 @@ export default function DocList({
     return (
       <div key={key}>
         <button
-          onClick={() => toggleCat(key)}
+          onClick={() => tog(key)}
           className="w-full text-left px-2 py-1 rounded flex items-center justify-between font-medium transition-colors hover:bg-white/5"
           style={{ color: SUB_COLOR, fontSize: "11.5px" }}
         >
           <span className="flex items-center gap-1 min-w-0">
             <span style={{ flexShrink: 0, fontSize: "8px" }}>▸</span>
-            <span className="truncate">{leaf.label}</span>
+            <span className="truncate" title={leaf.label}>{leaf.label}</span>
           </span>
           <span className="flex items-center gap-1 flex-shrink-0">
             <span className="text-[9px]">{leaf.docs.length}</span>
@@ -291,7 +303,7 @@ export default function DocList({
             return (
               <button
                 key={mode}
-                onClick={() => setFilter(mode)}
+                onClick={() => { setFilter(mode); setCollapsedInFilter(new Set()); }}
                 className="flex-1 text-[11px] py-1 rounded transition-colors"
                 style={{
                   backgroundColor: on ? "rgba(100,180,255,0.25)" : "rgba(255,255,255,0.04)",
@@ -318,13 +330,13 @@ export default function DocList({
           return (
             <div key={mainKey} className="mb-2">
               <button
-                onClick={() => toggleCat(mainKey)}
+                onClick={() => tog(mainKey)}
                 className="w-full text-left px-2 py-2 rounded flex items-center justify-between font-bold transition-colors hover:bg-white/5"
                 style={{ color: MAIN_COLOR, fontSize: "15px" }}
               >
                 <span className="flex items-center gap-1.5 min-w-0">
                   <span style={{ flexShrink: 0 }}>{main.icon}</span>
-                  <span className="truncate">{main.label}</span>
+                  <span className="truncate" title={main.label}>{main.label}</span>
                 </span>
                 <span className="flex items-center gap-1.5 flex-shrink-0">
                   {countBadge(st.filled, st.total)}
@@ -350,13 +362,13 @@ export default function DocList({
                     return (
                       <div key={areaKey} className="ml-2">
                         <button
-                          onClick={() => toggleCat(areaKey)}
+                          onClick={() => tog(areaKey)}
                           className="w-full text-left px-2 py-1.5 rounded flex items-center justify-between font-semibold transition-colors hover:bg-white/5"
                           style={{ color: AREA_COLOR, fontSize: "13px" }}
                         >
                           <span className="flex items-center gap-1.5 min-w-0">
                             <span style={{ flexShrink: 0, fontSize: "10px" }}>📂</span>
-                            <span className="truncate">{area.label}</span>
+                            <span className="truncate" title={area.label}>{area.label}</span>
                           </span>
                           <span className="flex items-center gap-1.5 flex-shrink-0">
                             {countBadge(ast.filled, ast.total)}
@@ -383,7 +395,7 @@ export default function DocList({
         {showUncategorized && uncategorized.length > 0 && (
           <div className="mb-2">
             <button
-              onClick={() => toggleCat("__none__")}
+              onClick={() => tog("__none__")}
               className="w-full text-left px-2 py-2 rounded flex items-center justify-between font-bold transition-colors hover:bg-white/5"
               style={{ color: "rgba(255,180,120,1)", fontSize: "15px" }}
             >
