@@ -46,6 +46,7 @@ export default function DocList({
   cancelRename,
   startRename,
   startCategorize,
+  onStartWriting,
   onLoadDoc,
   onOpenCategoryManager,
   onClose,
@@ -63,6 +64,7 @@ export default function DocList({
   cancelRename: () => void;
   startRename: (docId: string, title: string) => void;
   startCategorize: (doc: DocMeta) => void;
+  onStartWriting?: (subCategoryId: string, label: string) => void;   // 빈 소분류 '작성하기' → 조던 인터뷰 시작
   onLoadDoc: (id: string) => void;
   onOpenCategoryManager: () => void;
   onClose: () => void;
@@ -204,31 +206,45 @@ export default function DocList({
   const renderLeaf = (leaf: Leaf, parentKey: string) => {
     const key = `${parentKey}::${leaf.id}`;
     const empty = leaf.docs.length === 0;
-    const open = !empty && isOpen(key);
+    // ── 빈 소분류: 토글 대신 '작성하기' 버튼 행 (button 중첩 방지 위해 div로) ──
+    if (empty) {
+      return (
+        <div
+          key={key}
+          className="w-full px-2 py-1 rounded flex items-center justify-between gap-1"
+          style={{ backgroundColor: EMPTY_BG, border: `1px solid ${EMPTY_BORDER}`, color: EMPTY_TEXT, fontSize: "11.5px" }}
+        >
+          <span className="flex items-center gap-1 min-w-0">
+            <span style={{ flexShrink: 0, fontSize: "8px" }}>▸</span>
+            <span className="truncate font-medium">{leaf.label}</span>
+          </span>
+          <button
+            onClick={() => onStartWriting?.(leaf.id, leaf.label)}
+            title={`"${leaf.label}" 기획서 작성 — 조던이 질문을 시작해요`}
+            className="text-[10px] px-2 py-0.5 rounded flex-shrink-0 font-bold whitespace-nowrap hover:brightness-110"
+            style={{ backgroundColor: "rgba(255,170,80,0.9)", color: "#3a1d00" }}
+          >✍️ 작성하기</button>
+        </div>
+      );
+    }
+    // ── 채워진 소분류: 펼치면 기획서 목록 ──
+    const open = isOpen(key);
     return (
       <div key={key}>
         <button
-          onClick={() => { if (!empty) toggleCat(key); }}
+          onClick={() => toggleCat(key)}
           className="w-full text-left px-2 py-1 rounded flex items-center justify-between font-medium transition-colors hover:bg-white/5"
-          style={empty
-            ? { backgroundColor: EMPTY_BG, border: `1px solid ${EMPTY_BORDER}`, color: EMPTY_TEXT, fontSize: "11.5px" }
-            : { color: SUB_COLOR, fontSize: "11.5px" }}
+          style={{ color: SUB_COLOR, fontSize: "11.5px" }}
         >
           <span className="flex items-center gap-1 min-w-0">
             <span style={{ flexShrink: 0, fontSize: "8px" }}>▸</span>
             <span className="truncate">{leaf.label}</span>
           </span>
           <span className="flex items-center gap-1 flex-shrink-0">
-            {empty ? (
-              <span className="text-[9px] font-bold">비어있음</span>
-            ) : (
-              <>
-                <span className="text-[9px]">{leaf.docs.length}</span>
-                <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded text-xs leading-none">
-                  {open ? "−" : "+"}
-                </span>
-              </>
-            )}
+            <span className="text-[9px]">{leaf.docs.length}</span>
+            <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded text-xs leading-none">
+              {open ? "−" : "+"}
+            </span>
           </span>
         </button>
         {open && (

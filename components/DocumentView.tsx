@@ -71,6 +71,7 @@ export default function DocumentView({
   reloadKey,
   onCategoriesChanged,
   onDecisionsChanged,
+  onStartWriting,
 }: {
   open: boolean;
   onClose: () => void;
@@ -79,6 +80,7 @@ export default function DocumentView({
   reloadKey?: number;  // 외부에서 새 기획서 생성 시 갱신용
   onCategoriesChanged?: () => void;  // 카테고리 변경 시 부모에 알림 (바이블 패널 실시간 동기화용)
   onDecisionsChanged?: () => void;   // 결정사항 변경 시 부모에 알림 (AI 재분류 적용 후 바이블 새로고침용)
+  onStartWriting?: (subCategoryId: string, label: string) => void;  // 빈 소분류 '작성하기' → 채팅으로 이동해 조던 인터뷰 시작
 }) {
   const [versions, setVersions] = useState<DocMeta[]>([]);
   const [currentDoc, setCurrentDoc] = useState<DocFull | null>(null);
@@ -753,6 +755,12 @@ export default function DocumentView({
                   setCatPickAreaCode(d.category_area_code ?? "");
                   setCatPickSubId(d.category_sub_id ?? "");
                   setCatSuggestMsg("");
+                }}
+                onStartWriting={(subId, label) => {
+                  // 기획서 뷰를 닫고 채팅으로 돌아가, 부모(채팅)가 조던 인터뷰를 시작하게 위임
+                  setShowDocList(false);
+                  onClose();
+                  onStartWriting?.(subId, label);
                 }}
                 onLoadDoc={(id) => { void loadDoc(id); setShowDocList(false); }}
                 onOpenCategoryManager={() => setShowCatManager(true)}

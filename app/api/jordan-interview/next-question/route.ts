@@ -68,9 +68,10 @@ JSON 외 다른 텍스트·코드블록 절대 출력 금지.`;
 
 export async function POST(request: Request) {
   try {
-    const { project_id = DEFAULT_PROJECT_ID, recent_topics = [] } = (await request.json()) as {
+    const { project_id = DEFAULT_PROJECT_ID, recent_topics = [], target_sub_category_id } = (await request.json()) as {
       project_id?: string;
       recent_topics?: string[];
+      target_sub_category_id?: string | null;   // 지정 시 이 소분류 기획서 작성을 위한 질문에 집중
     };
 
     // 1. 데이터 로드
@@ -112,13 +113,32 @@ export async function POST(request: Request) {
     // 3. 누적 결정 요약 (최근 20개)
     const recentDecisions = decisions.slice(0, 20).map(d => `- ${d.content} (${d.confidence})`);
 
+    // 타깃 소분류가 지정됐으면 그 라벨을 구함 (작성하기 버튼으로 진입한 경우)
+    let targetLabel: string | null = null;
+    if (target_sub_category_id) {
+      const ts = subs.find(s => s.id === target_sub_category_id);
+      if (ts) {
+        const main = mainMap.get(ts.main_category_id);
+        targetLabel = main
+          ? (ts.area_name ? `${main.name_ko} > ${ts.area_name} > ${ts.name_ko}` : `${main.name_ko} > ${ts.name_ko}`)
+          : ts.name_ko;
+      }
+    }
+
     // 4. 사용자 메시지 빌드
-    const userContent =
-      `[누적 결정 (최근 ${Math.min(20, decisions.length)}개)]\n${recentDecisions.join("\n") || "(아직 결정 없음)"}\n\n` +
-      `[결정 0건 영역 (총 ${emptyAreas.length}개)]\n${emptyAreas.slice(0, 30).join("\n") || "(없음)"}\n\n` +
-      `[검토·잠정만 있는 영역 (총 ${tentativeAreas.length}개)]\n${tentativeAreas.slice(0, 15).join("\n") || "(없음)"}\n\n` +
-      `[최근 인터뷰에서 다룬 주제 — 가급적 피하기]\n${recent_topics.slice(0, 10).join(", ") || "(없음)"}\n\n` +
-      `위 정보를 바탕으로, 사용자가 지금 결정하면 좋을 한 가지를 골라 질문해주세요. JSON 형식으로만.`;
+    const userContent = targetLabel
+      // ── 타깃 지정: 해당 소분류 기획서 작성을 위한 첫 질문에 집중 ──
+      ? `[누적 결정 (참고용, 최근 ${Math.min(20, decisions.length)}개)]\n${recentDecisions.join("\n") || "(아직 결정 없음)"}\n\n` +
+        `[지금 작성하려는 기획서 항목]\n${targetLabel}\n\n` +
+        `사용자가 방금 "${targetLabel}" 항목의 기획서를 작성하려고 '작성하기'를 눌렀어요.\n` +
+        `이 항목을 구체화하기 위한 **첫 질문 하나**를 해주세요. 이 항목의 가장 기초가 되는 결정부터 묻고, 선택지를 함께 제시하세요.\n` +
+        `category_hint는 반드시 "${targetLabel}"로 해주세요. JSON 형식으로만.`
+      // ── 일반 인터뷰: 빈 영역 중 우선순위 자동 선정 ──
+      : `[누적 결정 (최근 ${Math.min(20, decisions.length)}개)]\n${recentDecisions.join("\n") || "(아직 결정 없음)"}\n\n` +
+        `[결정 0건 영역 (총 ${emptyAreas.length}개)]\n${emptyAreas.slice(0, 30).join("\n") || "(없음)"}\n\n` +
+        `[검토·잠정만 있는 영역 (총 ${tentativeAreas.length}개)]\n${tentativeAreas.slice(0, 15).join("\n") || "(없음)"}\n\n` +
+        `[최근 인터뷰에서 다룬 주제 — 가급적 피하기]\n${recent_topics.slice(0, 10).join(", ") || "(없음)"}\n\n` +
+        `위 정보를 바탕으로, 사용자가 지금 결정하면 좋을 한 가지를 골라 질문해주세요. JSON 형식으로만.`;
 
     // 5. Claude 호출
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });

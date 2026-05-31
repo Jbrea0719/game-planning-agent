@@ -184,6 +184,48 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     }
   }
 
+  // 특정 소분류 기획서 작성 시작 — 기획서 리스트의 '작성하기' 버튼에서 호출
+  async function startInterviewForCategory(subCategoryId: string, label: string) {
+    if (interviewLoading) return;
+    setInterviewLoading(true);
+    try {
+      const res = await fetch("/api/jordan-interview/next-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_id: DEFAULT_PROJECT_ID, target_sub_category_id: subCategoryId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) { alert(`기획서 작성 질문 생성 실패: ${data.error ?? "오류"}`); return; }
+
+      const pairId = crypto.randomUUID();
+      const userMsg = `✍️ "${label}" 기획서 작성 시작`;
+      const question = `**✍️ 기획서 작성 — \`${data.category_hint ?? label}\`**\n\n이 항목을 채우기 위해 하나씩 정해볼게요.\n\n${data.question}\n\n_답변을 쌓아가면 이 내용으로 기획서를 작성해드려요._`;
+
+      await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [
+            { session_id: sessionId, pair_id: pairId, role: "user", content: userMsg },
+            { session_id: sessionId, pair_id: pairId, role: "assistant", content: question },
+          ],
+        }),
+      }).catch(() => {});
+
+      setPairs(prev => [...prev, {
+        pair_id: pairId,
+        user: { role: "user", content: userMsg },
+        assistant: { role: "assistant", content: question },
+      }]);
+      setShowMenu(false);
+      setTimeout(() => inputRef.current?.focus(), 100);
+    } catch (err) {
+      alert(`기획서 작성 시작 실패: ${String(err)}`);
+    } finally {
+      setInterviewLoading(false);
+    }
+  }
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -972,6 +1014,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         reloadKey={docReloadKey}
         onCategoriesChanged={() => setCategoryReloadKey(k => k + 1)}
         onDecisionsChanged={() => setDecisionReloadKey(k => k + 1)}
+        onStartWriting={(subId, label) => startInterviewForCategory(subId, label)}
       />
 
       {/* 설정 모달 */}
