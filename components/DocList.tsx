@@ -8,8 +8,10 @@
 //   → 폴더마다 채움/전체 카운트 + 상단 전체 진행률 + 필터(전체/완성/빈 항목).
 // 위계 구분은 배경색이 아니라 글자 크기·굵기·밝기 + 들여쓰기로.
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { DocMeta, DocFull, CategoryMainItem } from "./DocumentView";
+
+const COLLAPSED_LS_KEY = "jordan_doc_collapsed_filter"; // 완성/빈항목 필터의 접힘 상태 저장 키
 
 const SILVER = "#c0c8d8";
 const SILVER_DIM = "rgba(192,200,216,0.5)";
@@ -71,7 +73,20 @@ export default function DocList({
 }) {
   const [filter, setFilter] = useState<FilterMode>("all");
   // 완성/빈항목 필터에선 기본 펼침이라, 접기 상태를 별도 Set으로 관리(전체 탭은 부모 expandedCats 사용)
-  const [collapsedInFilter, setCollapsedInFilter] = useState<Set<string>>(new Set());
+  // localStorage에서 복원 → 필터 전환·새로고침 후에도 마지막 +/- 상태 유지
+  const [collapsedInFilter, setCollapsedInFilter] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const raw = localStorage.getItem(COLLAPSED_LS_KEY);
+      if (raw) return new Set(JSON.parse(raw) as string[]);
+    } catch { /* 무시 */ }
+    return new Set();
+  });
+  // 변경 시 저장
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try { localStorage.setItem(COLLAPSED_LS_KEY, JSON.stringify([...collapsedInFilter])); } catch { /* 무시 */ }
+  }, [collapsedInFilter]);
 
   // ── 1. 카테고리 전체로 빈 트리 생성 ───────────────────────────────
   const mains: MainNode[] = [];
@@ -303,7 +318,7 @@ export default function DocList({
             return (
               <button
                 key={mode}
-                onClick={() => { setFilter(mode); setCollapsedInFilter(new Set()); }}
+                onClick={() => setFilter(mode)}
                 className="flex-1 text-[11px] py-1 rounded transition-colors"
                 style={{
                   backgroundColor: on ? "rgba(100,180,255,0.25)" : "rgba(255,255,255,0.04)",
