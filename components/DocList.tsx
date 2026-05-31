@@ -158,10 +158,14 @@ export default function DocList({
           onClick={() => onLoadDoc(d.id)}
           // min-w-0: 제목이 길어도 버튼을 밀어내지 않고 자기 영역 안에서 …으로 잘리도록
           className="flex-1 min-w-0 text-left text-xs px-2 py-1.5 rounded flex items-center gap-1.5 transition-colors"
+          // 선택된 기획서: 파란 카테고리와 헷갈리지 않게 선명한 민트그린 + 왼쪽 강조바 + 글로우로 확실히 구분
           style={{
-            backgroundColor: active ? "rgba(100,180,255,0.25)" : "transparent",
-            border: active ? "1px solid rgba(100,180,255,0.6)" : "1px solid transparent",
-            color: active ? "rgba(180,210,255,1)" : "#d0d8e0",
+            backgroundColor: active ? "rgba(70,205,140,0.30)" : "transparent",
+            border: active ? "1px solid rgba(110,235,175,0.95)" : "1px solid transparent",
+            borderLeft: active ? "3px solid rgba(120,255,190,1)" : undefined,
+            boxShadow: active ? "0 0 8px rgba(80,210,150,0.45)" : undefined,
+            color: active ? "#c8ffe6" : "#d0d8e0",
+            fontWeight: active ? 700 : undefined,
           }}
         >
           <span style={{ color: SILVER_DIM, fontSize: "9px", flexShrink: 0 }}>📄</span>
