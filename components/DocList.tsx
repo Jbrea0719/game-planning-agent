@@ -23,8 +23,8 @@ const COLLAPSED_LS_KEY = "jordan_doc_collapsed_filter"; // 완성/빈항목 필�
 
 type DragHandle = Pick<ReturnType<typeof useSortable>, "attributes" | "listeners">;
 
-// 드래그 가능한 기획서 한 줄 — 그립(⠿)으로만 드래그, 제목 탭은 그대로 열림
-function SortableDocRow({ id, render }: { id: string; render: (handle: DragHandle) => ReactNode }) {
+// 드래그 가능한 한 줄 — 그립(⠿)으로만 드래그, 제목 탭/토글은 그대로 동작
+function SortableItem({ id, render }: { id: string; render: (handle: DragHandle) => ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   return (
     <div
@@ -36,29 +36,36 @@ function SortableDocRow({ id, render }: { id: string; render: (handle: DragHandl
   );
 }
 
-// 같은 그룹(소분류/분류 안 됨) 내 기획서들을 드래그앤드롭 정렬 (마우스·터치 모두)
-function DocGroup({ docs, renderRow, onReorder }: {
-  docs: DocMeta[];
-  renderRow: (d: DocMeta, handle: DragHandle) => ReactNode;
+// 범용 드래그앤드롭 정렬 영역 (기획서·소분류·대분류 공용, 마우스·터치 모두)
+// enabled=false거나 항목 1개 이하면 그냥 평범하게 렌더(불필요한 DnD 래핑 방지)
+function SortableZone<T>({ items, getId, renderItem, onReorder, enabled }: {
+  items: T[];
+  getId: (t: T) => string;
+  renderItem: (t: T, handle?: DragHandle) => ReactNode;
   onReorder: (orderedIds: string[]) => void;
+  enabled: boolean;
 }) {
   // 마우스: 5px 이동 후 시작 / 터치: 200ms 길게 눌러야 시작(스크롤과 구분)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
   );
+  const ids = items.map(getId);
+  if (!enabled || items.length < 2) {
+    return <>{items.map(t => renderItem(t))}</>;
+  }
   const handleEnd = (e: DragEndEvent) => {
     const { active, over } = e;
     if (!over || active.id === over.id) return;
-    const oldI = docs.findIndex(d => d.id === active.id);
-    const newI = docs.findIndex(d => d.id === over.id);
+    const oldI = ids.indexOf(String(active.id));
+    const newI = ids.indexOf(String(over.id));
     if (oldI < 0 || newI < 0) return;
-    onReorder(arrayMove(docs, oldI, newI).map(d => d.id));
+    onReorder(arrayMove(ids, oldI, newI));
   };
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleEnd}>
-      <SortableContext items={docs.map(d => d.id)} strategy={verticalListSortingStrategy}>
-        {docs.map(d => <SortableDocRow key={d.id} id={d.id} render={handle => renderRow(d, handle)} />)}
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+        {items.map(t => <SortableItem key={getId(t)} id={getId(t)} render={handle => renderItem(t, handle)} />)}
       </SortableContext>
     </DndContext>
   );
@@ -155,6 +162,26 @@ export default function DocList({
       .catch(err => console.warn("[reorder] 저장 실패:", err));
   };
 
+  // 카테고리(대/소) 드래그 정렬 — 낙관적 반영 + display_order DB 저장
+  const [mainOrderOverride, setMainOrderOverride] = useState<Record<string, number>>({});
+  const [subOrderOverride, setSubOrderOverride] = useState<Record<string, number>>({});
+  // 그룹 내 원래 순서(index) 기준 + 덮어쓰기 우선으로 정렬
+  const sortByOverride = <T,>(arr: T[], getId: (t: T) => string, override: Record<string, number>): T[] =>
+    arr.map((t, i) => ({ t, i })).sort((a, b) => (override[getId(a.t)] ?? a.i) - (override[getId(b.t)] ?? b.i)).map(x => x.t);
+  const persistCategoryOrder = (type: "main" | "sub", orderedIds: string[]) => {
+    const setter = type === "main" ? setMainOrderOverride : setSubOrderOverride;
+    setter(prev => { const n = { ...prev }; orderedIds.forEach((id, i) => { n[id] = i; }); return n; });
+    fetch("/api/categories/reorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, ordered_ids: orderedIds }),
+    })
+      .then(async r => { if (!r.ok) { const d = await r.json().catch(() => ({})); console.warn("[cat-reorder] 저장 실패:", d.error); } })
+      .catch(err => console.warn("[cat-reorder] 저장 실패:", err));
+  };
+  // 카테고리 드래그는 '전체' 필터에서만 (필터 중엔 일부 숨겨져 순서가 모호)
+  const catDnd = filter === "all";
+
   // ── 1. 카테고리 전체로 빈 트리 생성 ───────────────────────────────
   const mains: MainNode[] = [];
   const subLeafById = new Map<string, Leaf>();
@@ -226,6 +253,18 @@ export default function DocList({
 
   // ── 기획서 1개 렌더 (leaf 문서, rename 인라인 처리) ────────────────
   // handle 전달 시 왼쪽에 드래그 그립(⠿) 표시 (그룹 내 순서 변경용)
+  // 드래그 그립(⠿) — handle 있을 때만. 클릭(탭)은 막아 토글/열기와 충돌 방지
+  const grip = (handle?: DragHandle) => handle ? (
+    <span
+      {...handle.attributes}
+      {...(handle.listeners ?? {})}
+      title="드래그해서 순서 변경"
+      className="cursor-grab active:cursor-grabbing flex-shrink-0 px-0.5 select-none"
+      style={{ color: SILVER_DIM, touchAction: "none", fontSize: "12px", lineHeight: 1 }}
+      onClick={(e) => e.stopPropagation()}
+    >⠿</span>
+  ) : null;
+
   const renderDocRow = (d: DocMeta, handle?: DragHandle) => {
     if (renamingDocId === d.id) {
       return (
@@ -249,16 +288,7 @@ export default function DocList({
     const isUnviewed = !viewedDocIds.has(d.id);
     return (
       <div key={d.id} className="flex items-center gap-1">
-        {handle && (
-          <span
-            {...handle.attributes}
-            {...(handle.listeners ?? {})}
-            title="드래그해서 순서 변경"
-            className="cursor-grab active:cursor-grabbing flex-shrink-0 px-0.5 select-none"
-            style={{ color: SILVER_DIM, touchAction: "none", fontSize: "13px", lineHeight: 1 }}
-            onClick={(e) => e.stopPropagation()}
-          >⠿</span>
-        )}
+        {grip(handle)}
         <button
           onClick={() => onLoadDoc(d.id)}
           title={d.title}  // 이름이 길어 …으로 잘릴 때 마우스오버(PC)·롱프레스(모바일)로 풀네임 표시
@@ -302,7 +332,7 @@ export default function DocList({
   };
 
   // ── 소분류(leaf) 렌더 ─────────────────────────────────────────────
-  const renderLeaf = (leaf: Leaf, parentKey: string) => {
+  const renderLeaf = (leaf: Leaf, parentKey: string, handle?: DragHandle) => {
     const key = `${parentKey}::${leaf.id}`;
     const empty = leaf.docs.length === 0;
     // ── 빈 소분류: 토글 대신 '작성하기' 버튼 행 (button 중첩 방지 위해 div로) ──
@@ -314,6 +344,7 @@ export default function DocList({
           style={{ backgroundColor: EMPTY_BG, border: `1px solid ${EMPTY_BORDER}`, color: EMPTY_TEXT, fontSize: "11.5px" }}
         >
           <span className="flex items-center gap-1 min-w-0">
+            {grip(handle)}
             <span style={{ flexShrink: 0, fontSize: "8px" }}>▸</span>
             <span className="truncate font-medium" title={leaf.label}>{leaf.label}</span>
           </span>
@@ -330,11 +361,13 @@ export default function DocList({
     const open = isOpen(key);
     return (
       <div key={key}>
-        <button
-          onClick={() => tog(key)}
-          className="w-full text-left px-2 py-1 rounded flex items-center justify-between font-medium transition-colors hover:bg-white/5"
-          style={{ color: SUB_COLOR, fontSize: "11.5px" }}
-        >
+        <div className="flex items-center gap-1">
+          {grip(handle)}
+          <button
+            onClick={() => tog(key)}
+            className="flex-1 min-w-0 text-left px-2 py-1 rounded flex items-center justify-between font-medium transition-colors hover:bg-white/5"
+            style={{ color: SUB_COLOR, fontSize: "11.5px" }}
+          >
           <span className="flex items-center gap-1 min-w-0">
             <span style={{ flexShrink: 0, fontSize: "8px" }}>▸</span>
             <span className="truncate" title={leaf.label}>{leaf.label}</span>
@@ -345,10 +378,11 @@ export default function DocList({
               {open ? "−" : "+"}
             </span>
           </span>
-        </button>
+          </button>
+        </div>
         {open && (
           <div className="mt-0.5 flex flex-col gap-0.5 ml-2">
-            <DocGroup docs={groupSort(leaf.docs)} renderRow={renderDocRow} onReorder={persistReorder} />
+            <SortableZone items={groupSort(leaf.docs)} getId={(d) => d.id} renderItem={(d, h) => renderDocRow(d, h)} onReorder={persistReorder} enabled />
           </div>
         )}
       </div>
@@ -361,6 +395,89 @@ export default function DocList({
       {filled}/{total}
     </span>
   );
+
+  // 소분류 그룹 렌더 — 드래그 정렬(전체 필터에서만) 가능
+  const renderSubGroup = (leaves: Leaf[], parentKey: string) => (
+    <SortableZone
+      items={sortByOverride(leaves.filter(passes), (l) => l.id, subOrderOverride)}
+      getId={(l) => l.id}
+      renderItem={(leaf, h) => renderLeaf(leaf, parentKey, h)}
+      onReorder={(ids) => persistCategoryOrder("sub", ids)}
+      enabled={catDnd}
+    />
+  );
+
+  // ── 대카테고리(main) 블록 렌더 ────────────────────────────────────
+  const renderMainBlock = (main: MainNode, handle?: DragHandle) => {
+    const mainKey = main.id ?? "__none__";
+    const mainOpen = isOpen(mainKey);
+    const st = stats(mainLeaves(main));
+    return (
+      <div key={mainKey} className="mb-2">
+        <div className="flex items-center gap-1">
+          {grip(handle)}
+          <button
+            onClick={() => tog(mainKey)}
+            className="flex-1 min-w-0 text-left px-2 py-2 rounded flex items-center justify-between font-bold transition-colors hover:bg-white/5"
+            style={{ color: MAIN_COLOR, fontSize: "15px" }}
+          >
+            <span className="flex items-center gap-1.5 min-w-0">
+              <span style={{ flexShrink: 0 }}>{main.icon}</span>
+              <span className="truncate" title={main.label}>{main.label}</span>
+            </span>
+            <span className="flex items-center gap-1.5 flex-shrink-0">
+              {countBadge(st.filled, st.total)}
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded text-sm leading-none" style={{ color: SILVER_DIM }}>
+                {mainOpen ? "−" : "+"}
+              </span>
+            </span>
+          </button>
+        </div>
+
+        {mainOpen && (
+          <div className="mt-1 flex flex-col gap-1">
+            {/* 대 직속 소분류 (영역 없는 대카테고리) — 드래그 정렬 */}
+            {main.subs.filter(passes).length > 0 && (
+              <div className="flex flex-col gap-0.5 pl-2">
+                {renderSubGroup(main.subs, mainKey)}
+              </div>
+            )}
+            {/* 중카테고리(영역) — area는 코드순(A·B·C) 고정, 드래그 대상 아님 */}
+            {main.areas.filter(areaVisible).map(area => {
+              const areaKey = `${mainKey}::${area.code}`;
+              const areaOpen = isOpen(areaKey);
+              const ast = stats(area.subs);
+              return (
+                <div key={areaKey} className="ml-2">
+                  <button
+                    onClick={() => tog(areaKey)}
+                    className="w-full text-left px-2 py-1.5 rounded flex items-center justify-between font-semibold transition-colors hover:bg-white/5"
+                    style={{ color: AREA_COLOR, fontSize: "13px" }}
+                  >
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <span style={{ flexShrink: 0, fontSize: "10px" }}>📂</span>
+                      <span className="truncate" title={area.label}>{area.label}</span>
+                    </span>
+                    <span className="flex items-center gap-1.5 flex-shrink-0">
+                      {countBadge(ast.filled, ast.total)}
+                      <span className="inline-flex items-center justify-center w-4 h-4 rounded text-sm leading-none" style={{ color: SILVER_DIM }}>
+                        {areaOpen ? "−" : "+"}
+                      </span>
+                    </span>
+                  </button>
+                  {areaOpen && (
+                    <div className="mt-1 ml-2 flex flex-col gap-1">
+                      {renderSubGroup(area.subs, areaKey)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div
@@ -415,74 +532,13 @@ export default function DocList({
         {mains.length === 0 && (
           <p className="text-xs text-center mt-6" style={{ color: SILVER_DIM }}>카테고리가 없어요</p>
         )}
-        {mains.map(main => {
-          if (!mainVisible(main)) return null;
-          const mainKey = main.id ?? "__none__";
-          const mainOpen = isOpen(mainKey);
-          const st = stats(mainLeaves(main));
-          return (
-            <div key={mainKey} className="mb-2">
-              <button
-                onClick={() => tog(mainKey)}
-                className="w-full text-left px-2 py-2 rounded flex items-center justify-between font-bold transition-colors hover:bg-white/5"
-                style={{ color: MAIN_COLOR, fontSize: "15px" }}
-              >
-                <span className="flex items-center gap-1.5 min-w-0">
-                  <span style={{ flexShrink: 0 }}>{main.icon}</span>
-                  <span className="truncate" title={main.label}>{main.label}</span>
-                </span>
-                <span className="flex items-center gap-1.5 flex-shrink-0">
-                  {countBadge(st.filled, st.total)}
-                  <span className="inline-flex items-center justify-center w-4 h-4 rounded text-sm leading-none" style={{ color: SILVER_DIM }}>
-                    {mainOpen ? "−" : "+"}
-                  </span>
-                </span>
-              </button>
-
-              {mainOpen && (
-                <div className="mt-1 flex flex-col gap-1">
-                  {/* 대 직속 소분류 (영역 없는 대카테고리) */}
-                  {main.subs.filter(passes).length > 0 && (
-                    <div className="flex flex-col gap-0.5 pl-2">
-                      {main.subs.filter(passes).map(leaf => renderLeaf(leaf, mainKey))}
-                    </div>
-                  )}
-                  {/* 중카테고리(영역) */}
-                  {main.areas.filter(areaVisible).map(area => {
-                    const areaKey = `${mainKey}::${area.code}`;
-                    const areaOpen = isOpen(areaKey);
-                    const ast = stats(area.subs);
-                    return (
-                      <div key={areaKey} className="ml-2">
-                        <button
-                          onClick={() => tog(areaKey)}
-                          className="w-full text-left px-2 py-1.5 rounded flex items-center justify-between font-semibold transition-colors hover:bg-white/5"
-                          style={{ color: AREA_COLOR, fontSize: "13px" }}
-                        >
-                          <span className="flex items-center gap-1.5 min-w-0">
-                            <span style={{ flexShrink: 0, fontSize: "10px" }}>📂</span>
-                            <span className="truncate" title={area.label}>{area.label}</span>
-                          </span>
-                          <span className="flex items-center gap-1.5 flex-shrink-0">
-                            {countBadge(ast.filled, ast.total)}
-                            <span className="inline-flex items-center justify-center w-4 h-4 rounded text-sm leading-none" style={{ color: SILVER_DIM }}>
-                              {areaOpen ? "−" : "+"}
-                            </span>
-                          </span>
-                        </button>
-                        {areaOpen && (
-                          <div className="mt-1 ml-2 flex flex-col gap-1">
-                            {area.subs.filter(passes).map(leaf => renderLeaf(leaf, areaKey))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
+        <SortableZone
+          items={sortByOverride(mains, (m) => m.id ?? "__none__", mainOrderOverride).filter(mainVisible)}
+          getId={(m) => m.id ?? "__none__"}
+          renderItem={(main, h) => renderMainBlock(main, h)}
+          onReorder={(ids) => persistCategoryOrder("main", ids)}
+          enabled={catDnd}
+        />
 
         {/* 분류 안 됨 — 소분류가 지정 안 됐거나 삭제된 소분류를 참조하는 기획서 (빈 항목 필터에선 숨김) */}
         {showUncategorized && uncategorized.length > 0 && (
@@ -505,7 +561,7 @@ export default function DocList({
             </button>
             {isOpen("__none__") && (
               <div className="mt-1 flex flex-col gap-0.5 pl-2">
-                <DocGroup docs={groupSort(uncategorized)} renderRow={renderDocRow} onReorder={persistReorder} />
+                <SortableZone items={groupSort(uncategorized)} getId={(d) => d.id} renderItem={(d, h) => renderDocRow(d, h)} onReorder={persistReorder} enabled />
               </div>
             )}
           </div>
