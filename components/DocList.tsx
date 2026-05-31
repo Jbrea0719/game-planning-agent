@@ -29,8 +29,8 @@ type FilterMode = "all" | "filled" | "empty";
 
 // ── 트리 노드 타입 ──────────────────────────────────────────────────
 type Leaf = { id: string; label: string; docs: DocMeta[] };
-type AreaNode = { code: string; label: string; subs: Leaf[]; directDocs: DocMeta[] };
-type MainNode = { id: string | null; label: string; icon: string; areas: AreaNode[]; subs: Leaf[]; directDocs: DocMeta[] };
+type AreaNode = { code: string; label: string; subs: Leaf[] };
+type MainNode = { id: string | null; label: string; icon: string; areas: AreaNode[]; subs: Leaf[] };
 
 export default function DocList({
   versions,
@@ -74,16 +74,12 @@ export default function DocList({
   // ── 1. 카테고리 전체로 빈 트리 생성 ───────────────────────────────
   const mains: MainNode[] = [];
   const subLeafById = new Map<string, Leaf>();
-  const areaByKey = new Map<string, AreaNode>();   // `${mainId}::${areaCode}`
-  const mainById = new Map<string, MainNode>();
 
   for (const m of categories) {
-    const main: MainNode = { id: m.id, label: m.name_ko, icon: m.icon ?? "📁", areas: [], subs: [], directDocs: [] };
-    mainById.set(m.id, main);
+    const main: MainNode = { id: m.id, label: m.name_ko, icon: m.icon ?? "📁", areas: [], subs: [] };
     if (m.areas && m.areas.length > 0) {
       for (const a of m.areas) {
-        const area: AreaNode = { code: a.code, label: a.name, subs: [], directDocs: [] };
-        areaByKey.set(`${m.id}::${a.code}`, area);
+        const area: AreaNode = { code: a.code, label: a.name, subs: [] };
         for (const s of a.sub_categories) {
           const leaf: Leaf = { id: s.id, label: s.name_ko, docs: [] };
           subLeafById.set(s.id, leaf);
@@ -102,15 +98,14 @@ export default function DocList({
     mains.push(main);
   }
 
-  // ── 2. 기획서를 트리에 얹기 (소분류 매칭 우선, 없으면 컨테이너 직속/분류 안 됨) ──
+  // ── 2. 기획서를 트리에 얹기 ─────────────────────────────────────────
+  // 소분류(leaf)에 정확히 매칭되는 기획서만 카테고리 밑에 배치.
+  // 소분류 미지정(대/중까지만) 또는 삭제된 소분류 참조 → '분류 안 됨'(소분류 지정 필요).
+  // 이렇게 해야 카테고리 관리(소분류 구조)와 기획서 트리가 정확히 일치함.
   const uncategorized: DocMeta[] = [];
   for (const d of versions) {
     if (d.category_sub_id && subLeafById.has(d.category_sub_id)) {
       subLeafById.get(d.category_sub_id)!.docs.push(d);
-    } else if (d.category_main_id && mainById.has(d.category_main_id)) {
-      const areaKey = d.category_area_code ? `${d.category_main_id}::${d.category_area_code}` : null;
-      if (areaKey && areaByKey.has(areaKey)) areaByKey.get(areaKey)!.directDocs.push(d);
-      else mainById.get(d.category_main_id)!.directDocs.push(d);
     } else {
       uncategorized.push(d);
     }
@@ -131,11 +126,10 @@ export default function DocList({
     filter === "all" ? true : filter === "filled" ? leaf.docs.length > 0 : leaf.docs.length === 0;
   // 필터 적용 시(전체 아닐 때)는 매칭된 항목을 모두 펼쳐 보여줌
   const isOpen = (key: string) => filter !== "all" || expandedCats.has(key);
-  const showDirect = filter !== "empty"; // 컨테이너 직속/분류 안 됨 기획서는 '빈 항목' 필터에선 숨김
+  const showUncategorized = filter !== "empty"; // '분류 안 됨'(소분류 지정 필요) 기획서는 '빈 항목' 필터에선 숨김
 
-  const areaVisible = (a: AreaNode) => a.subs.some(passes) || (showDirect && a.directDocs.length > 0);
-  const mainVisible = (m: MainNode) =>
-    m.areas.some(areaVisible) || m.subs.some(passes) || (showDirect && m.directDocs.length > 0);
+  const areaVisible = (a: AreaNode) => a.subs.some(passes);
+  const mainVisible = (m: MainNode) => m.areas.some(areaVisible) || m.subs.some(passes);
 
   // ── 기획서 1개 렌더 (leaf 문서, rename 인라인 처리) ────────────────
   const renderDoc = (d: DocMeta, depth: number) => {
@@ -342,12 +336,6 @@ export default function DocList({
 
               {mainOpen && (
                 <div className="mt-1 flex flex-col gap-1">
-                  {/* 대 직속 기획서 (소분류 없이 대까지만 분류된 경우) */}
-                  {showDirect && main.directDocs.length > 0 && (
-                    <div className="flex flex-col gap-0.5 pl-2">
-                      {main.directDocs.map(d => renderDoc(d, 0))}
-                    </div>
-                  )}
                   {/* 대 직속 소분류 (영역 없는 대카테고리) */}
                   {main.subs.filter(passes).length > 0 && (
                     <div className="flex flex-col gap-0.5 pl-2">
@@ -379,11 +367,6 @@ export default function DocList({
                         </button>
                         {areaOpen && (
                           <div className="mt-1 ml-2 flex flex-col gap-1">
-                            {showDirect && area.directDocs.length > 0 && (
-                              <div className="flex flex-col gap-0.5">
-                                {area.directDocs.map(d => renderDoc(d, 0))}
-                              </div>
-                            )}
                             {area.subs.filter(passes).map(leaf => renderLeaf(leaf, areaKey))}
                           </div>
                         )}
@@ -396,8 +379,8 @@ export default function DocList({
           );
         })}
 
-        {/* 분류 안 됨 — 카테고리에 없는 기획서 (빈 항목 필터에선 숨김) */}
-        {showDirect && uncategorized.length > 0 && (
+        {/* 분류 안 됨 — 소분류가 지정 안 됐거나 삭제된 소분류를 참조하는 기획서 (빈 항목 필터에선 숨김) */}
+        {showUncategorized && uncategorized.length > 0 && (
           <div className="mb-2">
             <button
               onClick={() => toggleCat("__none__")}
