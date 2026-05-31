@@ -8,10 +8,61 @@
 //   → 폴더마다 채움/전체 카운트 + 상단 전체 진행률 + 필터(전체/완성/빈 항목).
 // 위계 구분은 배경색이 아니라 글자 크기·굵기·밝기 + 들여쓰기로.
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import type { DocMeta, DocFull, CategoryMainItem } from "./DocumentView";
 
 const COLLAPSED_LS_KEY = "jordan_doc_collapsed_filter"; // 완성/빈항목 필터의 접힘 상태 저장 키
+
+type DragHandle = Pick<ReturnType<typeof useSortable>, "attributes" | "listeners">;
+
+// 드래그 가능한 기획서 한 줄 — 그립(⠿)으로만 드래그, 제목 탭은 그대로 열림
+function SortableDocRow({ id, render }: { id: string; render: (handle: DragHandle) => ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1, zIndex: isDragging ? 20 : undefined, position: "relative" }}
+    >
+      {render({ attributes, listeners })}
+    </div>
+  );
+}
+
+// 같은 그룹(소분류/분류 안 됨) 내 기획서들을 드래그앤드롭 정렬 (마우스·터치 모두)
+function DocGroup({ docs, renderRow, onReorder }: {
+  docs: DocMeta[];
+  renderRow: (d: DocMeta, handle: DragHandle) => ReactNode;
+  onReorder: (orderedIds: string[]) => void;
+}) {
+  // 마우스: 5px 이동 후 시작 / 터치: 200ms 길게 눌러야 시작(스크롤과 구분)
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  );
+  const handleEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const oldI = docs.findIndex(d => d.id === active.id);
+    const newI = docs.findIndex(d => d.id === over.id);
+    if (oldI < 0 || newI < 0) return;
+    onReorder(arrayMove(docs, oldI, newI).map(d => d.id));
+  };
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleEnd}>
+      <SortableContext items={docs.map(d => d.id)} strategy={verticalListSortingStrategy}>
+        {docs.map(d => <SortableDocRow key={d.id} id={d.id} render={handle => renderRow(d, handle)} />)}
+      </SortableContext>
+    </DndContext>
+  );
+}
 
 const SILVER = "#c0c8d8";
 const SILVER_DIM = "rgba(192,200,216,0.5)";
@@ -88,6 +139,22 @@ export default function DocList({
     try { localStorage.setItem(COLLAPSED_LS_KEY, JSON.stringify([...collapsedInFilter])); } catch { /* 무시 */ }
   }, [collapsedInFilter]);
 
+  // 드래그 정렬 — 낙관적 반영용 순서 덮어쓰기(id→순번). DB 저장은 백그라운드.
+  const [orderOverride, setOrderOverride] = useState<Record<string, number>>({});
+  const docOrder = (d: DocMeta) => orderOverride[d.id] ?? (d.sort_order ?? Number.MAX_SAFE_INTEGER);
+  // 그룹 내 정렬: 수동 순서 우선, 없으면 기존 순서(생성일 역순) 유지 (Array.sort는 안정 정렬)
+  const groupSort = (docs: DocMeta[]) => [...docs].sort((a, b) => docOrder(a) - docOrder(b));
+  const persistReorder = (orderedIds: string[]) => {
+    setOrderOverride(prev => { const n = { ...prev }; orderedIds.forEach((id, i) => { n[id] = i; }); return n; });
+    fetch("/api/design-docs/reorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ordered_ids: orderedIds }),
+    })
+      .then(async r => { if (!r.ok) { const d = await r.json().catch(() => ({})); console.warn("[reorder] 저장 실패:", d.error); } })
+      .catch(err => console.warn("[reorder] 저장 실패:", err));
+  };
+
   // ── 1. 카테고리 전체로 빈 트리 생성 ───────────────────────────────
   const mains: MainNode[] = [];
   const subLeafById = new Map<string, Leaf>();
@@ -158,10 +225,11 @@ export default function DocList({
   const mainVisible = (m: MainNode) => m.areas.some(areaVisible) || m.subs.some(passes);
 
   // ── 기획서 1개 렌더 (leaf 문서, rename 인라인 처리) ────────────────
-  const renderDoc = (d: DocMeta, depth: number) => {
+  // handle 전달 시 왼쪽에 드래그 그립(⠿) 표시 (그룹 내 순서 변경용)
+  const renderDocRow = (d: DocMeta, handle?: DragHandle) => {
     if (renamingDocId === d.id) {
       return (
-        <div key={d.id} className="flex items-center gap-1" style={{ paddingLeft: `${depth * 12}px` }}>
+        <div key={d.id} className="flex items-center gap-1">
           <input
             value={renameInput}
             onChange={(e) => setRenameInput(e.target.value)}
@@ -180,7 +248,17 @@ export default function DocList({
     const active = d.id === currentDoc?.id;
     const isUnviewed = !viewedDocIds.has(d.id);
     return (
-      <div key={d.id} className="flex items-center gap-1" style={{ paddingLeft: `${depth * 12}px` }}>
+      <div key={d.id} className="flex items-center gap-1">
+        {handle && (
+          <span
+            {...handle.attributes}
+            {...(handle.listeners ?? {})}
+            title="드래그해서 순서 변경"
+            className="cursor-grab active:cursor-grabbing flex-shrink-0 px-0.5 select-none"
+            style={{ color: SILVER_DIM, touchAction: "none", fontSize: "13px", lineHeight: 1 }}
+            onClick={(e) => e.stopPropagation()}
+          >⠿</span>
+        )}
         <button
           onClick={() => onLoadDoc(d.id)}
           title={d.title}  // 이름이 길어 …으로 잘릴 때 마우스오버(PC)·롱프레스(모바일)로 풀네임 표시
@@ -270,7 +348,7 @@ export default function DocList({
         </button>
         {open && (
           <div className="mt-0.5 flex flex-col gap-0.5 ml-2">
-            {leaf.docs.map(d => renderDoc(d, 0))}
+            <DocGroup docs={groupSort(leaf.docs)} renderRow={renderDocRow} onReorder={persistReorder} />
           </div>
         )}
       </div>
@@ -427,7 +505,7 @@ export default function DocList({
             </button>
             {isOpen("__none__") && (
               <div className="mt-1 flex flex-col gap-0.5 pl-2">
-                {uncategorized.map(d => renderDoc(d, 0))}
+                <DocGroup docs={groupSort(uncategorized)} renderRow={renderDocRow} onReorder={persistReorder} />
               </div>
             )}
           </div>

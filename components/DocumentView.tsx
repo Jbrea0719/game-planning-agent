@@ -32,6 +32,7 @@ export interface DocMeta {
   category_main_id: string | null;
   category_area_code: string | null;
   category_sub_id: string | null;
+  sort_order?: number | null;   // 같은 카테고리 그룹 내 수동 정렬 순서(드래그앤드롭)
 }
 
 export interface CategorySubItem {

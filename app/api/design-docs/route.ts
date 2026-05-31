@@ -12,11 +12,30 @@ export async function GET(request: Request) {
     }
 
     // 본문(content_markdown)은 제외하고 메타만 조회 (목록 화면 빠르게)
-    const { data, error } = await supabase
+    const BASE_COLS = "id, project_id, title, status, changes_summary, created_by_nickname, created_at, archived_at, category_main_id, category_area_code, category_sub_id";
+
+    // sort_order(드래그 순서) 포함해서 조회. 마이그레이션 014 적용 전이면 컬럼이 없어 에러 →
+    // sort_order 없이 재조회(목록이 깨지지 않도록 방어). 정렬은 클라이언트가 그룹별로 처리.
+    let data: unknown[] | null = null;
+    let error: { message: string } | null = null;
+
+    const primary = await supabase
       .from("design_docs")
-      .select("id, project_id, title, status, changes_summary, created_by_nickname, created_at, archived_at, category_main_id, category_area_code, category_sub_id")
+      .select(`${BASE_COLS}, sort_order`)
       .eq("project_id", projectId)
       .order("created_at", { ascending: false });
+    data = primary.data;
+    error = primary.error;
+
+    if (error && /sort_order/i.test(error.message)) {
+      const fallback = await supabase
+        .from("design_docs")
+        .select(BASE_COLS)
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: false });
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error) {
       console.error("[design-docs] 조회 실패:", error.message);
