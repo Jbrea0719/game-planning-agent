@@ -96,7 +96,19 @@ export default function DocumentView({
   // 기획서 리스트 오버레이 패널 — 진입 시 기본 ON
   const [showDocList, setShowDocList] = useState(true);
   // 카테고리 그룹 + family 펼침 상태 (둘 다 +/- 토글)
-  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+  // localStorage에서 마지막 +/- 상태를 복원 (없으면 빈 Set → 최초 1회 자동 펼침)
+  const EXPAND_LS_KEY = "jordan_doc_expanded_cats";
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const raw = localStorage.getItem(EXPAND_LS_KEY);
+      if (raw) return new Set(JSON.parse(raw) as string[]);
+    } catch { /* 무시 */ }
+    return new Set();
+  });
+  // 저장된 펼침 상태가 있었는지 (있으면 자동 펼침으로 덮어쓰지 않음)
+  const hadSavedExpandRef = useRef<boolean>(typeof window !== "undefined" && !!localStorage.getItem("jordan_doc_expanded_cats"));
+  const autoExpandSeededRef = useRef(false);
   const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
   // family 이름 변경 인라인 편집
   const [renamingFamilyId, setRenamingFamilyId] = useState<string | null>(null);
@@ -328,9 +340,12 @@ export default function DocumentView({
   // 마운트·열림·reloadKey 변경 시 갱신
   useEffect(() => { if (open) void loadVersions(); }, [open, loadVersions]);
 
-  // versions 로드되면 모든 카테고리 노드(대/중/소)를 기본 펼침
+  // 최초 1회만: 저장된 펼침 상태가 없을 때, 문서 있는 카테고리(대/중/소)를 기본 펼침
+  // (저장된 상태가 있으면 사용자가 마지막에 둔 +/- 그대로 유지)
   useEffect(() => {
     if (versions.length === 0) return;
+    if (hadSavedExpandRef.current || autoExpandSeededRef.current) return;
+    autoExpandSeededRef.current = true;
     setExpandedCats(prev => {
       const n = new Set(prev);
       const NONE = "__none__";
@@ -348,6 +363,12 @@ export default function DocumentView({
       return n;
     });
   }, [versions]);
+
+  // 펼침 상태 변경 시 localStorage에 저장 → 다음 진입·새로고침 때 복원
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try { localStorage.setItem(EXPAND_LS_KEY, JSON.stringify([...expandedCats])); } catch { /* 무시 */ }
+  }, [expandedCats]);
   useEffect(() => {
     // reloadKey 변경 시: 버전 목록 새로 받고, 가장 최신을 선택
     if (reloadKey !== undefined && reloadKey > 0 && open) {
