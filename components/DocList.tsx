@@ -121,14 +121,11 @@ export default function DocList({
     return a.label.localeCompare(b.label, "ko");
   });
 
-  const STYLE = {
-    MAIN_BG: "rgba(100,180,255,0.18)",
-    MAIN_BORDER: "rgba(100,180,255,0.45)",
-    AREA_BG: "rgba(100,180,255,0.08)",
-    AREA_BORDER: "rgba(100,180,255,0.25)",
-    SUB_BG: "rgba(255,255,255,0.03)",
-    SUB_BORDER: "rgba(192,200,216,0.20)",
-  };
+  // 카테고리 위계는 배경색이 아니라 글자 크기·굵기·밝기 + 들여쓰기로 구분 (가독성 ↑, 시각 잡음 ↓)
+  // 단계별 텍스트 색 (대=가장 밝고 큼 → 소=어둡고 작음)
+  const MAIN_COLOR = SILVER;                  // 대카테고리
+  const AREA_COLOR = "rgba(210,220,235,1)";   // 중카테고리
+  const SUB_COLOR = SILVER_DIM;               // 소카테고리
 
   // 기획서 1개 렌더 (leaf, rename 인라인 처리)
   const renderDoc = (d: DocMeta, depth: number) => {
@@ -235,12 +232,10 @@ export default function DocList({
             <div key={main.key} className="mb-2">
               <button
                 onClick={() => toggleCat(main.key)}
-                className="w-full text-left px-3 py-2 rounded-md flex items-center justify-between font-bold transition-colors"
+                className="w-full text-left px-2 py-2 rounded flex items-center justify-between font-bold transition-colors hover:bg-white/5"
                 style={{
-                  backgroundColor: STYLE.MAIN_BG,
-                  border: `1px solid ${STYLE.MAIN_BORDER}`,
-                  color: SILVER,
-                  fontSize: "13px",
+                  color: MAIN_COLOR,
+                  fontSize: "15px",
                 }}
               >
                 <span className="flex items-center gap-1.5 min-w-0">
@@ -271,12 +266,10 @@ export default function DocList({
                         <div key={area.key} className="ml-2">
                           <button
                             onClick={() => toggleCat(area.key)}
-                            className="w-full text-left px-2.5 py-1.5 rounded flex items-center justify-between font-semibold transition-colors"
+                            className="w-full text-left px-2 py-1.5 rounded flex items-center justify-between font-semibold transition-colors hover:bg-white/5"
                             style={{
-                              backgroundColor: STYLE.AREA_BG,
-                              border: `1px solid ${STYLE.AREA_BORDER}`,
-                              color: "rgba(220,228,240,1)",
-                              fontSize: "12px",
+                              color: AREA_COLOR,
+                              fontSize: "13px",
                             }}
                           >
                             <span className="flex items-center gap-1.5 min-w-0">
@@ -306,12 +299,10 @@ export default function DocList({
                                     <div key={sub.key}>
                                       <button
                                         onClick={() => toggleCat(sub.key)}
-                                        className="w-full text-left px-2 py-1 rounded flex items-center justify-between transition-colors"
+                                        className="w-full text-left px-2 py-1 rounded flex items-center justify-between font-medium transition-colors hover:bg-white/5"
                                         style={{
-                                          backgroundColor: STYLE.SUB_BG,
-                                          borderLeft: `2px solid ${STYLE.SUB_BORDER}`,
-                                          color: SILVER_DIM,
-                                          fontSize: "11px",
+                                          color: SUB_COLOR,
+                                          fontSize: "11.5px",
                                         }}
                                       >
                                         <span className="flex items-center gap-1 min-w-0">
