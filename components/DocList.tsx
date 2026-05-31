@@ -180,22 +180,13 @@ export default function DocList({
           className="text-xs px-1 py-1 rounded hover:bg-white/10 flex-shrink-0"
           style={{ color: SILVER_DIM }}
         >✏️</button>
-        {/* 분류 안 된 기획서는 강조된 '📂 분류' 버튼으로 이동을 유도, 이미 분류된 건 아이콘만 */}
-        {!d.category_main_id ? (
-          <button
-            onClick={() => startCategorize(d)}
-            title="카테고리로 이동 — 이 기획서를 분류하기"
-            className="text-[10px] px-1.5 py-1 rounded flex-shrink-0 font-bold hover:brightness-110 whitespace-nowrap"
-            style={{ backgroundColor: "rgba(255,200,100,0.18)", border: "1px solid rgba(255,200,100,0.5)", color: "rgba(255,220,150,1)" }}
-          >📂 분류</button>
-        ) : (
-          <button
-            onClick={() => startCategorize(d)}
-            title="카테고리 분류 변경 — 다른 카테고리로 이동"
-            className="text-xs px-1 py-1 rounded hover:bg-white/10 flex-shrink-0"
-            style={{ color: SILVER_DIM }}
-          >📂</button>
-        )}
+        {/* 분류 버튼 — 분류 여부와 무관하게 동일한 기본 📂 아이콘 */}
+        <button
+          onClick={() => startCategorize(d)}
+          title="카테고리 분류 — 다른 카테고리로 이동"
+          className="text-xs px-1 py-1 rounded hover:bg-white/10 flex-shrink-0"
+          style={{ color: SILVER_DIM }}
+        >📂</button>
       </div>
     );
   };
