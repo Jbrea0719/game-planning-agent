@@ -791,7 +791,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                   <div className="flex-1 min-w-0">
                     <div className="px-3 py-2 rounded-2xl rounded-tl-sm text-sm prose prose-sm max-w-none"
                       style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}>
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{pair.assistant.content}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{pair.assistant.content}</ReactMarkdown>
                     </div>
                     {/* 답변 도구 — 자세한 답변 + 피드백 */}
                     <div className="flex items-center gap-3 mt-1.5 ml-1">
@@ -827,7 +827,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                     {pair.detail_shown && pair.detail_content && (
                       <div className="px-3 py-2 rounded-2xl text-sm prose prose-sm max-w-none mt-1.5"
                         style={{ backgroundColor: "rgba(192,200,216,0.07)", border: `1px solid rgba(192,200,216,0.25)`, color: "#e0e8f0" }}>
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{pair.detail_content}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{pair.detail_content}</ReactMarkdown>
                       </div>
                     )}
                   </div>
@@ -854,7 +854,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                 <div className="flex-1 min-w-0">
                   <div className="px-3 py-2 rounded-2xl rounded-tl-sm text-sm prose prose-sm max-w-none"
                     style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}>
-                    {streaming.assistant ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{streaming.assistant}</ReactMarkdown> : <span style={{ color: SILVER_DIM }} className="animate-pulse">···</span>}
+                    {streaming.assistant ? <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{streaming.assistant}</ReactMarkdown> : <span style={{ color: SILVER_DIM }} className="animate-pulse">···</span>}
                   </div>
                 </div>
               </div>

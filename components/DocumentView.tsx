@@ -103,6 +103,9 @@ export default function DocumentView({
   const [catPickMainId, setCatPickMainId] = useState<string>("");
   const [catPickAreaCode, setCatPickAreaCode] = useState<string>("");
   const [catPickSubId, setCatPickSubId] = useState<string>("");
+  // AI 카테고리 추천 (제안만 — 사용자가 검토 후 적용)
+  const [catSuggesting, setCatSuggesting] = useState(false);
+  const [catSuggestMsg, setCatSuggestMsg] = useState<string>("");
   // 카테고리 트리 (DecisionPanel과 동일 소스)
   const [categories, setCategories] = useState<CategoryMainItem[]>([]);
   // 본 적 있는 doc id 추적 (per-doc 레드닷)
@@ -210,6 +213,36 @@ export default function DocumentView({
     });
   }
 
+  // ── AI 카테고리 추천 — 제안만 받아 드롭다운에 채움 (적용은 사용자가 '적용' 눌러야) ──
+  async function suggestCategory() {
+    if (!categorizingFamilyId) return;
+    setCatSuggesting(true);
+    setCatSuggestMsg("");
+    try {
+      const res = await fetch("/api/design-docs/categorize-suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doc_id: categorizingFamilyId }),
+      });
+      const data = await res.json();
+      const s = data.suggestion as { main_id: string | null; area_code: string | null; sub_id: string | null; label: string | null; reasoning: string } | undefined;
+      if (s?.sub_id) {
+        // 드롭다운에 미리 채워두고, 사용자가 확인 후 '적용'
+        setCatPickMainId(s.main_id ?? "");
+        setCatPickAreaCode(s.area_code ?? "");
+        setCatPickSubId(s.sub_id ?? "");
+        setCatSuggestMsg(`💡 추천: ${s.label ?? ""}${s.reasoning ? ` — ${s.reasoning}` : ""}`);
+      } else {
+        setCatSuggestMsg("적합한 카테고리를 찾지 못했어요. 직접 골라주세요.");
+      }
+    } catch (err) {
+      console.error("[doc-view] AI 카테고리 추천 실패:", err);
+      setCatSuggestMsg("추천을 가져오지 못했어요. 직접 골라주세요.");
+    } finally {
+      setCatSuggesting(false);
+    }
+  }
+
   // ── family 카테고리 변경 ─────────────────────────────────────────
   async function submitCategorize() {
     if (!categorizingFamilyId) return;
@@ -226,6 +259,7 @@ export default function DocumentView({
       });
       setCategorizingFamilyId(null);
       setCatPickMainId(""); setCatPickAreaCode(""); setCatPickSubId("");
+      setCatSuggestMsg("");
       await loadVersions();
     } catch (err) {
       console.error("[doc-view] 카테고리 변경 실패:", err);
@@ -718,6 +752,7 @@ export default function DocumentView({
                   setCatPickMainId(d.category_main_id ?? "");
                   setCatPickAreaCode(d.category_area_code ?? "");
                   setCatPickSubId(d.category_sub_id ?? "");
+                  setCatSuggestMsg("");
                 }}
                 onLoadDoc={(id) => { void loadDoc(id); setShowDocList(false); }}
                 onOpenCategoryManager={() => setShowCatManager(true)}
@@ -743,7 +778,7 @@ export default function DocumentView({
           )}
           {currentDoc && !editing && (
             <article className="prose prose-sm max-w-3xl mx-auto" style={{ color: "#e0e8f0" }}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentDoc.content_markdown}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{currentDoc.content_markdown}</ReactMarkdown>
             </article>
           )}
           {currentDoc && editing && (
@@ -805,6 +840,19 @@ export default function DocumentView({
               <p className="text-sm font-bold" style={{ color: SILVER }}>카테고리 분류</p>
             </div>
             <div className="px-5 py-4 flex flex-col gap-3">
+              {/* AI 추천 — 제안만 채우고 적용은 사용자가 '적용' 버튼으로 */}
+              <button
+                onClick={suggestCategory}
+                disabled={catSuggesting}
+                title="AI가 기획서 내용을 보고 적합한 카테고리를 제안해요 (적용은 직접 확인 후)"
+                className="text-xs px-3 py-2 rounded-lg font-medium disabled:opacity-50"
+                style={{ backgroundColor: "rgba(100,180,255,0.15)", border: "1px solid rgba(100,180,255,0.45)", color: "rgba(180,210,255,1)" }}
+              >
+                {catSuggesting ? "⏳ AI가 분류 중..." : "🤖 AI 추천 받기"}
+              </button>
+              {catSuggestMsg && (
+                <p className="text-[11px] leading-snug px-1" style={{ color: "rgba(150,255,200,0.9)" }}>{catSuggestMsg}</p>
+              )}
               {/* 대카테고리 (Main) */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs" style={{ color: SILVER_DIM }}>대카테고리</label>

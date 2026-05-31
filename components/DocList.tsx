@@ -156,7 +156,8 @@ export default function DocList({
       <div key={d.id} className="flex items-center gap-1" style={{ paddingLeft: `${depth * 12}px` }}>
         <button
           onClick={() => onLoadDoc(d.id)}
-          className="flex-1 text-left text-xs px-2 py-1.5 rounded flex items-center gap-1.5 transition-colors"
+          // min-w-0: 제목이 길어도 버튼을 밀어내지 않고 자기 영역 안에서 …으로 잘리도록
+          className="flex-1 min-w-0 text-left text-xs px-2 py-1.5 rounded flex items-center gap-1.5 transition-colors"
           style={{
             backgroundColor: active ? "rgba(100,180,255,0.25)" : "transparent",
             border: active ? "1px solid rgba(100,180,255,0.6)" : "1px solid transparent",
@@ -164,7 +165,7 @@ export default function DocList({
           }}
         >
           <span style={{ color: SILVER_DIM, fontSize: "9px", flexShrink: 0 }}>📄</span>
-          <span className="truncate font-medium">{d.title}</span>
+          <span className="truncate font-medium min-w-0">{d.title}</span>
           {isUnviewed && (
             <span
               className="w-2 h-2 rounded-full ml-auto flex-shrink-0 animate-pulse"
@@ -179,12 +180,22 @@ export default function DocList({
           className="text-xs px-1 py-1 rounded hover:bg-white/10 flex-shrink-0"
           style={{ color: SILVER_DIM }}
         >✏️</button>
-        <button
-          onClick={() => startCategorize(d)}
-          title="카테고리 분류 변경"
-          className="text-xs px-1 py-1 rounded hover:bg-white/10 flex-shrink-0"
-          style={{ color: SILVER_DIM }}
-        >📂</button>
+        {/* 분류 안 된 기획서는 강조된 '📂 분류' 버튼으로 이동을 유도, 이미 분류된 건 아이콘만 */}
+        {!d.category_main_id ? (
+          <button
+            onClick={() => startCategorize(d)}
+            title="카테고리로 이동 — 이 기획서를 분류하기"
+            className="text-[10px] px-1.5 py-1 rounded flex-shrink-0 font-bold hover:brightness-110 whitespace-nowrap"
+            style={{ backgroundColor: "rgba(255,200,100,0.18)", border: "1px solid rgba(255,200,100,0.5)", color: "rgba(255,220,150,1)" }}
+          >📂 분류</button>
+        ) : (
+          <button
+            onClick={() => startCategorize(d)}
+            title="카테고리 분류 변경 — 다른 카테고리로 이동"
+            className="text-xs px-1 py-1 rounded hover:bg-white/10 flex-shrink-0"
+            style={{ color: SILVER_DIM }}
+          >📂</button>
+        )}
       </div>
     );
   };
