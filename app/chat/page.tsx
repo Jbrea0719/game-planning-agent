@@ -699,6 +699,7 @@ function DesktopChatPage() {
     ];
     setStreamingPair({ user: trimmed, assistant: "" });
     setInput("");
+    if (inputRef.current) inputRef.current.style.height = "auto"; // 전송 후 입력창 높이 기본값 복원
     setIsLoading(true);
 
     const controller = new AbortController();
@@ -822,6 +823,7 @@ function DesktopChatPage() {
     abortControllerRef.current?.abort();
     setStreamingPair(null);
     setInput("");
+    if (inputRef.current) inputRef.current.style.height = "auto"; // 입력창 높이 기본값 복원
     userScrolledUpRef.current = false;
     setShowAnswerCompleteBtn(false);
   }
