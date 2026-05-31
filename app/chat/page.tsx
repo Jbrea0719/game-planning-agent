@@ -2052,6 +2052,8 @@ function DesktopChatPage() {
           {/* ─── 일반 모드: 모든 헤더 버튼 표시 ─── */}
           {!selectMode && (
           <>
+          {/* 📜 대본 — 영상 대본 보관·편집 페이지 */}
+          <a href="/scripts" className="text-sm px-3 py-2 rounded-lg font-medium whitespace-nowrap" style={{ backgroundColor: "rgba(192,200,216,0.08)", border: `1px solid ${SILVER_FAINT}`, color: SILVER }}>📜 대본</a>
           {/* ───────── 그룹 A: 맥락 (황금/앰버) ───────── */}
           {/* ① 맥락 — 현재 맥락선 위치로 이동 (없으면 안내) */}
           <Tooltip text={contextAnchorPairId ? "현재 맥락선 위치로 이동" : "맥락선이 설정돼 있지 않아요"}>
