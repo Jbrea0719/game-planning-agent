@@ -10,6 +10,7 @@ import remarkGfm from "remark-gfm"; // GFM 지원 — 표(table)·취소선 등 
 import dynamic from "next/dynamic";
 import DecisionPanel from "@/components/DecisionPanel";
 import DocumentView from "@/components/DocumentView";
+import { REFERENCE_GAMES } from "@/lib/reference-games";
 import ExtractedReviewCard, { type ExtractedItem } from "@/components/ExtractedReviewCard";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 
@@ -675,7 +676,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER, fontSize: "14px" }}
           aria-label="기획 바이블"
         >
-          📚
+          <span style={{ lineHeight: 1, display: "block" }}>📚</span>
           {bibleNewDot && (
             <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full animate-pulse"
               style={{ backgroundColor: "rgba(255,80,80,0.95)" }} />
@@ -687,7 +688,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER, fontSize: "14px" }}
           aria-label="기획서"
         >
-          📄
+          <span style={{ lineHeight: 1, display: "block" }}>📄</span>
           {docNewDot && (
             <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full animate-pulse"
               style={{ backgroundColor: "rgba(255,80,80,0.95)" }} />
@@ -710,7 +711,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
           aria-label="메뉴"
         >
-          <span style={{ fontSize: "16px" }}>☰</span>
+          <span style={{ fontSize: "16px", lineHeight: 1 }}>☰</span>
         </button>
       </header>
       )}
@@ -1148,7 +1149,8 @@ function MenuBtn({ icon, label, subtitle, onClick }: {
       className="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-white/5"
       style={{ color: SILVER }}
     >
-      <span style={{ fontSize: "16px" }}>{icon}</span>
+      {/* 아이콘 고정폭·중앙정렬 — 이모지 폭이 제각각이어도 라벨 시작점이 일정하게 정렬됨 */}
+      <span className="inline-flex items-center justify-center flex-shrink-0" style={{ width: "22px", fontSize: "16px", lineHeight: 1 }}>{icon}</span>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{label}</p>
         {subtitle && <p className="text-[10px] truncate" style={{ color: SILVER_DIM }}>{subtitle}</p>}
@@ -1166,10 +1168,12 @@ function MobileSettings({
   setShowCitations: (v: boolean) => void;
   onClose: () => void;
 }) {
+  const [showGameModal, setShowGameModal] = useState(false);
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-end" onClick={onClose}>
       <div
-        className="w-full max-h-[90vh] flex flex-col rounded-t-2xl"
+        className="w-full max-h-[85dvh] flex flex-col rounded-t-2xl"
         style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1180,7 +1184,7 @@ function MobileSettings({
           </div>
           <button onClick={onClose} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-4 pt-4 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-4">
           {/* 출처 표시 */}
           <section>
             <p className="text-xs font-bold mb-2" style={{ color: "rgba(150,255,200,1)" }}>🏷️ 답변 표시</p>
@@ -1200,6 +1204,22 @@ function MobileSettings({
               >
                 {showCitations ? "ON" : "OFF"}
               </button>
+            </div>
+          </section>
+
+          {/* 참고 게임 — 데스크톱과 동일(공용 REFERENCE_GAMES). 탭하면 라이브러리 모달 */}
+          <section>
+            <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🎮 참고 게임</p>
+            <div className="px-3 py-2.5 rounded-lg flex items-center justify-between" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium" style={{ color: SILVER }}>등록된 게임 라이브러리</p>
+                <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>조던이 분석에 활용하는 신뢰 게임 {REFERENCE_GAMES.length}종</p>
+              </div>
+              <button
+                onClick={() => setShowGameModal(true)}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium ml-2 flex-shrink-0"
+                style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
+              >자세히 →</button>
             </div>
           </section>
 
@@ -1270,6 +1290,57 @@ function MobileSettings({
         </div>
       </div>
     </div>
+
+    {/* 참고 게임 라이브러리 모달 — 설정 위에 표시(z-[60]). 데스크톱과 동일 데이터 */}
+    {showGameModal && (
+      <div className="fixed inset-0 z-[60] flex items-end" onClick={() => setShowGameModal(false)}>
+        <div
+          className="w-full max-h-[85dvh] flex flex-col rounded-t-2xl"
+          style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+            <div>
+              <p className="text-sm font-bold" style={{ color: SILVER }}>🎮 참고 게임 라이브러리 ({REFERENCE_GAMES.length}개)</p>
+              <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>조던이 검증된 신뢰 출처로 분석하는 등록 게임</p>
+            </div>
+            <button onClick={() => setShowGameModal(false)} className="text-xs px-3 py-1.5 rounded-lg flex-shrink-0" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 pt-4 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-3">
+            {REFERENCE_GAMES.map((game) => (
+              <div key={game.name} className="rounded-xl p-3" style={{ backgroundColor: "rgba(192,200,216,0.05)", border: `1px solid ${SILVER_FAINT}` }}>
+                <div className="mb-2">
+                  <p className="text-sm font-bold" style={{ color: SILVER }}>{game.name}</p>
+                  <p className="text-[10px]" style={{ color: SILVER_DIM }}>{game.studio}</p>
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {game.tags.map((tag) => (
+                      <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(192,200,216,0.1)", border: `1px solid ${SILVER_FAINT}`, color: SILVER_DIM }}>{tag}</span>
+                    ))}
+                  </div>
+                </div>
+                <ul className="space-y-1 mb-2">
+                  {game.items.map((item, i) => (
+                    <li key={i} className="text-[11px] flex gap-2" style={{ color: "#b8c4d4" }}>
+                      <span style={{ color: SILVER_DIM, flexShrink: 0 }}>•</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="pt-2 mt-2" style={{ borderTop: `1px dashed ${SILVER_FAINT}` }}>
+                  <p className="text-[10px] mb-1.5" style={{ color: SILVER_DIM }}>🔎 검색 신뢰 출처</p>
+                  <div className="flex flex-wrap gap-1">
+                    {game.sources.map((src) => (
+                      <span key={src} className="text-[10px] px-2 py-0.5 rounded" style={{ backgroundColor: "rgba(100,180,255,0.08)", border: "1px solid rgba(100,180,255,0.25)", color: "rgba(180,210,255,0.9)" }}>{src}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -1278,7 +1349,7 @@ function MobileGuide({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end" onClick={onClose}>
       <div
-        className="w-full max-h-[90vh] flex flex-col rounded-t-2xl"
+        className="w-full max-h-[85dvh] flex flex-col rounded-t-2xl"
         style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1286,7 +1357,7 @@ function MobileGuide({ onClose }: { onClose: () => void }) {
           <p className="text-sm font-bold flex items-center gap-2" style={{ color: SILVER }}>📖 사용 가이드</p>
           <button onClick={onClose} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
+        <div className="flex-1 overflow-y-auto px-4 pt-4 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-3 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
           <section>
             <p className="font-bold mb-1.5" style={{ color: "rgba(150,255,200,1)" }}>🤖 조던이란?</p>
             <p>영웅수집형 게임 디렉터 AI. 분석부터 기획까지 같이 풀어가자.</p>
@@ -1305,7 +1376,7 @@ function MobileGuide({ onClose }: { onClose: () => void }) {
           </section>
           <section>
             <p className="font-bold mb-1.5" style={{ color: "rgba(200,180,255,1)" }}>⚙️ 설정</p>
-            <p>출처 표시 토글, 게임 도메인 큐레이션(관리자), 답변 모델 정보 확인.</p>
+            <p>출처 표시 토글, 참고 게임 라이브러리, 게임 도메인 큐레이션(관리자), 답변 모델 정보 확인.</p>
           </section>
           <section>
             <p className="font-bold mb-1.5" style={{ color: "rgba(150,255,200,1)" }}>💡 팁</p>

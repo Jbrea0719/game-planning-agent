@@ -491,8 +491,8 @@ export default function DocList({
           onClick={onOpenCategoryManager}
           title="카테고리 관리 — 대/중/소 카테고리 추가·수정·삭제"
           className="flex items-center justify-center w-7 h-7 rounded flex-shrink-0"
-          style={{ backgroundColor: "rgba(255,200,100,0.15)", border: "1px solid rgba(255,200,100,0.4)", color: "rgba(255,220,150,1)", fontSize: "13px" }}
-        >⚙️</button>
+          style={{ backgroundColor: "rgba(255,200,100,0.15)", border: "1px solid rgba(255,200,100,0.4)", color: "rgba(255,220,150,1)", fontSize: "13px", lineHeight: 1 }}
+        ><span style={{ lineHeight: 1, display: "block" }}>⚙️</span></button>
       </div>
 
       {/* 전체 진행률 */}
