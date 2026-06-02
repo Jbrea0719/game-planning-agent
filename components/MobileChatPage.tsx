@@ -737,7 +737,6 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
               )}
               <MenuBtn icon="📄" label="기획서" subtitle="작성·열람·수정" onClick={() => openMenu("docs")} />
               {/* 화면 설계는 📄 기획서 뷰의 [🎨 화면 설계] 버튼으로 통합됨 */}
-              <MenuBtn icon="📜" label="대본" subtitle="영상 대본 보관·편집" onClick={() => { window.location.href = "/scripts"; }} />
               <MenuBtn icon="⚙️" label="설정" subtitle="출처표시·참고게임·관리도구" onClick={() => openMenu("settings")} />
               <MenuBtn icon="📖" label="가이드" subtitle="조던 사용법" onClick={() => openMenu("guide")} />
               <div className="px-4 py-3 mt-2" style={{ borderTop: `1px solid ${SILVER_FAINT}` }}>
