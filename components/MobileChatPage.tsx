@@ -4,7 +4,7 @@
 // 데스크톱과 동일한 백엔드(/api/agent, Supabase)를 호출 — 데이터 자동 공유
 // 기존 모달 컴포넌트(DecisionPanel·DocumentView)는 재사용
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm"; // GFM 지원 — 표(table)·취소선 등 마크다운 확장 렌더링
 import dynamic from "next/dynamic";
@@ -738,7 +738,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
               )}
               <MenuBtn icon="📄" label="기획서" subtitle="작성·열람·수정" onClick={() => openMenu("docs")} />
               {/* 화면 설계는 📄 기획서 뷰의 [🎨 화면 설계] 버튼으로 통합됨 */}
-              <MenuBtn icon="⚙️" label="설정" subtitle="출처표시·참고게임·관리도구" onClick={() => openMenu("settings")} />
+              <MenuBtn icon={<GearIcon />} label="설정" subtitle="출처표시·참고게임·관리도구" onClick={() => openMenu("settings")} />
               <MenuBtn icon="📖" label="가이드" subtitle="조던 사용법" onClick={() => openMenu("guide")} />
               <div className="px-4 py-3 mt-2" style={{ borderTop: `1px solid ${SILVER_FAINT}` }}>
                 <p className="text-[10px]" style={{ color: SILVER_DIM }}>
@@ -1140,8 +1140,17 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
 }
 
 // ── 메뉴 버튼 ──────────────────────────────────────────────────────
+// 톱니바퀴 — 인라인 SVG(폰트 폴백 영향 없이 정중앙 정렬). 이모지 ⚙️는 Twemoji 서브셋 누락으로 어긋남
+function GearIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+    </svg>
+  );
+}
+
 function MenuBtn({ icon, label, subtitle, onClick }: {
-  icon: string; label: string; subtitle?: string; onClick: () => void;
+  icon: ReactNode; label: string; subtitle?: string; onClick: () => void;
 }) {
   return (
     <button
