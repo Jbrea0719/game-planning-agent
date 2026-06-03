@@ -73,6 +73,7 @@ export default function DecisionPanel({
   // 접기/펼치기 상태 (대카테고리·영역별)
   const [collapsedMains, setCollapsedMains] = useState<Set<string>>(new Set());
   const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
+  const [pendingCollapsed, setPendingCollapsed] = useState(false); // 상단 '미정·보류' 섹션 접힘
 
   // ── 카테고리 로드 ────────────────────────────────────────────────────
   const loadCategories = useCallback(() => {
@@ -147,8 +148,12 @@ export default function DecisionPanel({
   }
 
   // ── 결정사항 편집 (인라인) ────────────────────────────────────────
+  // 미정·보류 항목을 편집·저장하면 '결정(decided)'으로 확정되며 카테고리에 등록됨.
+  // (카테고리를 안 골랐고 기존에도 없으면 AI가 자동 분류해 등록)
   async function saveEdit(id: string, newContent: string, newSubId: string | null) {
     try {
+      const cur = decisions.find(x => x.id === id);
+      const wasPending = !!cur && cur.confidence !== "decided";
       await fetch(`/api/decisions/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -156,12 +161,59 @@ export default function DecisionPanel({
           content: newContent,
           sub_category_id: newSubId,
           nickname,
+          ...(wasPending ? { confidence: "decided" } : {}), // 미정 → 확정
         }),
       });
+      if (wasPending && !newSubId) await autoCategorize(id); // 확정인데 카테고리 미선택 → 자동 등록
       setEditingId(null);
       await loadDecisions();
     } catch (err) {
       console.error("[panel] 편집 실패:", err);
+    }
+  }
+
+  // ── 상태 전환: 결정 ↔ 미정 ────────────────────────────────────────
+  async function setConfidence(id: string, confidence: "decided" | "tentative") {
+    try {
+      await fetch(`/api/decisions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confidence, nickname }),
+      });
+    } catch (err) {
+      console.error("[panel] 상태 변경 실패:", err);
+    }
+  }
+  // 미정으로 보류
+  async function markPending(id: string) {
+    await setConfidence(id, "tentative");
+    await loadDecisions();
+  }
+  // 미정 → 결정으로 확정 (카테고리 없으면 AI 자동 등록)
+  async function finalize(id: string) {
+    const cur = decisions.find(x => x.id === id);
+    await setConfidence(id, "decided");
+    if (cur && !cur.sub_category_id) await autoCategorize(id);
+    await loadDecisions();
+  }
+  // AI 자동 분류 — 해당 결정 1건을 현재 카테고리 트리에 맞춰 등록
+  async function autoCategorize(id: string) {
+    try {
+      const prev = await fetch("/api/decisions/reclassify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "preview", project_id: projectId, decision_ids: [id] }),
+      }).then(r => r.json());
+      const sid = prev?.proposals?.[0]?.proposed_sub_category_id;
+      if (sid) {
+        await fetch("/api/decisions/reclassify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "apply", assignments: [{ id, sub_category_id: sid }], nickname }),
+        });
+      }
+    } catch (err) {
+      console.error("[panel] 자동 분류 실패:", err);
     }
   }
 
@@ -177,12 +229,26 @@ export default function DecisionPanel({
   }
 
   // ── 카테고리별 결정사항 그룹핑 ────────────────────────────────────
-  // sub_category_id → 결정사항들
+  // sub_category_id → 결정사항들 (확정된 것만 카테고리 트리에 표시. 미정·보류는 상단 섹션으로)
   const subIdToDecisions = new Map<string, Decision[]>();
   for (const d of decisions) {
+    if (d.confidence !== "decided") continue;
     const key = d.sub_category_id ?? "_uncategorized";
     if (!subIdToDecisions.has(key)) subIdToDecisions.set(key, []);
     subIdToDecisions.get(key)!.push(d);
+  }
+
+  // 미정·보류(확정 안 된) 결정 — 상단에 모아 표시
+  const pendingDecisions = decisions.filter(d => d.confidence !== "decided");
+
+  // sub_category_id → 사람이 읽는 이름 (미정 섹션의 카드에 소속 카테고리 표시용)
+  function subLabelOf(subId: string | null): string {
+    if (!subId) return "(카테고리 미지정)";
+    for (const m of categories) {
+      if (m.areas) for (const a of m.areas) for (const s of a.sub_categories) if (s.id === subId) return s.name_ko;
+      if (m.sub_categories) for (const s of m.sub_categories) if (s.id === subId) return s.name_ko;
+    }
+    return "(카테고리 미지정)";
   }
 
   // 대카테고리 ID → 총 카운트
@@ -313,6 +379,37 @@ export default function DecisionPanel({
           </p>
         )}
 
+        {/* ── 미정·보류 모아보기 (최상단) ── 아직 확정 전이지만 결국 정해야 하는 항목 ── */}
+        {pendingDecisions.length > 0 && (
+          <div className="mb-3">
+            <button
+              onClick={() => setPendingCollapsed(v => !v)}
+              className="w-full text-left text-xs font-bold px-2 py-1.5 rounded flex items-center justify-between"
+              style={{ backgroundColor: "rgba(150,180,255,0.18)", border: "1px solid rgba(150,180,255,0.45)", color: "rgba(190,215,255,1)" }}
+            >
+              <span>{pendingCollapsed ? "▶" : "▼"} ⚪ 미정 · 보류</span>
+              <span style={{ color: "rgba(180,210,255,0.8)" }}>{pendingDecisions.length}개</span>
+            </button>
+            {!pendingCollapsed && (
+              <div className="ml-2 mt-2 flex flex-col gap-1.5">
+                {pendingDecisions.map(d => (
+                  <DecisionCard key={d.id} d={d} subName={subLabelOf(d.sub_category_id)}
+                    editing={editingId === d.id}
+                    onEditStart={() => setEditingId(d.id)}
+                    onEditCancel={() => setEditingId(null)}
+                    onEditSave={(c, sid) => saveEdit(d.id, c, sid)}
+                    onDelete={() => deleteDecision(d.id)}
+                    onMarkPending={() => markPending(d.id)}
+                    onFinalize={() => finalize(d.id)}
+                    categories={categories}
+                    confStyle={confidenceStyle(d.confidence)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {categories.map(m => {
           const mainCount = mainCounts.get(m.id) ?? 0;
           if (mainCount === 0) return null; // 결정사항 있는 대카테고리만 표시
@@ -356,6 +453,8 @@ export default function DecisionPanel({
                                 onEditCancel={() => setEditingId(null)}
                                 onEditSave={(c, sid) => saveEdit(d.id, c, sid)}
                                 onDelete={() => deleteDecision(d.id)}
+                                onMarkPending={() => markPending(d.id)}
+                                onFinalize={() => finalize(d.id)}
                                 categories={categories}
                                 confStyle={confidenceStyle(d.confidence)}
                               />
@@ -374,6 +473,8 @@ export default function DecisionPanel({
                       onEditCancel={() => setEditingId(null)}
                       onEditSave={(c, sid) => saveEdit(d.id, c, sid)}
                       onDelete={() => deleteDecision(d.id)}
+                      onMarkPending={() => markPending(d.id)}
+                      onFinalize={() => finalize(d.id)}
                       categories={categories}
                       confStyle={confidenceStyle(d.confidence)}
                     />
@@ -398,6 +499,8 @@ export default function DecisionPanel({
                   onEditCancel={() => setEditingId(null)}
                   onEditSave={(c, sid) => saveEdit(d.id, c, sid)}
                   onDelete={() => deleteDecision(d.id)}
+                  onMarkPending={() => markPending(d.id)}
+                  onFinalize={() => finalize(d.id)}
                   categories={categories}
                   confStyle={confidenceStyle(d.confidence)}
                 />
@@ -413,7 +516,7 @@ export default function DecisionPanel({
 
 // ── 결정사항 카드 (개별 항목) ─────────────────────────────────────────
 function DecisionCard({
-  d, subName, editing, onEditStart, onEditCancel, onEditSave, onDelete, categories, confStyle,
+  d, subName, editing, onEditStart, onEditCancel, onEditSave, onDelete, onMarkPending, onFinalize, categories, confStyle,
 }: {
   d: Decision;
   subName: string;
@@ -422,9 +525,12 @@ function DecisionCard({
   onEditCancel: () => void;
   onEditSave: (content: string, subId: string | null) => void;
   onDelete: () => void;
+  onMarkPending: () => void;  // 결정 → 미정으로 보류
+  onFinalize: () => void;     // 미정 → 결정으로 확정 (카테고리 자동 등록)
   categories: MainCategoryItem[];
   confStyle: { bg: string; color: string; label: string };
 }) {
+  const isPending = d.confidence !== "decided"; // 미정·보류 상태
   const [editContent, setEditContent] = useState(d.content);
   const [editSubId, setEditSubId] = useState(d.sub_category_id ?? "");
 
@@ -486,7 +592,13 @@ function DecisionCard({
           {d.created_by_nickname && <span className="ml-1.5">— {d.created_by_nickname}</span>}
         </p>
       </div>
-      <div className="flex-shrink-0 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* 액션 — 모바일에선 hover가 없으므로 항상 표시. 상태에 따라 미정/결정 버튼 전환 */}
+      <div className="flex-shrink-0 flex gap-1.5 items-start">
+        {isPending ? (
+          <button onClick={onFinalize} title="결정으로 확정 (카테고리에 자동 등록)" className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: "rgba(100,220,160,0.18)", border: "1px solid rgba(100,220,160,0.5)", color: "rgba(150,255,200,1)" }}>✓ 결정</button>
+        ) : (
+          <button onClick={onMarkPending} title="미정으로 보류" className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: "rgba(150,180,255,0.15)", border: "1px solid rgba(150,180,255,0.45)", color: "rgba(180,210,255,1)" }}>미정</button>
+        )}
         <button onClick={onEditStart} title="편집" className="text-xs" style={{ color: SILVER_DIM }}>✏️</button>
         <button onClick={onDelete} title="삭제" className="text-xs" style={{ color: "rgba(255,180,180,0.7)" }}>🗑️</button>
       </div>
