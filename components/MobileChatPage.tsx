@@ -11,6 +11,21 @@ import dynamic from "next/dynamic";
 import DecisionPanel from "@/components/DecisionPanel";
 import DocumentView from "@/components/DocumentView";
 import { REFERENCE_GAMES } from "@/lib/reference-games";
+
+// 안드로이드 크롬의 PWA 설치 이벤트 타입 (표준 DOM 타입에 없어 직접 선언)
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
+// 홈 화면 설치 아이콘 — 인라인 SVG(폰트 폴백 영향 없이 정중앙). 트레이로 내려받는 모양
+function InstallIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z" />
+    </svg>
+  );
+}
 import ExtractedReviewCard, { type ExtractedItem } from "@/components/ExtractedReviewCard";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 
@@ -101,6 +116,31 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   const [showDocs, setShowDocs] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  // ── PWA 홈 화면 설치 (안드로이드 크롬 beforeinstallprompt 활용) ──
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isStandalone, setIsStandalone] = useState(false); // 이미 앱으로 설치돼 실행 중인지
+  const [isIosDevice, setIsIosDevice] = useState(false);   // iOS(사파리)는 이벤트 미지원 → 안내만
+  useEffect(() => {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches
+      || (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+    setIsStandalone(standalone);
+    setIsIosDevice(/iphone|ipad|ipod/i.test(window.navigator.userAgent));
+    const onPrompt = (e: Event) => { e.preventDefault(); setInstallPrompt(e as BeforeInstallPromptEvent); };
+    const onInstalled = () => { setInstallPrompt(null); setIsStandalone(true); };
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    setShowMenu(false);
+    await installPrompt.prompt();
+    try { await installPrompt.userChoice; } catch { /* 사용자가 취소해도 무시 */ }
+    setInstallPrompt(null);
+  };
   // 화면 설계는 기획서 뷰에서 진입 (📄 → 🎨 화면 설계)
 
   // 설정 상태
@@ -729,6 +769,14 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
               <button onClick={() => setShowMenu(false)} className="text-xs px-2 py-1 rounded" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>✕</button>
             </div>
             <div className="flex-1 overflow-y-auto py-2">
+              {/* 홈 화면 설치 — 아직 앱으로 설치 안 됐고 설치 가능할 때만 노출 */}
+              {!isStandalone && installPrompt && (
+                <MenuBtn icon={<InstallIcon />} label="홈 화면에 앱 설치" subtitle="한 번 탭하면 앱 아이콘으로 추가" onClick={handleInstall} />
+              )}
+              {!isStandalone && !installPrompt && isIosDevice && (
+                <MenuBtn icon={<InstallIcon />} label="홈 화면에 추가" subtitle="사파리 공유 → '홈 화면에 추가'"
+                  onClick={() => alert("사파리 하단의 공유 버튼(□↑)을 누른 뒤 '홈 화면에 추가'를 선택하면 조던이 앱으로 설치됩니다.")} />
+              )}
               <MenuBtn icon="🎤" label={interviewLoading ? "분석 중..." : "조던에게 질문 받기"} subtitle="빈 영역 자동 분석 → 다음 결정 질문" onClick={startInterview} />
               <MenuBtn icon="📌" label={contextAnchorPairId ? "맥락선 해제" : "맥락선"} subtitle={contextAnchorPairId ? "이 시점부터 조던에게 전달 중" : "설정 안 됨"}
                 onClick={() => { setShowMenu(false); if (contextAnchorPairId) clearContextAnchor(); }} />
