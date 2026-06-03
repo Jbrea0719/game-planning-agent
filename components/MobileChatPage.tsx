@@ -27,7 +27,7 @@ function InstallIcon({ size = 16 }: { size?: number }) {
   );
 }
 import ExtractedReviewCard, { type ExtractedItem } from "@/components/ExtractedReviewCard";
-import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import { useSpeechRecognition, applyVoiceCommands } from "@/hooks/useSpeechRecognition";
 
 // WireframeEditor·MockupGenerator는 DocumentView 안에서 호출 (📄 기획서 → 🎨 화면 설계)
 
@@ -275,9 +275,11 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   const { supported: voiceSupported, listening: voiceListening, start: startVoice } = useSpeechRecognition({
     lang: "ko-KR",
     onTranscript: (sessionText) => {
+      // "줄바꿈/다음 줄/엔터" 음성 명령을 실제 줄바꿈으로 변환
+      const spoken = applyVoiceCommands(sessionText);
       // 기존 입력 + 이번 발화 누적 텍스트 (말하는 도중 실시간 갱신)
       const base = voiceBaseRef.current;
-      setInput(base ? `${base} ${sessionText}` : sessionText);
+      setInput(base ? `${base} ${spoken}` : spoken);
     },
     onError: (err) => {
       if (err === "not-allowed" || err === "service-not-allowed") {

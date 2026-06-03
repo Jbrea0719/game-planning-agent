@@ -34,6 +34,12 @@ function getCtor(): SpeechRecognizerCtor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
+// 음성 받아쓰기는 줄바꿈을 만들 수 없어, 말한 명령어("줄바꿈"·"다음 줄"·"엔터")를 실제 줄바꿈(\n)으로 변환.
+// (PC·모바일 입력창이 공용으로 사용)
+export function applyVoiceCommands(text: string): string {
+  return text.replace(/\s*(줄바꿈|다음\s*줄|엔터)\s*/g, "\n");
+}
+
 export function useSpeechRecognition(opts: {
   lang?: string;
   // 현재 발화 세션의 누적 텍스트를 넘겨줌 (말하는 동안 계속 갱신 → 입력창 실시간 반영)
@@ -70,13 +76,17 @@ export function useSpeechRecognition(opts: {
     rec.interimResults = true;  // 말하는 도중에도 중간 결과 반영
 
     rec.onresult = (e) => {
-      // 이번 세션의 모든 결과를 합쳐 누적 텍스트 구성
-      let text = "";
+      // 이번 세션의 모든 결과를 합쳐 누적 텍스트 구성.
+      // 확정된 조각(final)끼리는 공백으로 이어붙여 단어가 붙는 현상을 방지 (긴 발화 시 띄어쓰기 깨짐 해결).
+      let finalText = "";
+      let interim = "";
       let isFinal = false;
       for (let i = 0; i < e.results.length; i++) {
-        text += e.results[i][0].transcript;
-        if (e.results[i].isFinal) isFinal = true;
+        const seg = e.results[i][0].transcript;
+        if (e.results[i].isFinal) { finalText += (finalText ? " " : "") + seg.trim(); isFinal = true; }
+        else interim += seg;
       }
+      const text = `${finalText}${finalText && interim ? " " : ""}${interim}`.replace(/ {2,}/g, " ");
       onTranscriptRef.current(text, isFinal);
     };
     rec.onerror = (e) => {
