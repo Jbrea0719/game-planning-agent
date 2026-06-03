@@ -10,6 +10,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "@/lib/supabase";
 import { MODEL } from "@/lib/models";
+import { suggestDocumentCategory } from "@/lib/document-categorizer";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -110,6 +111,9 @@ export async function POST(request: Request) {
     const title = body.title ?? `바이블 기반 자동 생성`;
     const sourceDecisionIds = decisions.map(d => d.id);
 
+    // AI 자동 분류 — 생성된 기획서를 알맞은 카테고리 폴더에 배치 (없으면 미분류)
+    const suggestion = await suggestDocumentCategory(title, markdown);
+
     const { data: saved, error: saveErr } = await supabase
       .from("design_docs")
       .insert({
@@ -117,6 +121,9 @@ export async function POST(request: Request) {
         title,
         content_markdown: markdown,
         status: "draft",
+        category_main_id: suggestion.main_id,
+        category_area_code: suggestion.area_code,
+        category_sub_id: suggestion.sub_id,
         decision_snapshot: { count: decisions.length, generated_at: new Date().toISOString() },
         source_decision_ids: sourceDecisionIds,
         created_by_nickname: body.nickname ?? null,

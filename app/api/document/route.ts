@@ -10,6 +10,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { buildDecisionContext } from "@/lib/decision-context";
 import { supabase } from "@/lib/supabase";
+import { suggestDocumentCategory } from "@/lib/document-categorizer";
 import { MODEL } from "@/lib/models";
 
 const DOC_SYSTEM_PROMPT = `당신은 영웅수집형 모바일 게임 기획서 작성 전문가입니다.
@@ -176,6 +177,9 @@ export async function POST(request: Request) {
             .trim() || "대화 기반 기획서"
         : "대화 기반 기획서";
 
+      // AI 자동 분류 — 생성된 기획서를 현재 카테고리 트리의 알맞은 폴더에 배치 (없으면 미분류)
+      const suggestion = await suggestDocumentCategory(title, fullText);
+
       const { data: doc, error: saveErr } = await supabase
         .from("design_docs")
         .insert({
@@ -183,6 +187,9 @@ export async function POST(request: Request) {
           title,
           content_markdown: fullText,
           status: "draft",
+          category_main_id: suggestion.main_id,
+          category_area_code: suggestion.area_code,
+          category_sub_id: suggestion.sub_id,
           decision_snapshot: {
             source: "chat_selection",
             messages_count: messages.length,
