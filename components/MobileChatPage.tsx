@@ -4,7 +4,7 @@
 // 데스크톱과 동일한 백엔드(/api/agent, Supabase)를 호출 — 데이터 자동 공유
 // 기존 모달 컴포넌트(DecisionPanel·DocumentView)는 재사용
 
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef, useEffect, memo, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm"; // GFM 지원 — 표(table)·취소선 등 마크다운 확장 렌더링
 import dynamic from "next/dynamic";
@@ -46,6 +46,12 @@ type Pair = {
   detail_loading?: boolean;
   detail_shown?: boolean;
 };
+
+// 마크다운 렌더는 비용이 큼(매번 파싱). 내용(text)이 바뀔 때만 다시 그리도록 메모이즈.
+// → 입력창 타이핑으로 부모가 리렌더돼도, 쌓인 메시지 마크다운은 재파싱하지 않음 (타이핑 끊김 해결).
+const MemoMarkdown = memo(function MemoMarkdown({ text }: { text: string }) {
+  return <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{text}</ReactMarkdown>;
+});
 
 export default function MobileChatPage({ simulateKeyboard = false }: { simulateKeyboard?: boolean }) {
   const [nickname, setNickname] = useState("");
@@ -883,7 +889,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                   <div className="flex-1 min-w-0">
                     <div className="px-3 py-2 rounded-2xl rounded-tl-sm text-sm prose prose-sm max-w-none"
                       style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}>
-                      <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{pair.assistant.content}</ReactMarkdown>
+                      <MemoMarkdown text={pair.assistant.content} />
                     </div>
                     {/* 답변 도구 — 자세한 답변 + 피드백 */}
                     <div className="flex items-center gap-3 mt-1.5 ml-1">
@@ -919,7 +925,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                     {pair.detail_shown && pair.detail_content && (
                       <div className="px-3 py-2 rounded-2xl text-sm prose prose-sm max-w-none mt-1.5"
                         style={{ backgroundColor: "rgba(192,200,216,0.07)", border: `1px solid rgba(192,200,216,0.25)`, color: "#e0e8f0" }}>
-                        <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{pair.detail_content}</ReactMarkdown>
+                        <MemoMarkdown text={pair.detail_content} />
                       </div>
                     )}
                   </div>
