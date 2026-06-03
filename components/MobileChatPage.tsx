@@ -45,6 +45,7 @@ type Pair = {
   detail_content?: string;
   detail_loading?: boolean;
   detail_shown?: boolean;
+  detail_failed?: boolean; // 자세히 불러오기 실패 → 재시도 버튼 표시용
 };
 
 // 마크다운 렌더는 비용이 큼(매번 파싱). 내용(text)이 바뀔 때만 다시 그리도록 메모이즈.
@@ -113,6 +114,12 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [pairs, setPairs] = useState<Pair[]>([]);
   const [streaming, setStreaming] = useState<{ user: string; assistant: string } | null>(null);
+  // 답변 스트림 실패(네트워크 끊김·백그라운드 등) 상태 — 재시도 버튼·자동 재시도용
+  const [streamFailed, setStreamFailed] = useState(false);
+  const streamCancelledRef = useRef(false); // 사용자가 직접 '취소'한 경우 구분(자동 재시도 안 함)
+  const lastReqRef = useRef<{ allMessages: { role: string; content: string }[]; pairId: string; userText: string } | null>(null);
+  const autoRetryRef = useRef(0);            // 답변 자동 재시도 횟수(무한루프 방지)
+  const detailRetryRef = useRef<Record<string, number>>({}); // 자세히 pair별 자동 재시도 횟수
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -323,7 +330,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       void persistDetail(pairId, { detail_shown: nextShown });
       return;
     }
-    setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, detail_loading: true, detail_shown: true } : p));
+    setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, detail_loading: true, detail_shown: true, detail_failed: false } : p));
     try {
       const ctx = [
         { role: "user" as const, content: pair.user.content },
@@ -347,10 +354,13 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       }
       const finalDetailText = text.replace("__TRUNCATED__", "");
       setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, detail_content: finalDetailText } : p));
+      if (!finalDetailText.trim()) throw new Error("empty");
+      delete detailRetryRef.current[pairId]; // 성공 → 재시도 카운트 리셋
       // DB에 영속화 — 다음번 진입 시 펼친 상태로 복원
       void persistDetail(pairId, { detail_content: finalDetailText, detail_shown: true });
     } catch {
-      setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, detail_content: "오류가 발생했어요." } : p));
+      // 실패 → 에러문구 대신 플래그로 표시(내용은 비워둬 재시도 가능) → 재시도 버튼·자동 재시도 대상
+      setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, detail_content: "", detail_failed: true } : p));
     } finally {
       setPairs(prev => prev.map(p => p.pair_id === pairId ? { ...p, detail_loading: false } : p));
     }
@@ -502,11 +512,20 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       ]),
       { role: "user" as const, content: trimmed },
     ];
-    setStreaming({ user: trimmed, assistant: "" });
     setInput("");
-    setIsLoading(true);
     if (inputRef.current) { inputRef.current.style.height = "auto"; }
+    // 재시도·자동 재시도에서 같은 요청을 다시 보낼 수 있도록 보관
+    lastReqRef.current = { allMessages, pairId, userText: trimmed };
+    autoRetryRef.current = 0;
+    await runAgentStream(allMessages, pairId, trimmed);
+  }
 
+  // 실제 네트워크 스트리밍 — sendMessage·retryStream(재시도)·자동 재시도가 공용으로 호출
+  async function runAgentStream(allMessages: { role: string; content: string }[], pairId: string, userText: string) {
+    setStreaming({ user: userText, assistant: "" });
+    setStreamFailed(false);
+    setIsLoading(true);
+    streamCancelledRef.current = false;
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -538,7 +557,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         display = display.replace(/\n__JORDAN_CRITIC_START__[\s\S]*?__JORDAN_CRITIC_END__$/, "");
         display = display.replace(/__DECISIONS_(EXTRACTED|HELD)__\d+/g, "");
         display = display.replace("__TRUNCATED__", "");
-        setStreaming({ user: trimmed, assistant: display });
+        setStreaming({ user: userText, assistant: display });
       }
       let clean = text;
       const extractedMatch = text.match(/__DECISIONS_EXTRACTED__(\d+)/);
@@ -560,25 +579,86 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       clean = clean.replace(/__DECISIONS_(EXTRACTED|HELD)__\d+/g, "");
       clean = clean.replace("__TRUNCATED__", "").trimEnd();
 
+      if (!clean) throw new Error("empty"); // 빈 응답도 실패로 처리(재시도 가능)
       setPairs(prev => [...prev, {
         pair_id: pairId,
-        user: { role: "user", content: trimmed },
+        user: { role: "user", content: userText },
         assistant: { role: "assistant", content: clean },
       }]);
       setStreaming(null);
+      setStreamFailed(false);
+      lastReqRef.current = null; // 성공 → 보관 요청 비움
     } catch {
-      // 무시
+      // 사용자가 직접 취소한 게 아니라면 '실패'로 표시 → 재시도 버튼·자동 재시도 대상
+      if (!streamCancelledRef.current) setStreamFailed(true);
     } finally {
       abortRef.current = null;
       setIsLoading(false);
     }
   }
 
+  // 멈춘 답변 다시 진행 (재시도 버튼·자동 재시도 공용)
+  function retryStream() {
+    const req = lastReqRef.current;
+    if (!req || abortRef.current) return; // 보관 요청 없거나 이미 진행 중이면 무시
+    void runAgentStream(req.allMessages, req.pairId, req.userText);
+  }
+
   function cancelStream() {
+    streamCancelledRef.current = true;
     abortRef.current?.abort();
     setStreaming(null);
+    setStreamFailed(false);
+    lastReqRef.current = null;
     setIsLoading(false);
   }
+
+  // ── 자동 재시도 (네트워크 복귀·앱 복귀 시) ──────────────────────────
+  // 최신 값/함수를 이벤트 핸들러에서 참조하기 위한 ref 미러
+  const pairsRef = useRef(pairs); pairsRef.current = pairs;
+  const retryStreamRef = useRef<() => void>(() => {}); retryStreamRef.current = retryStream;
+  const loadDetailRef = useRef<(id: string) => void>(() => {}); loadDetailRef.current = loadDetail;
+
+  // 답변 스트림 실패 시: 온라인·포그라운드면 잠시 후 자동 재시도(최대 3회). 오프라인/백그라운드면 복귀 이벤트 때 재시도.
+  useEffect(() => {
+    if (!streamFailed) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const tryResume = () => {
+      if (timer) return;
+      if (navigator.onLine && document.visibilityState === "visible" && !abortRef.current && autoRetryRef.current < 3) {
+        timer = setTimeout(() => { timer = null; autoRetryRef.current += 1; retryStreamRef.current(); }, 700);
+      }
+    };
+    tryResume();
+    window.addEventListener("online", tryResume);
+    document.addEventListener("visibilitychange", tryResume);
+    return () => { if (timer) clearTimeout(timer); window.removeEventListener("online", tryResume); document.removeEventListener("visibilitychange", tryResume); };
+  }, [streamFailed]);
+
+  // 자세히 실패 시: 동일하게 자동 재시도(항목당 최대 2회)
+  const anyDetailFailed = pairs.some(p => p.detail_failed);
+  useEffect(() => {
+    if (!anyDetailFailed) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const tryResume = () => {
+      if (timer) return;
+      if (navigator.onLine && document.visibilityState === "visible") {
+        timer = setTimeout(() => {
+          timer = null;
+          for (const p of pairsRef.current) {
+            if (p.detail_failed && !p.detail_loading) {
+              const n = detailRetryRef.current[p.pair_id] ?? 0;
+              if (n < 2) { detailRetryRef.current[p.pair_id] = n + 1; loadDetailRef.current(p.pair_id); }
+            }
+          }
+        }, 700);
+      }
+    };
+    tryResume();
+    window.addEventListener("online", tryResume);
+    document.addEventListener("visibilitychange", tryResume);
+    return () => { if (timer) clearTimeout(timer); window.removeEventListener("online", tryResume); document.removeEventListener("visibilitychange", tryResume); };
+  }, [anyDetailFailed]);
 
   // 기획서 작성 모드 진입 — 기본 선택값: 맥락선 이하 또는 전체
   function enterSelectMode() {
@@ -896,9 +976,9 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                       <button
                         onClick={() => loadDetail(pair.pair_id)}
                         className="text-[10px]"
-                        style={{ color: SILVER_DIM }}
+                        style={{ color: pair.detail_failed ? "rgba(255,180,180,0.95)" : SILVER_DIM }}
                       >
-                        {pair.detail_loading ? "⏳" : pair.detail_shown ? "▲ 접기" : "▼ 자세히"}
+                        {pair.detail_loading ? "⏳ 불러오는 중" : pair.detail_failed ? "⚠️ 자세히 실패 — ↻ 재시도" : pair.detail_shown ? "▲ 접기" : "▼ 자세히"}
                       </button>
                       <div className="ml-auto flex items-center gap-1.5">
                         <button
@@ -936,6 +1016,13 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           {streaming && (
             <div className="space-y-2">
               <div className="flex justify-end items-end gap-2">
+                {streamFailed && (
+                  <button
+                    onClick={retryStream}
+                    className="text-[10px] px-2 py-1 rounded font-medium"
+                    style={{ backgroundColor: "rgba(100,180,255,0.15)", color: "rgba(180,210,255,1)", border: "1px solid rgba(100,180,255,0.45)" }}
+                  >↻ 재시도</button>
+                )}
                 <button
                   onClick={cancelStream}
                   className="text-[10px] px-2 py-1 rounded"
@@ -952,7 +1039,11 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                 <div className="flex-1 min-w-0">
                   <div className="px-3 py-2 rounded-2xl rounded-tl-sm text-sm prose prose-sm max-w-none"
                     style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}>
-                    {streaming.assistant ? <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{streaming.assistant}</ReactMarkdown> : <span style={{ color: SILVER_DIM }} className="animate-pulse">···</span>}
+                    {streaming.assistant
+                      ? <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{streaming.assistant}</ReactMarkdown>
+                      : streamFailed
+                        ? <span style={{ color: "rgba(255,180,180,0.95)" }}>⚠️ 연결이 끊겼어요. 잠시 후 자동으로 다시 시도하거나, 위 <b>↻ 재시도</b>를 눌러주세요.</span>
+                        : <span style={{ color: SILVER_DIM }} className="animate-pulse">···</span>}
                   </div>
                 </div>
               </div>
