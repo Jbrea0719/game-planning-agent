@@ -18,7 +18,7 @@ import {
   downloadPDF as exportPDF,
 } from "@/lib/doc-export";
 import { MermaidDiagram, DocImage } from "./DocImages";
-import { mockupUrl, stripJordanImages, type DocImageItem } from "@/lib/doc-images";
+import { stripJordanImages, type DocImageItem } from "@/lib/doc-images";
 
 const SILVER = "#c0c8d8";
 const SILVER_DIM = "rgba(192,200,216,0.5)";
@@ -506,7 +506,6 @@ export default function DocumentView({
       const items: DocImageItem[] = (data.suggestions ?? [])
         .filter((s: { heading?: string }) => s.heading && base.includes(s.heading))
         .map((s: { heading: string; type: string; alt?: string; mermaid?: string; prompt?: string }, i: number) => {
-          const seed = Math.floor(Math.random() * 1_000_000);
           const type = s.type === "diagram" ? "diagram" : "mockup";
           return {
             key: `${Date.now()}-${i}`,
@@ -515,31 +514,50 @@ export default function DocumentView({
             alt: s.alt ?? "이미지",
             mermaid: s.mermaid,
             prompt: s.prompt,
-            seed,
-            imageUrl: type === "mockup" && s.prompt ? mockupUrl(s.prompt, seed) : undefined,
+            generating: type === "mockup",   // 목업은 Gemini 생성 대기 상태로 시작
           } as DocImageItem;
         });
       setPreviewItems(items);
+      setPreviewLoading(false);
+      // 목업 이미지는 Gemini로 병렬 생성 (각자 완료되는 대로 채워짐)
+      items.filter(it => it.type === "mockup" && it.prompt).forEach(it => { void genMockup(it.key, it.prompt!); });
     } catch {
       setPreviewItems([]);
-    } finally {
       setPreviewLoading(false);
     }
+  }
+
+  // 단일 목업 이미지 Gemini 생성 → 저장 URL을 항목에 채움
+  async function genMockup(key: string, prompt: string) {
+    setPreviewItems(prev => prev.map(it => it.key === key ? { ...it, generating: true, genFailed: false } : it));
+    try {
+      const res = await fetch("/api/design-docs/mockup-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, doc_id: currentDoc?.id }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        setPreviewItems(prev => prev.map(it => it.key === key ? { ...it, imageUrl: data.url, generating: false } : it));
+        return;
+      }
+    } catch { /* 아래에서 실패 처리 */ }
+    setPreviewItems(prev => prev.map(it => it.key === key ? { ...it, generating: false, genFailed: true } : it));
   }
 
   function removePreviewItem(key: string) {
     setPreviewItems(prev => prev.filter(it => it.key !== key));
   }
 
-  // 항목별 재생성: mockup은 seed 변경(즉시), diagram은 API 재호출
+  // 항목별 재생성: mockup은 Gemini 재생성, diagram은 API 재호출
   async function regeneratePreviewItem(key: string) {
     const item = previewItems.find(it => it.key === key);
     if (!item || !currentDoc) return;
 
-    if (item.type === "mockup") {
-      const seed = Math.floor(Math.random() * 1_000_000);
-      setPreviewItems(prev => prev.map(it =>
-        it.key === key ? { ...it, seed, imageUrl: it.prompt ? mockupUrl(it.prompt, seed) : it.imageUrl } : it));
+    if (item.type === "mockup" && item.prompt) {
+      // 약간의 변형 힌트를 더해 다른 화면이 나오게
+      const varied = `${item.prompt} (alternative composition, variation ${Math.floor(Math.random() * 1000)})`;
+      await genMockup(item.key, varied);
       return;
     }
 
@@ -1266,8 +1284,19 @@ export default function DocumentView({
                         {item.type === "diagram" && item.mermaid && (
                           <MermaidDiagram key={item.mermaid} code={item.mermaid} />
                         )}
-                        {item.type === "mockup" && item.imageUrl && (
-                          <DocImage key={item.seed} src={item.imageUrl} alt={item.alt} />
+                        {item.type === "mockup" && item.generating && (
+                          <div className="animate-pulse" style={{ height: "180px", borderRadius: "8px", background: "rgba(192,200,216,0.08)", border: "1px solid rgba(192,200,216,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <span style={{ color: "rgba(192,200,216,0.5)", fontSize: "12px" }}>🎨 Gemini가 화면 시안을 그리는 중...</span>
+                          </div>
+                        )}
+                        {item.type === "mockup" && !item.generating && item.genFailed && (
+                          <div style={{ borderRadius: "8px", background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.25)", padding: "16px", textAlign: "center" }}>
+                            <p style={{ color: "#f87171", fontSize: "12px" }}>⚠️ 이미지 생성 실패</p>
+                            <p style={{ color: SILVER_DIM, fontSize: "11px", marginTop: "4px" }}>GEMINI_API_KEY 설정과 doc_images 테이블을 확인해주세요. (🔄 재생성으로 재시도)</p>
+                          </div>
+                        )}
+                        {item.type === "mockup" && !item.generating && !item.genFailed && item.imageUrl && (
+                          <DocImage key={item.imageUrl} src={item.imageUrl} alt={item.alt} />
                         )}
                       </div>
                     </div>

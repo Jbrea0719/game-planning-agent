@@ -15,16 +15,11 @@ export type DocImageItem = {
   alt: string;
   mermaid?: string;           // diagram
   prompt?: string;            // mockup (이미지 생성 프롬프트)
-  imageUrl?: string;          // mockup (계산된 Pollinations URL)
-  seed?: number;              // mockup 변형용 시드
-  regenerating?: boolean;     // 재생성 진행 중 (UI용)
+  imageUrl?: string;          // mockup (Gemini 생성 후 저장된 서빙 URL: /api/img/<id>)
+  regenerating?: boolean;     // diagram 재생성 진행 중 (UI용)
+  generating?: boolean;       // mockup 이미지 생성 진행 중 (UI용)
+  genFailed?: boolean;        // mockup 이미지 생성 실패 (UI용)
 };
-
-// Pollinations(flux, 무료) UI 목업 이미지 URL — 시드를 바꾸면 다른 이미지가 나옴
-export function mockupUrl(prompt: string, seed: number): string {
-  const p = encodeURIComponent(prompt.slice(0, 300));
-  return `https://image.pollinations.ai/prompt/${p}?width=800&height=480&nologo=true&model=flux&seed=${seed}`;
-}
 
 // 자동 삽입된 이미지 블록(마커 포함)을 모두 제거 — 사용자가 쓴 본문은 그대로
 export function stripJordanImages(md: string): string {
@@ -37,9 +32,8 @@ export function buildImageBlock(item: DocImageItem): string {
   if (item.type === "diagram" && item.mermaid) {
     return `${J_IMG_START}\n\`\`\`mermaid\n${item.mermaid}\n\`\`\`\n${J_IMG_END}`;
   }
-  if (item.type === "mockup") {
-    const url = item.imageUrl ?? (item.prompt ? mockupUrl(item.prompt, item.seed ?? 0) : "");
-    if (url) return `${J_IMG_START}\n![${item.alt}](${url})\n${J_IMG_END}`;
+  if (item.type === "mockup" && item.imageUrl) {
+    return `${J_IMG_START}\n![${item.alt}](${item.imageUrl})\n${J_IMG_END}`;
   }
   return "";
 }
