@@ -926,6 +926,7 @@ export default function DocumentView({
                 onLoadDoc={(id) => { void loadDoc(id); setShowDocList(false); }}
                 onOpenCategoryManager={() => setShowCatManager(true)}
                 onClose={() => setShowDocList(false)}
+                onMoved={() => { void loadVersions(); }}
               />
             )}
           </aside>

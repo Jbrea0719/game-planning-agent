@@ -10,7 +10,7 @@
 
 import { useState, useEffect, type ReactNode } from "react";
 import {
-  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
+  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, useDroppable,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import {
@@ -36,38 +36,42 @@ function SortableItem({ id, render }: { id: string; render: (handle: DragHandle)
   );
 }
 
-// 범용 드래그앤드롭 정렬 영역 (기획서·소분류·대분류 공용, 마우스·터치 모두)
-// enabled=false거나 항목 1개 이하면 그냥 평범하게 렌더(불필요한 DnD 래핑 방지)
-function SortableZone<T>({ items, getId, renderItem, onReorder, enabled }: {
+// 정렬 영역 — 루트의 단일 DndContext 안에서 SortableContext만 제공 (DnD 처리는 루트 onDragEnd가 통합)
+// enabled=false거나 항목 1개 이하면 그냥 평범하게 렌더(드래그 비활성)
+function SortableZone<T>({ items, getId, renderItem, enabled }: {
   items: T[];
   getId: (t: T) => string;
   renderItem: (t: T, handle?: DragHandle) => ReactNode;
-  onReorder: (orderedIds: string[]) => void;
+  onReorder?: (orderedIds: string[]) => void;  // (미사용 — 루트 핸들러가 처리, 호출부 호환용)
   enabled: boolean;
 }) {
-  // 마우스: 5px 이동 후 시작 / 터치: 200ms 길게 눌러야 시작(스크롤과 구분)
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
-  );
   const ids = items.map(getId);
-  if (!enabled || items.length < 2) {
+  if (!enabled || items.length < 1) {
     return <>{items.map(t => renderItem(t))}</>;
   }
-  const handleEnd = (e: DragEndEvent) => {
-    const { active, over } = e;
-    if (!over || active.id === over.id) return;
-    const oldI = ids.indexOf(String(active.id));
-    const newI = ids.indexOf(String(over.id));
-    if (oldI < 0 || newI < 0) return;
-    onReorder(arrayMove(ids, oldI, newI));
-  };
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleEnd}>
-      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-        {items.map(t => <SortableItem key={getId(t)} id={getId(t)} render={handle => renderItem(t, handle)} />)}
-      </SortableContext>
-    </DndContext>
+    <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+      {items.map(t => <SortableItem key={getId(t)} id={getId(t)} render={handle => renderItem(t, handle)} />)}
+    </SortableContext>
+  );
+}
+
+// 카테고리 드롭 영역 — 기획서를 여기에 떨구면 해당 카테고리 하위로 이동
+function CatDroppable({ id, children }: { id: string; children: ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        borderRadius: 8,
+        outline: isOver ? "2px dashed rgba(100,180,255,0.9)" : "2px solid transparent",
+        outlineOffset: -1,
+        backgroundColor: isOver ? "rgba(100,180,255,0.12)" : undefined,
+        transition: "background-color 0.1s",
+      }}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -110,6 +114,7 @@ export default function DocList({
   onLoadDoc,
   onOpenCategoryManager,
   onClose,
+  onMoved,
 }: {
   versions: DocMeta[];
   currentDoc: DocFull | null;
@@ -128,6 +133,7 @@ export default function DocList({
   onLoadDoc: (id: string) => void;
   onOpenCategoryManager: () => void;
   onClose: () => void;
+  onMoved?: () => void;   // 드래그로 기획서를 다른 카테고리로 옮긴 뒤 부모에 새로고침 요청
 }) {
   const [filter, setFilter] = useState<FilterMode>("all");
   // 완성/빈항목 필터에선 기본 펼침이라, 접기 상태를 별도 Set으로 관리(전체 탭은 부모 expandedCats 사용)
@@ -255,6 +261,98 @@ export default function DocList({
   const areaVisible = (a: AreaNode) => a.subs.some(passes);
   const mainVisible = (m: MainNode) => m.areas.some(areaVisible) || m.subs.some(passes) || (filter !== "empty" && m.directDocs.length > 0);
 
+  // ── 통합 DnD (순서변경 + 카테고리 이동) ───────────────────────────────
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  );
+  // 조회용 집합/맵 (현재 트리 기준)
+  const docIdSet = new Set(versions.map(d => d.id));
+  const subIdSet = new Set([...subLeafById.keys()]);
+  const mainIdList = mains.map(m => m.id ?? "__none__");
+  const mainIdSet = new Set(mainIdList);
+  // 기획서 id → 같은 컨테이너의 정렬된 기획서 id 배열
+  const docContainerByDoc = new Map<string, string[]>();
+  const regDocs = (docs: DocMeta[]) => {
+    const ids = groupSort(docs).map(d => d.id);
+    for (const id of ids) docContainerByDoc.set(id, ids);
+  };
+  for (const m of mains) {
+    regDocs(m.directDocs);
+    for (const s of m.subs) regDocs(s.docs);
+    for (const a of m.areas) for (const s of a.subs) regDocs(s.docs);
+  }
+  regDocs(uncategorized);
+  // 소 id → 같은 부모의 정렬된 소 id 배열
+  const subGroupBySub = new Map<string, string[]>();
+  const regSubs = (leaves: Leaf[]) => {
+    const ids = sortByOverride(leaves, l => l.id, subOrderOverride).map(l => l.id);
+    for (const id of ids) subGroupBySub.set(id, ids);
+  };
+  for (const m of mains) { regSubs(m.subs); for (const a of m.areas) regSubs(a.subs); }
+  // 소 id → 소속(대/중)
+  const subInfoById = new Map<string, { mainId: string | null; areaCode: string | null }>();
+  for (const m of mains) {
+    for (const s of m.subs) subInfoById.set(s.id, { mainId: m.id, areaCode: null });
+    for (const a of m.areas) for (const s of a.subs) subInfoById.set(s.id, { mainId: m.id, areaCode: a.code });
+  }
+
+  // 기획서를 다른 카테고리로 이동 (드롭 시)
+  async function moveDoc(docId: string, mainId: string | null, areaCode: string | null, subId: string | null) {
+    try {
+      await fetch("/api/design-docs/reclassify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "apply", assignments: [{ id: docId, main_id: mainId, area_code: areaCode, sub_id: subId }] }),
+      });
+      onMoved?.();
+    } catch (err) {
+      console.warn("[doc-move] 이동 저장 실패:", err);
+    }
+  }
+
+  const handleDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (activeId === overId) return;
+
+    // 1) 카테고리로 드롭 → 이동
+    if (overId.startsWith("D:")) {
+      if (!docIdSet.has(activeId)) return;
+      const parts = overId.split(":"); // D:sub:<id> | D:main:<id>
+      if (parts[1] === "sub") {
+        const info = subInfoById.get(parts[2]);
+        if (info) void moveDoc(activeId, info.mainId, info.areaCode, parts[2]);
+      } else if (parts[1] === "main") {
+        void moveDoc(activeId, parts[2] === "__none__" ? null : parts[2], null, null);
+      }
+      return;
+    }
+
+    // 2) 기획서 순서 변경 (같은 컨테이너 내)
+    if (docIdSet.has(activeId) && docIdSet.has(overId)) {
+      const cont = docContainerByDoc.get(activeId);
+      if (cont && cont.includes(overId)) {
+        persistReorder(arrayMove(cont, cont.indexOf(activeId), cont.indexOf(overId)));
+      }
+      return;
+    }
+    // 3) 소 순서 변경 (같은 부모 내)
+    if (subIdSet.has(activeId) && subIdSet.has(overId)) {
+      const grp = subGroupBySub.get(activeId);
+      if (grp && grp.includes(overId)) {
+        persistCategoryOrder("sub", arrayMove(grp, grp.indexOf(activeId), grp.indexOf(overId)));
+      }
+      return;
+    }
+    // 4) 대분류 순서 변경
+    if (mainIdSet.has(activeId) && mainIdSet.has(overId)) {
+      persistCategoryOrder("main", arrayMove(mainIdList, mainIdList.indexOf(activeId), mainIdList.indexOf(overId)));
+    }
+  };
+
   // ── 기획서 1개 렌더 (leaf 문서, rename 인라인 처리) ────────────────
   // handle 전달 시 왼쪽에 드래그 그립(⠿) 표시 (그룹 내 순서 변경용)
   // 드래그 그립(⠿) — handle 있을 때만. 클릭(탭)은 막아 토글/열기와 충돌 방지
@@ -342,8 +440,8 @@ export default function DocList({
     // ── 빈 소분류: 토글 대신 '작성하기' 버튼 행 (button 중첩 방지 위해 div로) ──
     if (empty) {
       return (
+        <CatDroppable key={key} id={`D:sub:${leaf.id}`}>
         <div
-          key={key}
           className="w-full px-2 py-1 rounded flex items-center justify-between gap-1"
           style={{ backgroundColor: EMPTY_BG, border: `1px solid ${EMPTY_BORDER}`, color: EMPTY_TEXT, fontSize: "11.5px" }}
         >
@@ -359,12 +457,14 @@ export default function DocList({
             style={{ backgroundColor: "rgba(255,170,80,0.9)", color: "#3a1d00" }}
           >✍️ 작성하기</button>
         </div>
+        </CatDroppable>
       );
     }
     // ── 채워진 소분류: 펼치면 기획서 목록 ──
     const open = isOpen(key);
     return (
-      <div key={key}>
+      <CatDroppable key={key} id={`D:sub:${leaf.id}`}>
+      <div>
         <div className="flex items-center gap-1">
           {grip(handle)}
           <button
@@ -390,6 +490,7 @@ export default function DocList({
           </div>
         )}
       </div>
+      </CatDroppable>
     );
   };
 
@@ -418,6 +519,7 @@ export default function DocList({
     const st = stats(mainLeaves(main));
     return (
       <div key={mainKey} className="mb-2">
+        <CatDroppable id={`D:main:${mainKey}`}>
         <div className="flex items-center gap-1">
           {grip(handle)}
           <button
@@ -437,6 +539,7 @@ export default function DocList({
             </span>
           </button>
         </div>
+        </CatDroppable>
 
         {mainOpen && (
           <div className="mt-1 flex flex-col gap-1">
@@ -547,6 +650,7 @@ export default function DocList({
         {mains.length === 0 && (
           <p className="text-xs text-center mt-6" style={{ color: SILVER_DIM }}>카테고리가 없어요</p>
         )}
+        <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableZone
           items={sortByOverride(mains, (m) => m.id ?? "__none__", mainOrderOverride).filter(mainVisible)}
           getId={(m) => m.id ?? "__none__"}
@@ -581,6 +685,7 @@ export default function DocList({
             )}
           </div>
         )}
+        </DndContext>
       </div>
     </div>
   );
