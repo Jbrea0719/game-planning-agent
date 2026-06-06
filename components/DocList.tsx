@@ -90,7 +90,7 @@ type FilterMode = "all" | "filled" | "empty";
 // ── 트리 노드 타입 ──────────────────────────────────────────────────
 type Leaf = { id: string; label: string; docs: DocMeta[] };
 type AreaNode = { code: string; label: string; subs: Leaf[] };
-type MainNode = { id: string | null; label: string; icon: string; areas: AreaNode[]; subs: Leaf[] };
+type MainNode = { id: string | null; label: string; icon: string; areas: AreaNode[]; subs: Leaf[]; directDocs: DocMeta[] };
 
 export default function DocList({
   versions,
@@ -187,7 +187,7 @@ export default function DocList({
   const subLeafById = new Map<string, Leaf>();
 
   for (const m of categories) {
-    const main: MainNode = { id: m.id, label: m.name_ko, icon: m.icon ?? "📁", areas: [], subs: [] };
+    const main: MainNode = { id: m.id, label: m.name_ko, icon: m.icon ?? "📁", areas: [], subs: [], directDocs: [] };
     if (m.areas && m.areas.length > 0) {
       for (const a of m.areas) {
         const area: AreaNode = { code: a.code, label: a.name, subs: [] };
@@ -214,9 +214,13 @@ export default function DocList({
   // 소분류 미지정(대/중까지만) 또는 삭제된 소분류 참조 → '분류 안 됨'(소분류 지정 필요).
   // 이렇게 해야 카테고리 관리(소분류 구조)와 기획서 트리가 정확히 일치함.
   const uncategorized: DocMeta[] = [];
+  const mainById = new Map(mains.map(m => [m.id, m]));
   for (const d of versions) {
     if (d.category_sub_id && subLeafById.has(d.category_sub_id)) {
       subLeafById.get(d.category_sub_id)!.docs.push(d);
+    } else if (d.category_main_id && mainById.has(d.category_main_id)) {
+      // 소 없이 대분류만 지정된 기획서 → 대분류 직속으로
+      mainById.get(d.category_main_id)!.directDocs.push(d);
     } else {
       uncategorized.push(d);
     }
@@ -249,7 +253,7 @@ export default function DocList({
   const showUncategorized = filter !== "empty"; // '분류 안 됨'(소분류 지정 필요) 기획서는 '빈 항목' 필터에선 숨김
 
   const areaVisible = (a: AreaNode) => a.subs.some(passes);
-  const mainVisible = (m: MainNode) => m.areas.some(areaVisible) || m.subs.some(passes);
+  const mainVisible = (m: MainNode) => m.areas.some(areaVisible) || m.subs.some(passes) || (filter !== "empty" && m.directDocs.length > 0);
 
   // ── 기획서 1개 렌더 (leaf 문서, rename 인라인 처리) ────────────────
   // handle 전달 시 왼쪽에 드래그 그립(⠿) 표시 (그룹 내 순서 변경용)
@@ -436,6 +440,12 @@ export default function DocList({
 
         {mainOpen && (
           <div className="mt-1 flex flex-col gap-1">
+            {/* 대분류 직속 기획서 (소 없이 대분류에 바로 붙은 기획서) */}
+            {filter !== "empty" && main.directDocs.length > 0 && (
+              <div className="flex flex-col gap-0.5 pl-2">
+                <SortableZone items={groupSort(main.directDocs)} getId={(d) => d.id} renderItem={(d, h) => renderDocRow(d, h)} onReorder={persistReorder} enabled />
+              </div>
+            )}
             {/* 대 직속 소분류 (영역 없는 대카테고리) — 드래그 정렬 */}
             {main.subs.filter(passes).length > 0 && (
               <div className="flex flex-col gap-0.5 pl-2">
