@@ -88,6 +88,16 @@ export default function CategoryManager({
   }, []);
 
   useEffect(() => { if (open) void load(); }, [open, load]);
+  // 모달이 닫히면 편집/추가 진행 상태를 모두 초기화 (다시 열 때 "이름 변경 중"이 남지 않도록)
+  useEffect(() => {
+    if (!open) {
+      setEditing(null);
+      setEditText("");
+      setAdding(null);
+      setAddText("");
+      setAddExtra("");
+    }
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -211,12 +221,12 @@ export default function CategoryManager({
   // ── 렌더 ────────────────────────────────────────────────────
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[70] flex items-start sm:items-center justify-center p-4 overflow-y-auto"
       style={{ backgroundColor: "rgba(0,0,0,0.75)" }}
       onClick={onClose}
     >
       <div
-        className="rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl"
+        className="rounded-2xl w-full max-w-3xl max-h-[85dvh] flex flex-col shadow-2xl"
         style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
         onClick={(e) => e.stopPropagation()}
       >
