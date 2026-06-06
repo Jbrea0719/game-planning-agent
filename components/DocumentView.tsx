@@ -17,6 +17,8 @@ import {
   downloadHTML as exportHTML,
   downloadPDF as exportPDF,
 } from "@/lib/doc-export";
+import { MermaidDiagram, DocImage } from "./DocImages";
+import { mockupUrl, stripJordanImages, type DocImageItem } from "@/lib/doc-images";
 
 const SILVER = "#c0c8d8";
 const SILVER_DIM = "rgba(192,200,216,0.5)";
@@ -137,6 +139,11 @@ export default function DocumentView({
   const [reclassifyIds, setReclassifyIds] = useState<string[] | null>(null);
   // 기획서 AI 재분류 검토 모달 — 카테고리 삭제로 미분류된 기획서 id 목록 (null이면 닫힘)
   const [reclassifyDocIds, setReclassifyDocIds] = useState<string[] | null>(null);
+  // 자동 이미지 — 미리보기 단계
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  const [previewItems, setPreviewItems] = useState<DocImageItem[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [imageApplying, setImageApplying] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   // 카테고리 재로드 (관리 모달에서 변경 시)
@@ -481,6 +488,102 @@ export default function DocumentView({
     }
   }
 
+  // ── 자동 이미지: 미리보기 → 조정 → 적용 ──────────────────────────
+  // 1단계: 이미지 후보를 받아 미리보기 팝업 열기 (즉시 적용 X)
+  async function startImagePreview() {
+    if (!currentDoc || previewLoading) return;
+    setShowImagePreview(true);
+    setPreviewItems([]);
+    setPreviewLoading(true);
+    try {
+      const res = await fetch("/api/design-docs/image-suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: currentDoc.content_markdown }),
+      });
+      const data = await res.json();
+      const base = stripJordanImages(currentDoc.content_markdown);
+      const items: DocImageItem[] = (data.suggestions ?? [])
+        .filter((s: { heading?: string }) => s.heading && base.includes(s.heading))
+        .map((s: { heading: string; type: string; alt?: string; mermaid?: string; prompt?: string }, i: number) => {
+          const seed = Math.floor(Math.random() * 1_000_000);
+          const type = s.type === "diagram" ? "diagram" : "mockup";
+          return {
+            key: `${Date.now()}-${i}`,
+            heading: s.heading,
+            type,
+            alt: s.alt ?? "이미지",
+            mermaid: s.mermaid,
+            prompt: s.prompt,
+            seed,
+            imageUrl: type === "mockup" && s.prompt ? mockupUrl(s.prompt, seed) : undefined,
+          } as DocImageItem;
+        });
+      setPreviewItems(items);
+    } catch {
+      setPreviewItems([]);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  function removePreviewItem(key: string) {
+    setPreviewItems(prev => prev.filter(it => it.key !== key));
+  }
+
+  // 항목별 재생성: mockup은 seed 변경(즉시), diagram은 API 재호출
+  async function regeneratePreviewItem(key: string) {
+    const item = previewItems.find(it => it.key === key);
+    if (!item || !currentDoc) return;
+
+    if (item.type === "mockup") {
+      const seed = Math.floor(Math.random() * 1_000_000);
+      setPreviewItems(prev => prev.map(it =>
+        it.key === key ? { ...it, seed, imageUrl: it.prompt ? mockupUrl(it.prompt, seed) : it.imageUrl } : it));
+      return;
+    }
+
+    setPreviewItems(prev => prev.map(it => it.key === key ? { ...it, regenerating: true } : it));
+    try {
+      const res = await fetch("/api/design-docs/image-regenerate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "diagram", heading: item.heading, content: currentDoc.content_markdown }),
+      });
+      const data = await res.json();
+      if (data.mermaid) {
+        setPreviewItems(prev => prev.map(it =>
+          it.key === key ? { ...it, mermaid: data.mermaid, alt: data.alt ?? it.alt, regenerating: false } : it));
+        return;
+      }
+    } catch { /* 아래에서 로딩만 해제 */ }
+    setPreviewItems(prev => prev.map(it => it.key === key ? { ...it, regenerating: false } : it));
+  }
+
+  // 2단계: 승인된 항목을 본문에 반영하고 저장 (서버에서 백업 후 삽입)
+  async function applyImagePreview() {
+    if (!currentDoc || imageApplying) return;
+    setImageApplying(true);
+    try {
+      const res = await fetch("/api/design-docs/enrich-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doc_id: currentDoc.id, items: previewItems, nickname }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await loadDoc(currentDoc.id);
+        setShowImagePreview(false);
+      } else {
+        alert(`이미지 적용 실패: ${data.error ?? "알 수 없는 오류"}`);
+      }
+    } catch (err) {
+      alert(`이미지 적용 실패: ${String(err)}`);
+    } finally {
+      setImageApplying(false);
+    }
+  }
+
   // ── 내보내기 (lib/doc-export.ts 호출) ────────────────────────────
   function downloadMD() { if (currentDoc) { exportMD(currentDoc); setShowExportMenu(false); } }
   function downloadTXT() { if (currentDoc) { exportTXT(currentDoc); setShowExportMenu(false); } }
@@ -572,6 +675,21 @@ export default function DocumentView({
                   </div>
                 )}
               </div>
+              {/* 자동 이미지 — 본문 분석 후 다이어그램/UI목업 미리보기 → 적용 */}
+              <button
+                onClick={startImagePreview}
+                disabled={!currentDoc}
+                title="기획서를 분석해 필요한 다이어그램·UI 이미지를 미리보기로 제안 — 확인 후 적용"
+                className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                style={{
+                  backgroundColor: "rgba(125,211,252,0.18)",
+                  border: "1px solid rgba(125,211,252,0.5)",
+                  color: "rgba(180,225,255,1)",
+                  opacity: currentDoc ? 1 : 0.5,
+                }}
+              >
+                🖼️ 이미지 추가
+              </button>
               <div className="relative">
                 <button
                   onClick={() => setShowExportMenu(v => !v)}
@@ -811,7 +929,18 @@ export default function DocumentView({
           )}
           {currentDoc && !editing && (
             <article className="prose prose-sm max-w-3xl mx-auto" style={{ color: "#e0e8f0" }}>
-              <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{currentDoc.content_markdown}</ReactMarkdown>
+              <ReactMarkdown
+                remarkPlugins={[[remarkGfm, { singleTilde: false }]]}
+                components={{
+                  img: (props) => <DocImage src={typeof props.src === "string" ? props.src : undefined} alt={props.alt} />,
+                  code: ({ className, children }) => {
+                    if (/language-mermaid/.test(className ?? "")) {
+                      return <MermaidDiagram code={String(children).trim()} />;
+                    }
+                    return <code className={className}>{children}</code>;
+                  },
+                }}
+              >{currentDoc.content_markdown}</ReactMarkdown>
             </article>
           )}
           {currentDoc && editing && (
@@ -1054,6 +1183,97 @@ export default function DocumentView({
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 자동 이미지 미리보기 모달 — 적용 전 위치 확인·삭제·재생성 */}
+      {showImagePreview && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.85)" }}>
+          <div className="rounded-2xl w-full max-w-2xl max-h-[88vh] flex flex-col shadow-2xl" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}>
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-5 py-4 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+              <div className="flex items-center gap-2">
+                <span style={{ color: "rgba(180,225,255,1)" }}>🖼️</span>
+                <p className="text-sm font-bold" style={{ color: SILVER }}>이미지 미리보기</p>
+                {!previewLoading && <span className="text-xs" style={{ color: SILVER_DIM }}>{previewItems.length}개</span>}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={applyImagePreview}
+                  disabled={previewLoading || imageApplying}
+                  className="text-xs px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 disabled:opacity-40"
+                  style={{ backgroundColor: "rgba(100,220,160,0.25)", border: "1px solid rgba(100,220,160,0.6)", color: "rgba(150,255,200,1)" }}
+                >
+                  {imageApplying ? (
+                    <><span className="inline-block w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(150,255,200,0.3)", borderTopColor: "rgba(150,255,200,1)" }} />적용 중...</>
+                  ) : "✓ 적용"}
+                </button>
+                <button
+                  onClick={() => { if (!imageApplying) setShowImagePreview(false); }}
+                  className="text-xs px-3 py-1.5 rounded-lg"
+                  style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+            {/* 본문 */}
+            <div className="flex-1 overflow-y-auto px-5 py-4" style={{ scrollbarWidth: "thin" }}>
+              {previewLoading && (
+                <div className="py-12 text-center">
+                  <span className="animate-pulse text-sm" style={{ color: SILVER_DIM }}>📊 이미지가 필요한 위치를 분석하고 있어요...</span>
+                </div>
+              )}
+              {!previewLoading && previewItems.length === 0 && (
+                <div className="py-12 text-center">
+                  <p className="text-sm" style={{ color: SILVER_DIM }}>추가할 이미지가 없습니다</p>
+                  <p className="text-xs mt-1" style={{ color: SILVER_DIM }}>적용을 누르면 기존 자동 이미지가 정리되고 이미지 없이 유지됩니다</p>
+                </div>
+              )}
+              {!previewLoading && previewItems.length > 0 && (
+                <div className="space-y-4">
+                  <p className="text-xs" style={{ color: SILVER_DIM }}>각 이미지가 들어갈 위치를 확인하고, 마음에 들지 않으면 삭제하거나 다시 만들 수 있어요. <span style={{ color: "rgba(180,225,255,0.8)" }}>적용</span>을 눌러야 기획서에 반영됩니다.</p>
+                  {previewItems.map((item) => (
+                    <div key={item.key} className="rounded-xl p-4" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
+                      <div className="flex items-center justify-between mb-2 gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-xs px-2 py-0.5 rounded flex-shrink-0" style={{ backgroundColor: item.type === "diagram" ? "rgba(125,211,252,0.15)" : "rgba(192,200,216,0.15)", color: item.type === "diagram" ? "rgba(180,225,255,1)" : SILVER }}>
+                            {item.type === "diagram" ? "📊 다이어그램" : "🖼️ UI 목업"}
+                          </span>
+                          <span className="text-xs truncate" style={{ color: SILVER_DIM }}>📍 {item.heading.replace(/^#+\s*/, "")}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <button
+                            onClick={() => regeneratePreviewItem(item.key)}
+                            disabled={item.regenerating}
+                            className="text-xs px-2 py-1 rounded-lg disabled:opacity-50"
+                            style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
+                          >
+                            {item.regenerating ? "⏳" : "🔄 재생성"}
+                          </button>
+                          <button
+                            onClick={() => removePreviewItem(item.key)}
+                            className="text-xs px-2 py-1 rounded-lg"
+                            style={{ backgroundColor: "rgba(255,80,80,0.12)", border: "1px solid rgba(255,80,80,0.3)", color: "#f87171" }}
+                          >
+                            🗑️ 삭제
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ opacity: item.regenerating ? 0.4 : 1 }}>
+                        {item.type === "diagram" && item.mermaid && (
+                          <MermaidDiagram key={item.mermaid} code={item.mermaid} />
+                        )}
+                        {item.type === "mockup" && item.imageUrl && (
+                          <DocImage key={item.seed} src={item.imageUrl} alt={item.alt} />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
