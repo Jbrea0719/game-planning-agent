@@ -10,60 +10,60 @@ import { suggestDocumentCategory } from "@/lib/document-categorizer";
 import { reclassifyDecisions, type ReclassifyInput } from "@/lib/decision-reclassifier";
 
 // ── 새 카테고리 트리 정의 ───────────────────────────────────────────────
-type SubDef = { name: string; area_code: string | null; area_name: string | null };
-type MainDef = { id: string; name: string; icon: string; subs: SubDef[] };
-
-function flat(main: string): (names: string[]) => SubDef[] {
-  return (names) => names.map(n => ({ name: n, area_code: null, area_name: null }));
-}
-function area(code: string, name: string, names: string[]): SubDef[] {
-  return names.map(n => ({ name: n, area_code: code, area_name: name }));
-}
+// 표기: 대(main) > 중(area) > 소(sub). subs 생략 시 = 중과 같은 이름의 소 1개 자동 생성.
+type AreaDef = { name: string; subs?: string[] };
+type MainDef = { id: string; name: string; icon: string; areas: AreaDef[] };
 
 const TREE: MainDef[] = [
   {
     id: "g_outgame", name: "게임 외부 설계", icon: "🛠️",
-    subs: flat("g_outgame")(["서버 구조", "빌드 정책", "CDN 정책", "가로세로 UI", "3D 캐릭터 모듈화"]),
+    areas: [
+      { name: "서버 구조" }, { name: "빌드 정책" }, { name: "CDN 정책" }, { name: "가로세로 UI" }, { name: "3D 캐릭터 모듈화" },
+    ],
   },
   {
     id: "g_base", name: "베이스", icon: "🧱",
-    subs: [
-      ...area("a_combat", "전투", ["전투 규칙", "전투 UI", "자동전투"]),
-      ...area("b_lobby", "로비", ["로비", "메뉴버튼 (햄버거 & 즐겨찾기)"]),
-      ...area("c_hero", "영웅", ["스탯", "스킬", "영웅 등급", "속성", "타입", "영웅 객체화", "정보", "영웅 커스텀"]),
-      ...area("d_basic", "기본", ["재화", "팀편성", "백그라운드 & 병렬 플레이", "박스 & 선택 구조"]),
+    areas: [
+      { name: "전투", subs: ["전투 규칙", "전투 UI", "자동전투"] },
+      { name: "재화" },
+      { name: "로비", subs: ["로비", "메뉴버튼 (햄버거 & 즐겨찾기)"] },
+      { name: "팀편성" },
+      { name: "백그라운드 & 병렬 플레이" },
+      { name: "박스 & 선택 구조" },
+      { name: "영웅", subs: ["스탯", "스킬", "영웅 등급", "속성", "타입", "영웅 객체화", "정보", "영웅 커스텀"] },
     ],
   },
   {
     id: "g_growth", name: "성장", icon: "📈",
-    subs: [
-      ...area("a_basic", "기본 성장", ["레벨업", "진화", "돌파", "스킬강화", "조각 합성"]),
-      ...area("b_equip", "장비", ["장비 성장", "장비 제련"]),
+    areas: [
+      { name: "레벨업" }, { name: "진화" }, { name: "돌파" }, { name: "스킬강화" }, { name: "조각 합성" },
+      { name: "장비", subs: ["장비 성장", "장비 제련"] },
     ],
   },
   {
     id: "g_system", name: "게임 시스템", icon: "⚙️",
-    subs: [
-      ...area("a_profile", "프로필", ["계정 마스터리"]),
-      ...area("b_mission", "미션", ["가이드 미션", "일간/주간 미션", "반복 미션", "길드 미션"]),
-      ...area("c_product", "상품", ["시즌 패스", "코스튬", "한정 수량 코스튬"]),
-      ...area("d_etc", "기타", [
-        "길드", "소환", "우편", "채팅", "랭킹", "도감 & 컬렉션", "친구", "제작", "상점 (+교환소)",
-        "이벤트 (시즌 & 콜라보)", "출석부", "설정", "컨텐츠 이용 현황판", "개발자 Q&A 게시판",
-        "영웅 빌려쓰기", "공략 빌려쓰기 및 포인트 랭킹", "덱편성 요청하기",
-      ]),
+    areas: [
+      { name: "프로필", subs: ["계정 마스터리"] },
+      { name: "길드" }, { name: "소환" }, { name: "우편" },
+      { name: "미션", subs: ["가이드 미션", "일간/주간 미션", "반복 미션", "길드 미션"] },
+      { name: "채팅" }, { name: "랭킹" }, { name: "도감 & 컬렉션" }, { name: "친구" }, { name: "제작" }, { name: "상점 (+교환소)" },
+      { name: "상품", subs: ["시즌 패스", "코스튬", "한정 수량 코스튬"] },
+      { name: "이벤트 (시즌 & 콜라보)" }, { name: "출석부" }, { name: "설정" }, { name: "컨텐츠 이용 현황판" }, { name: "개발자 Q&A 게시판" },
+      { name: "영웅 빌려쓰기" }, { name: "공략 빌려쓰기 및 포인트 랭킹" }, { name: "덱편성 요청하기" },
     ],
   },
   {
     id: "g_content", name: "콘텐츠", icon: "📦",
-    subs: flat("g_content")([
-      "모험", "성장던전", "파밍 던전 (방치)", "무한의 탑 (비시즌형)", "무한의 탑 (시즌형)",
-      "레이드 (개인)", "결투장", "상급 결투장", "월드 대전", "길드 원정대 (협동 PVE)", "길드전 (PVP)", "미니게임",
-    ]),
+    areas: [
+      { name: "모험" }, { name: "성장던전" }, { name: "파밍 던전 (방치)" }, { name: "무한의 탑 (비시즌형)" }, { name: "무한의 탑 (시즌형)" },
+      { name: "레이드 (개인)" }, { name: "결투장" }, { name: "상급 결투장" }, { name: "월드 대전" }, { name: "길드 원정대 (협동 PVE)" }, { name: "길드전 (PVP)" }, { name: "미니게임" },
+    ],
   },
   {
     id: "g_art", name: "아트", icon: "🎨",
-    subs: flat("g_art")(["2D 일러스트", "3D 캐릭터 모델링", "전투 및 영웅 연출", "스토리 표현 연출 (2D·3D·컷씬)", "UI 방향성"]),
+    areas: [
+      { name: "2D 일러스트" }, { name: "3D 캐릭터 모델링" }, { name: "전투 및 영웅 연출" }, { name: "스토리 표현 연출 (2D·3D·컷씬)" }, { name: "UI 방향성" },
+    ],
   },
 ];
 
@@ -100,17 +100,24 @@ export async function POST(request: Request) {
       const { error: mErr } = await supabase.from("main_categories").upsert(mainRows);
       if (mErr) return Response.json({ error: `main insert: ${mErr.message}` }, { status: 500 });
 
-      // 3) 새 subs insert
+      // 3) 새 subs insert — 중(area)별로 묶고, 자식 소가 없으면 같은 이름 소 1개 생성
       const subRows: Array<Record<string, unknown>> = [];
       let order = 0;
       for (const m of TREE) {
-        m.subs.forEach((s, i) => {
-          order += 1;
-          const subId = `${m.id}.${s.area_code ?? "flat"}.${i + 1}`;
-          subRows.push({
-            id: subId, main_category_id: m.id,
-            area_code: s.area_code, area_name: s.area_name,
-            name_ko: s.name, display_order: order, is_active: true,
+        m.areas.forEach((a, ai) => {
+          const code = `a${String(ai + 1).padStart(2, "0")}`;  // a01, a02 ... 순서 보존
+          const leafSubs = (a.subs && a.subs.length > 0) ? a.subs : [a.name];  // 자식 없으면 중과 동명 소
+          leafSubs.forEach((subName, si) => {
+            order += 1;
+            subRows.push({
+              id: `${m.id}.${code}.${si + 1}`,
+              main_category_id: m.id,
+              area_code: code,
+              area_name: a.name,
+              name_ko: subName,
+              display_order: order,
+              is_active: true,
+            });
           });
         });
       }
