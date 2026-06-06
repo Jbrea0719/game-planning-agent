@@ -51,6 +51,14 @@ async function fetchCurrentCategories(): Promise<SubCategoryInfo[]> {
 // 대카테고리 ID → 한국어 이름
 function mainDisplayName(mainId: string): string {
   switch (mainId) {
+    // 신규 카테고리 체계
+    case "g_outgame": return "게임 외부 설계";
+    case "g_base": return "베이스";
+    case "g_growth": return "성장";
+    case "g_system": return "게임 시스템";
+    case "g_content": return "콘텐츠";
+    case "g_art": return "아트";
+    // 구 체계 (호환용)
     case "outgame": return "아웃게임";
     case "ingame": return "인게임";
     case "graphic": return "그래픽";
