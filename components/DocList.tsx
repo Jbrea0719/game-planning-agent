@@ -284,6 +284,13 @@ export default function DocList({
     for (const a of m.areas) for (const s of a.subs) regDocs(s.docs);
   }
   regDocs(uncategorized);
+  // 기획서 id → 현재 소속 카테고리 (도착지가 다른 그룹이면 '이동'으로 판단)
+  const docCategoryByDoc = new Map<string, { mainId: string | null; areaCode: string | null; subId: string | null }>();
+  for (const m of mains) {
+    for (const d of m.directDocs) docCategoryByDoc.set(d.id, { mainId: m.id, areaCode: null, subId: null });
+    for (const s of m.subs) for (const d of s.docs) docCategoryByDoc.set(d.id, { mainId: m.id, areaCode: null, subId: s.id });
+    for (const a of m.areas) for (const s of a.subs) for (const d of s.docs) docCategoryByDoc.set(d.id, { mainId: m.id, areaCode: a.code, subId: s.id });
+  }
   // 소 id → 같은 부모의 정렬된 소 id 배열
   const subGroupBySub = new Map<string, string[]>();
   const regSubs = (leaves: Leaf[]) => {
@@ -332,11 +339,17 @@ export default function DocList({
       return;
     }
 
-    // 2) 기획서 순서 변경 (같은 컨테이너 내)
+    // 2) 기획서 위에 드롭
     if (docIdSet.has(activeId) && docIdSet.has(overId)) {
-      const cont = docContainerByDoc.get(activeId);
-      if (cont && cont.includes(overId)) {
-        persistReorder(arrayMove(cont, cont.indexOf(activeId), cont.indexOf(overId)));
+      const aCont = docContainerByDoc.get(activeId);
+      const bCont = docContainerByDoc.get(overId);
+      if (aCont && aCont === bCont) {
+        // 같은 그룹 → 순서 변경
+        persistReorder(arrayMove(aCont, aCont.indexOf(activeId), aCont.indexOf(overId)));
+      } else {
+        // 다른 그룹의 기획서 위 → 그 카테고리로 이동(포함)
+        const cat = docCategoryByDoc.get(overId);
+        if (cat) void moveDoc(activeId, cat.mainId, cat.areaCode, cat.subId);
       }
       return;
     }
@@ -464,8 +477,8 @@ export default function DocList({
     // ── 채워진 소분류: 펼치면 기획서 목록 ──
     const open = isOpen(key);
     return (
-      <div key={key}>
-        <CatDroppable id={`D:sub:${leaf.id}`}>
+      <CatDroppable key={key} id={`D:sub:${leaf.id}`}>
+      <div>
         <div className="flex items-center gap-1">
           {grip(handle)}
           <button
@@ -485,13 +498,13 @@ export default function DocList({
           </span>
           </button>
         </div>
-        </CatDroppable>
         {open && (
           <div className="mt-0.5 flex flex-col gap-0.5 ml-2">
             <SortableZone items={groupSort(leaf.docs)} getId={(d) => d.id} renderItem={(d, h) => renderDocRow(d, h)} onReorder={persistReorder} enabled />
           </div>
         )}
       </div>
+      </CatDroppable>
     );
   };
 
@@ -658,11 +671,11 @@ export default function DocList({
             const hits = pointerWithin(args);
             const list = hits.length ? hits : rectIntersection(args);
             if (docIdSet.has(activeId)) {
-              // 기획서를 끌 때: 카테고리 헤더(D:) 위면 '이동' 우선, 아니면 다른 기획서 위에서만 '순서변경'
-              const catHit = list.find(h => String(h.id).startsWith("D:"));
-              if (catHit) return [catHit];
+              // 기획서를 끌 때: 기획서 위면 그걸(같은그룹=순서변경 / 다른그룹=이동), 없으면 카테고리(빈 칸)
               const docHit = list.find(h => docIdSet.has(String(h.id)) && String(h.id) !== activeId);
-              return docHit ? [docHit] : [];
+              if (docHit) return [docHit];
+              const catHit = list.find(h => String(h.id).startsWith("D:"));
+              return catHit ? [catHit] : [];
             }
             // 소·대분류를 끌 때: 같은 종류 항목만(순서변경), 카테고리 드롭영역은 무시
             const sortHit = list.find(h => !String(h.id).startsWith("D:") && String(h.id) !== activeId);
