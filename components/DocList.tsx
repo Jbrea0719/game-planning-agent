@@ -10,7 +10,7 @@
 
 import { useState, useEffect, type ReactNode } from "react";
 import {
-  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, useDroppable,
+  DndContext, pointerWithin, rectIntersection, PointerSensor, TouchSensor, useSensor, useSensors, useDroppable,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import {
@@ -650,7 +650,17 @@ export default function DocList({
         {mains.length === 0 && (
           <p className="text-xs text-center mt-6" style={{ color: SILVER_DIM }}>카테고리가 없어요</p>
         )}
-        <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext
+          sensors={dndSensors}
+          collisionDetection={(args) => {
+            // 기획서(소트 가능 항목) 위에 있으면 그걸 우선(순서변경), 없으면 카테고리 드롭영역
+            const hits = pointerWithin(args);
+            const list = hits.length ? hits : rectIntersection(args);
+            const itemHit = list.find(h => !String(h.id).startsWith("D:"));
+            return itemHit ? [itemHit] : list;
+          }}
+          onDragEnd={handleDragEnd}
+        >
         <SortableZone
           items={sortByOverride(mains, (m) => m.id ?? "__none__", mainOrderOverride).filter(mainVisible)}
           getId={(m) => m.id ?? "__none__"}
