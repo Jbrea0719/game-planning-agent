@@ -64,9 +64,10 @@ function CatDroppable({ id, children }: { id: string; children: ReactNode }) {
       ref={setNodeRef}
       style={{
         borderRadius: 8,
+        padding: "3px 0",   // 위아래 여백으로 카테고리 드롭(겹침) 구간을 넓힘
         outline: isOver ? "2px dashed rgba(100,180,255,0.9)" : "2px solid transparent",
         outlineOffset: -1,
-        backgroundColor: isOver ? "rgba(100,180,255,0.12)" : undefined,
+        backgroundColor: isOver ? "rgba(100,180,255,0.2)" : undefined,
         transition: "background-color 0.1s",
       }}
     >
@@ -463,8 +464,8 @@ export default function DocList({
     // ── 채워진 소분류: 펼치면 기획서 목록 ──
     const open = isOpen(key);
     return (
-      <CatDroppable key={key} id={`D:sub:${leaf.id}`}>
-      <div>
+      <div key={key}>
+        <CatDroppable id={`D:sub:${leaf.id}`}>
         <div className="flex items-center gap-1">
           {grip(handle)}
           <button
@@ -484,13 +485,13 @@ export default function DocList({
           </span>
           </button>
         </div>
+        </CatDroppable>
         {open && (
           <div className="mt-0.5 flex flex-col gap-0.5 ml-2">
             <SortableZone items={groupSort(leaf.docs)} getId={(d) => d.id} renderItem={(d, h) => renderDocRow(d, h)} onReorder={persistReorder} enabled />
           </div>
         )}
       </div>
-      </CatDroppable>
     );
   };
 
@@ -653,11 +654,19 @@ export default function DocList({
         <DndContext
           sensors={dndSensors}
           collisionDetection={(args) => {
-            // 기획서(소트 가능 항목) 위에 있으면 그걸 우선(순서변경), 없으면 카테고리 드롭영역
+            const activeId = String(args.active.id);
             const hits = pointerWithin(args);
             const list = hits.length ? hits : rectIntersection(args);
-            const itemHit = list.find(h => !String(h.id).startsWith("D:"));
-            return itemHit ? [itemHit] : list;
+            if (docIdSet.has(activeId)) {
+              // 기획서를 끌 때: 카테고리 헤더(D:) 위면 '이동' 우선, 아니면 다른 기획서 위에서만 '순서변경'
+              const catHit = list.find(h => String(h.id).startsWith("D:"));
+              if (catHit) return [catHit];
+              const docHit = list.find(h => docIdSet.has(String(h.id)) && String(h.id) !== activeId);
+              return docHit ? [docHit] : [];
+            }
+            // 소·대분류를 끌 때: 같은 종류 항목만(순서변경), 카테고리 드롭영역은 무시
+            const sortHit = list.find(h => !String(h.id).startsWith("D:") && String(h.id) !== activeId);
+            return sortHit ? [sortHit] : [];
           }}
           onDragEnd={handleDragEnd}
         >
