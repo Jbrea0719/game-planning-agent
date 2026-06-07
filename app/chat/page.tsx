@@ -1,7 +1,7 @@
 "use client";
 
 import { REFERENCE_GAMES } from "@/lib/reference-games";
-import { useState, useRef, useEffect, KeyboardEvent } from "react";
+import { useState, useRef, useEffect, memo, KeyboardEvent } from "react";
 import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm"; // GFM 지원 — 표(table)·취소선 등 마크다운 확장 렌더링
@@ -177,9 +177,11 @@ const citationComponents = {
 };
 
 // 어시스턴트 메시지 렌더러 — 출처 라벨 스타일 자동 적용
-function AssistantMarkdown({ text }: { text: string }) {
+// memo: 마크다운 파싱은 비용이 커서, text가 바뀔 때만 다시 그림.
+// → 입력창 타이핑으로 부모가 리렌더돼도 쌓인 메시지는 재파싱 안 함 (PC 입력 렉 해결, 모바일과 동일 처리).
+const AssistantMarkdown = memo(function AssistantMarkdown({ text }: { text: string }) {
   return <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]} components={citationComponents}>{fixMarkdown(text)}</ReactMarkdown>;
-}
+});
 
 // ── 헤더 버튼용 커스텀 툴팁 ──
 // 데스크톱: 마우스 호버 시 표시
