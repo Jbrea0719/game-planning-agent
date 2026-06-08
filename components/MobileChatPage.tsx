@@ -160,6 +160,13 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   const [showCitations, setShowCitations] = useState(false);
   const [contextAnchorPairId, setContextAnchorPairId] = useState<string | null>(null);
   const [contextAnchorTimestamp, setContextAnchorTimestamp] = useState<string | null>(null);
+  // 대화방 (병렬 작업)
+  const [conversations, setConversations] = useState<{ id: string; title: string }[]>([]);
+  const [currentConvId, setCurrentConvId] = useState<string | null>(null);
+  const [showConvList, setShowConvList] = useState(false);
+  const [renamingConvId, setRenamingConvId] = useState<string | null>(null);
+  const [convRenameInput, setConvRenameInput] = useState("");
+  const currentConvIdRef = useRef<string | null>(null);
 
   // 바이블 카운트 + 리로드
   const [decisionCount, setDecisionCount] = useState(0);
@@ -400,8 +407,8 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     if (typeof window === "undefined") return;
     if (localStorage.getItem("jordan_show_citations") === "true") setShowCitations(true);
     if (localStorage.getItem("jordan_doc_new_dot") === "true") setDocNewDot(true);
-    const savedAnchorPair = localStorage.getItem(`jordan_context_anchor_pair:${sessionId}`);
-    const savedAnchorTime = localStorage.getItem(`jordan_context_anchor_time:${sessionId}`);
+    const savedAnchorPair = localStorage.getItem(`jordan_context_anchor_pair:${currentConvId ?? sessionId}`);
+    const savedAnchorTime = localStorage.getItem(`jordan_context_anchor_time:${currentConvId ?? sessionId}`);
     if (savedAnchorPair) setContextAnchorPairId(savedAnchorPair);
     if (savedAnchorTime) setContextAnchorTimestamp(savedAnchorTime);
   }, [sessionId]);
@@ -423,36 +430,88 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     prevCountRef.current = decisionCount;
   }, [decisionCount]);
 
-  // 메시지 로드
+  // 메시지를 pair로 파싱 (detail 복원 포함)
+  function parsePairs(messages: Array<{ role: "user" | "assistant"; content: string; pair_id?: string; is_deleted?: boolean; detail_content?: string; detail_shown?: boolean }>): Pair[] {
+    const pairMap = new Map<string, { user?: Message; assistant?: Message; detail_content?: string; detail_shown?: boolean }>();
+    const order: string[] = [];
+    for (const m of messages) {
+      if (m.is_deleted) continue;
+      const pid = m.pair_id ?? "unknown";
+      if (!pairMap.has(pid)) { pairMap.set(pid, {}); order.push(pid); }
+      const entry = pairMap.get(pid)!;
+      if (m.role === "user") { entry.user = m; }
+      else {
+        entry.assistant = m;
+        if (m.detail_content) entry.detail_content = m.detail_content;
+        if (m.detail_shown) entry.detail_shown = m.detail_shown;
+      }
+    }
+    return order.map(pid => {
+      const e = pairMap.get(pid)!;
+      if (!e.user || !e.assistant) return null;
+      return { pair_id: pid, user: e.user, assistant: e.assistant, detail_content: e.detail_content, detail_shown: e.detail_shown };
+    }).filter(Boolean) as Pair[];
+  }
+
+  // 대화방 부트스트랩 — 목록 로드, 없으면 기본방 생성(기존 메시지 흡수), 마지막 방 열기
+  async function bootstrapConversations() {
+    try {
+      const res = await fetch(`/api/conversations?session_id=${encodeURIComponent(sessionId)}`);
+      const data = await res.json();
+      let convs: { id: string; title: string }[] = data.conversations ?? [];
+      if (convs.length === 0) {
+        const cr = await fetch("/api/conversations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId, title: "기본 대화", adopt_orphans: true }) });
+        const cd = await cr.json();
+        if (cd.conversation) convs = [cd.conversation];
+      }
+      setConversations(convs);
+      const lastUsed = localStorage.getItem(`jordan_current_conv:${sessionId}`);
+      const target = (lastUsed && convs.find(c => c.id === lastUsed)) ? lastUsed : convs[0]?.id ?? null;
+      if (target) await loadConversation(target);
+    } catch (err) { console.error("[대화방] 부트스트랩 실패:", err); }
+  }
+
+  async function loadConversation(convId: string) {
+    setCurrentConvId(convId);
+    currentConvIdRef.current = convId;
+    localStorage.setItem(`jordan_current_conv:${sessionId}`, convId);
+    setShowConvList(false);
+    setPairs([]);
+    try {
+      const res = await fetch(`/api/messages?session_id=${encodeURIComponent(sessionId)}&conversation_id=${encodeURIComponent(convId)}`);
+      const data = await res.json();
+      setPairs(data.messages?.length ? parsePairs(data.messages) : []);
+    } catch { setPairs([]); }
+    setContextAnchorPairId(localStorage.getItem(`jordan_context_anchor_pair:${convId}`));
+    setContextAnchorTimestamp(localStorage.getItem(`jordan_context_anchor_time:${convId}`));
+  }
+
+  async function createConversation() {
+    try {
+      const res = await fetch("/api/conversations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId, title: "새 대화" }) });
+      const data = await res.json();
+      if (data.conversation) { setConversations(prev => [data.conversation, ...prev]); await loadConversation(data.conversation.id); }
+    } catch (err) { console.error("[대화방] 생성 실패:", err); }
+  }
+
+  async function renameConversation(id: string, title: string) {
+    const t = title.trim(); setRenamingConvId(null); setConvRenameInput(""); if (!t) return;
+    setConversations(prev => prev.map(c => c.id === id ? { ...c, title: t } : c));
+    await fetch("/api/conversations", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, title: t }) }).catch(() => {});
+  }
+
+  async function deleteConversation(id: string) {
+    if (!confirm("이 대화방과 그 안의 모든 대화를 삭제할까요?")) return;
+    await fetch("/api/conversations", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) }).catch(() => {});
+    const remaining = conversations.filter(c => c.id !== id);
+    setConversations(remaining);
+    if (currentConvId === id) { if (remaining.length > 0) await loadConversation(remaining[0].id); else await createConversation(); }
+  }
+
+  // 메시지 로드 — 대화방 부트스트랩
   useEffect(() => {
-    fetch(`/api/messages?session_id=${encodeURIComponent(sessionId)}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.messages?.length > 0) {
-          // detail_content·detail_shown은 assistant row에 저장됨 → pair로 복원해 펼친 상태 유지
-          const pairMap = new Map<string, { user?: Message; assistant?: Message; detail_content?: string; detail_shown?: boolean }>();
-          const order: string[] = [];
-          for (const m of data.messages) {
-            if (m.is_deleted) continue;
-            const pid = m.pair_id ?? "unknown";
-            if (!pairMap.has(pid)) { pairMap.set(pid, {}); order.push(pid); }
-            const entry = pairMap.get(pid)!;
-            if (m.role === "user") {
-              entry.user = m;
-            } else {
-              entry.assistant = m;
-              if (m.detail_content) entry.detail_content = m.detail_content;
-              if (m.detail_shown) entry.detail_shown = m.detail_shown;
-            }
-          }
-          setPairs(order.map(pid => {
-            const e = pairMap.get(pid)!;
-            if (!e.user || !e.assistant) return null;
-            return { pair_id: pid, user: e.user, assistant: e.assistant, detail_content: e.detail_content, detail_shown: e.detail_shown };
-          }).filter(Boolean) as Pair[]);
-        }
-      })
-      .catch(() => {});
+    void bootstrapConversations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   // 자동 스크롤
@@ -484,14 +543,14 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   function setContextAnchor(pairId: string, timestamp: string) {
     setContextAnchorPairId(pairId);
     setContextAnchorTimestamp(timestamp);
-    localStorage.setItem(`jordan_context_anchor_pair:${sessionId}`, pairId);
-    localStorage.setItem(`jordan_context_anchor_time:${sessionId}`, timestamp);
+    localStorage.setItem(`jordan_context_anchor_pair:${currentConvId ?? sessionId}`, pairId);
+    localStorage.setItem(`jordan_context_anchor_time:${currentConvId ?? sessionId}`, timestamp);
   }
   function clearContextAnchor() {
     setContextAnchorPairId(null);
     setContextAnchorTimestamp(null);
-    localStorage.removeItem(`jordan_context_anchor_pair:${sessionId}`);
-    localStorage.removeItem(`jordan_context_anchor_time:${sessionId}`);
+    localStorage.removeItem(`jordan_context_anchor_pair:${currentConvId ?? sessionId}`);
+    localStorage.removeItem(`jordan_context_anchor_time:${currentConvId ?? sessionId}`);
   }
 
   async function sendMessage() {
@@ -540,6 +599,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           agentContext: "",
           show_citations: showCitations,
           context_anchor_time: contextAnchorTimestamp,
+          conversation_id: currentConvIdRef.current,  // 현재 대화방
         }),
         signal: controller.signal,
       });
@@ -792,10 +852,10 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0" style={{ border: `1px solid ${SILVER_DIM}` }}>
           <img src="/avatar.jpg" alt="조던" className="w-full h-full object-cover" />
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-sm truncate" style={{ color: SILVER }}>조던</p>
-          <p className="text-[10px] truncate" style={{ color: SILVER_DIM }}>난 게임기획자이자 게임마스터 조던!</p>
-        </div>
+        <button onClick={() => setShowConvList(v => !v)} className="flex-1 min-w-0 text-left" title="대화방 전환">
+          <p className="font-bold text-sm truncate flex items-center gap-1" style={{ color: SILVER }}>조던 <span style={{ fontSize: "9px", color: SILVER_DIM }}>▾</span></p>
+          <p className="text-[10px] truncate" style={{ color: "rgba(180,210,255,0.9)" }}>💬 {conversations.find(c => c.id === currentConvId)?.title ?? "대화방"}</p>
+        </button>
 
         {/* 핵심 버튼 — 책(바이블) + 기획서 */}
         <button
@@ -842,6 +902,26 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           <span style={{ fontSize: "16px", lineHeight: 1 }}>☰</span>
         </button>
       </header>
+      )}
+
+      {/* 대화방 목록 (모바일) */}
+      {showConvList && (
+        <div className="fixed inset-0 z-40" onClick={() => setShowConvList(false)}>
+          <div className="absolute top-14 left-2 right-2 rounded-xl shadow-2xl py-1 max-h-[60vh] overflow-y-auto" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }} onClick={e => e.stopPropagation()}>
+            <button onClick={createConversation} className="block w-full text-left text-sm px-4 py-2.5 font-bold" style={{ color: "#7dd3fc", borderBottom: `1px solid ${SILVER_FAINT}` }}>+ 새 대화방</button>
+            {conversations.map(c => (
+              <div key={c.id} className="flex items-center gap-1 px-2 py-1" style={{ backgroundColor: c.id === currentConvId ? "rgba(100,180,255,0.12)" : "transparent" }}>
+                {renamingConvId === c.id ? (
+                  <input value={convRenameInput} onChange={e => setConvRenameInput(e.target.value)} onBlur={() => renameConversation(c.id, convRenameInput)} onKeyDown={e => { if (e.key === "Enter") renameConversation(c.id, convRenameInput); if (e.key === "Escape") { setRenamingConvId(null); setConvRenameInput(""); } }} autoFocus className="flex-1 min-w-0 text-sm px-2 py-1.5 rounded outline-none" style={{ backgroundColor: "rgba(0,0,0,0.4)", border: "1px solid rgba(100,180,255,0.5)", color: "#e0e8f0" }} />
+                ) : (
+                  <button onClick={() => loadConversation(c.id)} className="flex-1 min-w-0 text-left text-sm px-2 py-2 truncate" style={{ color: c.id === currentConvId ? "rgba(180,210,255,1)" : "#d0d8e0" }}>{c.title}</button>
+                )}
+                <button onClick={() => { setRenamingConvId(c.id); setConvRenameInput(c.title); }} className="px-2 py-1 flex-shrink-0" style={{ color: SILVER_DIM, fontSize: "13px" }}>✏️</button>
+                <button onClick={() => deleteConversation(c.id)} className="px-2 py-1 flex-shrink-0" style={{ color: "rgba(255,160,160,0.7)", fontSize: "13px" }}>🗑️</button>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* 햄버거 드로어 */}
