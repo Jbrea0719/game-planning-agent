@@ -1912,6 +1912,7 @@ function DesktopChatPage() {
               <section>
                 <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🛠️ 헤더 도구 (좌 → 우)</p>
                 <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
+                  <p><b style={{ color: SILVER }}>💬 대화방 (병렬 작업)</b> — 조던 이름 옆 <b>💬 버튼</b>으로 여러 대화방을 만들어 <b>주제별로 병렬 작업</b>. 카톡 채팅방처럼 [새 대화방 / 전환 / ✏️ 이름변경 / 🗑️ 삭제]. <b>방마다 대화·맥락이 독립</b>이라 서로 안 섞여요. 단, <b>기획 바이블·기획서는 전 방 공유</b>라 어느 방에서 작업해도 자산은 하나로 쌓여요. (기존 대화는 "기본 대화" 방에 그대로 보존)</p>
                   <p><b style={{ color: SILVER }}>📌 맥락</b> — 클릭하면 현재 맥락선 위치로 스크롤 + 노란 하이라이트. 설정 안 돼 있으면 <i>"맥락선이 없습니다"</i> 토스트. 설정/해제는 본문 안에서.</p>
                   <p><b style={{ color: SILVER }}>📋 맥락 결정사항</b> — 맥락선 이하 추가된 기획 바이블 결정 목록을 빠르게 확인. 맥락선이 없으면 전체 누적 결정을 보여줘요.</p>
                   <p><b style={{ color: SILVER }}>📄 기획서 작성</b> — 대화 선택 후 [✓ 작성 시작] 누르면 <i>백그라운드로 생성</i>. 작성 중에는 헤더 버튼이 "작성 중... (취소)" 표시 — <b>다시 누르면 작성 취소</b>. 완료 시 알림 토스트 + 자동으로 기획서 리스트에 새 버전 저장.</p>
@@ -1928,7 +1929,7 @@ function DesktopChatPage() {
               <section>
                 <p className="text-xs font-bold mb-2" style={{ color: "rgba(255,220,150,1)" }}>💬 답변별 도구</p>
                 <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
-                  <p><b style={{ color: SILVER }}>▼ 자세한 답변 보기</b> — 같은 질문에 대해 더 깊이 있는 확장 설명 요청.</p>
+                  <p><b style={{ color: SILVER }}>▼ 자세한 답변 보기</b> — 같은 질문에 대해 더 깊이 있는 확장 설명. <b>최고 품질 모델(Opus)</b>로 작성되고 글자가 흐르듯 실시간 표시돼요.</p>
                   <p><b style={{ color: SILVER }}>📋 디렉터 검토 의견</b> — 검토 에이전트가 본 답변에 대해 짚은 보완점·우려 사항.</p>
                   <p><b style={{ color: SILVER }}>👍 정확함 / 👎 부정확</b> — 피드백 저장. 부정확은 사유 입력 가능 → 차후 품질 개선에 활용.</p>
                   <p><b style={{ color: SILVER }}>📌 호버 압정</b> — 답변 좌측에 호버 시 나타남. <b>모든 페어에 표시되며 언제든 다른 시점으로 변경 가능</b>. 해제는 본문 내 맥락선 ✕로.</p>

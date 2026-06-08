@@ -1608,6 +1608,10 @@ function MobileGuide({ onClose }: { onClose: () => void }) {
             <p>영웅수집형 게임 디렉터 AI. 분석부터 기획까지 같이 풀어가자.</p>
           </section>
           <section>
+            <p className="font-bold mb-1.5" style={{ color: "rgba(100,210,255,1)" }}>💬 대화방 (병렬 작업)</p>
+            <p>상단 <b>조던 ▾</b>(또는 💬)을 탭하면 대화방 목록. <b>새 대화방</b>으로 주제별 병렬 작업 — 방마다 대화·맥락이 독립이라 안 섞여요. 단 <b>기획 바이블·기획서는 전 방 공유</b>. 이름변경·삭제 가능. (기존 대화는 "기본 대화" 방에 보존)</p>
+          </section>
+          <section>
             <p className="font-bold mb-1.5" style={{ color: "rgba(180,210,255,1)" }}>📚 기획 바이블</p>
             <p>대화하면서 결정한 내용을 자동으로 누적·저장. 모든 기획서 작성 시 참조됨.</p>
           </section>
