@@ -467,8 +467,17 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       setConversations(convs);
       const lastUsed = localStorage.getItem(`jordan_current_conv:${sessionId}`);
       const target = (lastUsed && convs.find(c => c.id === lastUsed)) ? lastUsed : convs[0]?.id ?? null;
-      if (target) await loadConversation(target);
-    } catch (err) { console.error("[대화방] 부트스트랩 실패:", err); }
+      if (target) { await loadConversation(target); return; }
+      throw new Error("대화방 셋업 불가 — 폴백");
+    } catch (err) {
+      // 대화방 테이블 미생성/오류 시 → 기존 방식(전체 메시지)으로 폴백
+      console.error("[대화방] 부트스트랩 — 기존 방식 폴백:", err);
+      try {
+        const r = await fetch(`/api/messages?session_id=${encodeURIComponent(sessionId)}`);
+        const d = await r.json();
+        if (d.messages?.length) setPairs(parsePairs(d.messages));
+      } catch { /* 무시 */ }
+    }
   }
 
   async function loadConversation(convId: string) {

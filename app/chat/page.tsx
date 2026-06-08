@@ -454,9 +454,18 @@ function DesktopChatPage() {
       setConversations(convs);
       const lastUsed = localStorage.getItem(`jordan_current_conv:${sid}`);
       const target = (lastUsed && convs.find(c => c.id === lastUsed)) ? lastUsed : convs[0]?.id ?? null;
-      if (target) await loadConversation(target, sid);
+      if (target) { await loadConversation(target, sid); return; }
+      throw new Error("대화방 셋업 불가 — 폴백");
     } catch (err) {
-      console.error("[대화방] 부트스트랩 실패:", err);
+      // 대화방 테이블 미생성/오류 시 → 기존 방식(전체 메시지)으로 폴백해 앱이 정상 동작하게 보장
+      console.error("[대화방] 부트스트랩 — 기존 방식 폴백:", err);
+      try {
+        const r = await fetch(`/api/messages?session_id=${encodeURIComponent(sid)}`);
+        const d = await r.json();
+        if (d.messages?.length) setPairs(groupIntoPairs(d.messages));
+        const savedCtx = localStorage.getItem(`jordan_agent_context:${sid}`);
+        if (savedCtx) setAgentContext(savedCtx);
+      } catch { /* 무시 */ }
     }
   }
 
