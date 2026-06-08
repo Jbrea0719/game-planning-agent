@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { MODEL } from "@/lib/models";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -33,9 +34,11 @@ export async function POST(request: Request) {
     };
 
     const stream = await client.messages.stream({
-      model: "claude-sonnet-4-5",
+      // 자세한 답변은 Opus로 품질 상향(#2-3), 일반은 Sonnet 유지
+      model: detailed ? MODEL.FINAL_ANSWER : "claude-sonnet-4-5",
       max_tokens: detailed ? 8192 : 800,
-      system: SYSTEM_DETAILED,
+      // 프롬프트 캐싱(#2-2) — 동일 시스템 프롬프트 반복 시 첫 글자까지 시간·비용 절감
+      system: [{ type: "text", text: SYSTEM_DETAILED, cache_control: { type: "ephemeral" } }],
       messages,
     });
 
