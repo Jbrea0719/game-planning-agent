@@ -309,6 +309,13 @@ function DesktopChatPage() {
   // 롤링 맥락 카드 — 항상 3줄, 새 답변마다 백그라운드로 교체
   const [agentContext, setAgentContext] = useState("");
   const [showContextModal, setShowContextModal] = useState(false);
+  // 대화방 (병렬 작업) — 방마다 메시지·맥락 독립
+  const [conversations, setConversations] = useState<{ id: string; title: string }[]>([]);
+  const [currentConvId, setCurrentConvId] = useState<string | null>(null);
+  const [showConvList, setShowConvList] = useState(false);
+  const [renamingConvId, setRenamingConvId] = useState<string | null>(null);
+  const [convRenameInput, setConvRenameInput] = useState("");
+  const currentConvIdRef = useRef<string | null>(null);  // sendMessage 등에서 최신값 참조용
   // 맥락 결정사항 — 맥락선 이후 추가된 결정사항만 보여줌
   type RecentDecision = {
     id: string;
@@ -425,21 +432,95 @@ function DesktopChatPage() {
 
   useEffect(() => {
     if (!sessionId) return;
-    fetch(`/api/messages?session_id=${encodeURIComponent(sessionId)}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.messages?.length > 0) setPairs(groupIntoPairs(data.messages));
-      })
-      .catch(() => {});
-    // 저장된 맥락 카드 복원 (세션별로 관리)
-    const savedCtx = localStorage.getItem(`jordan_agent_context:${sessionId}`);
-    if (savedCtx) setAgentContext(savedCtx);
-    // 저장된 맥락 anchor 복원
-    const savedAnchorPair = localStorage.getItem(`jordan_context_anchor_pair:${sessionId}`);
-    const savedAnchorTime = localStorage.getItem(`jordan_context_anchor_time:${sessionId}`);
-    if (savedAnchorPair) setContextAnchorPairId(savedAnchorPair);
-    if (savedAnchorTime) setContextAnchorTimestamp(savedAnchorTime);
+    void bootstrapConversations(sessionId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  // 대화방 부트스트랩 — 목록 로드, 없으면 기본 방 생성(기존 메시지 흡수), 마지막 방 열기
+  async function bootstrapConversations(sid: string) {
+    try {
+      const res = await fetch(`/api/conversations?session_id=${encodeURIComponent(sid)}`);
+      const data = await res.json();
+      let convs: { id: string; title: string }[] = data.conversations ?? [];
+      if (convs.length === 0) {
+        const cr = await fetch("/api/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: sid, title: "기본 대화", adopt_orphans: true }),
+        });
+        const cd = await cr.json();
+        if (cd.conversation) convs = [cd.conversation];
+      }
+      setConversations(convs);
+      const lastUsed = localStorage.getItem(`jordan_current_conv:${sid}`);
+      const target = (lastUsed && convs.find(c => c.id === lastUsed)) ? lastUsed : convs[0]?.id ?? null;
+      if (target) await loadConversation(target, sid);
+    } catch (err) {
+      console.error("[대화방] 부트스트랩 실패:", err);
+    }
+  }
+
+  // 특정 대화방 열기 — 메시지·맥락·anchor를 방 기준으로 로드
+  async function loadConversation(convId: string, sid?: string) {
+    const s = sid ?? sessionId;
+    if (!s) return;
+    setCurrentConvId(convId);
+    currentConvIdRef.current = convId;
+    localStorage.setItem(`jordan_current_conv:${s}`, convId);
+    setShowConvList(false);
+    setPairs([]);
+    try {
+      const res = await fetch(`/api/messages?session_id=${encodeURIComponent(s)}&conversation_id=${encodeURIComponent(convId)}`);
+      const data = await res.json();
+      setPairs(data.messages?.length ? groupIntoPairs(data.messages) : []);
+    } catch { setPairs([]); }
+    // 방별 맥락 카드·anchor 복원
+    setAgentContext(localStorage.getItem(`jordan_agent_context:${convId}`) ?? "");
+    setContextAnchorPairId(localStorage.getItem(`jordan_context_anchor_pair:${convId}`));
+    setContextAnchorTimestamp(localStorage.getItem(`jordan_context_anchor_time:${convId}`));
+  }
+
+  async function createConversation() {
+    if (!sessionId) return;
+    try {
+      const res = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, title: "새 대화" }),
+      });
+      const data = await res.json();
+      if (data.conversation) {
+        setConversations(prev => [data.conversation, ...prev]);
+        await loadConversation(data.conversation.id);
+      }
+    } catch (err) { console.error("[대화방] 생성 실패:", err); }
+  }
+
+  async function renameConversation(id: string, title: string) {
+    const t = title.trim();
+    setRenamingConvId(null);
+    setConvRenameInput("");
+    if (!t) return;
+    setConversations(prev => prev.map(c => c.id === id ? { ...c, title: t } : c));
+    await fetch("/api/conversations", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, title: t }),
+    }).catch(() => {});
+  }
+
+  async function deleteConversation(id: string) {
+    if (!confirm("이 대화방과 그 안의 모든 대화를 삭제할까요?")) return;
+    await fetch("/api/conversations", {
+      method: "DELETE", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    }).catch(() => {});
+    const remaining = conversations.filter(c => c.id !== id);
+    setConversations(remaining);
+    if (currentConvId === id) {
+      if (remaining.length > 0) await loadConversation(remaining[0].id);
+      else await createConversation();
+    }
+  }
 
   // 맥락 카드 재생성 (특정 페어 범위 기준)
   async function rebuildContextCard(forPairs: MessagePair[]) {
@@ -460,7 +541,7 @@ function DesktopChatPage() {
       const data = await res.json();
       if (data.context && sessionId) {
         setAgentContext(data.context);
-        localStorage.setItem(`jordan_agent_context:${sessionId}`, data.context);
+        localStorage.setItem(`jordan_agent_context:${currentConvId ?? sessionId}`, data.context);
       }
     } catch (err) {
       console.error("[맥락 카드 재생성] 실패:", err);
@@ -472,12 +553,12 @@ function DesktopChatPage() {
     if (!sessionId) return;
     setContextAnchorPairId(pairId);
     setContextAnchorTimestamp(timestamp);
-    localStorage.setItem(`jordan_context_anchor_pair:${sessionId}`, pairId);
-    localStorage.setItem(`jordan_context_anchor_time:${sessionId}`, timestamp);
+    localStorage.setItem(`jordan_context_anchor_pair:${currentConvId ?? sessionId}`, pairId);
+    localStorage.setItem(`jordan_context_anchor_time:${currentConvId ?? sessionId}`, timestamp);
 
     // 맥락 카드 리셋 + anchor 이후 페어 기준으로 재생성
     setAgentContext("");
-    localStorage.removeItem(`jordan_agent_context:${sessionId}`);
+    localStorage.removeItem(`jordan_agent_context:${currentConvId ?? sessionId}`);
     const anchorIdx = pairs.findIndex(p => p.pair_id === pairId);
     if (anchorIdx >= 0) {
       const afterAnchor = pairs.slice(anchorIdx).filter(p => !p.is_deleted);
@@ -488,12 +569,12 @@ function DesktopChatPage() {
     if (!sessionId) return;
     setContextAnchorPairId(null);
     setContextAnchorTimestamp(null);
-    localStorage.removeItem(`jordan_context_anchor_pair:${sessionId}`);
-    localStorage.removeItem(`jordan_context_anchor_time:${sessionId}`);
+    localStorage.removeItem(`jordan_context_anchor_pair:${currentConvId ?? sessionId}`);
+    localStorage.removeItem(`jordan_context_anchor_time:${currentConvId ?? sessionId}`);
 
     // 맥락 카드 리셋 + 전체 활성 페어 기준으로 재생성
     setAgentContext("");
-    localStorage.removeItem(`jordan_agent_context:${sessionId}`);
+    localStorage.removeItem(`jordan_agent_context:${currentConvId ?? sessionId}`);
     const allActive = pairs.filter(p => !p.is_deleted);
     void rebuildContextCard(allActive);
   }
@@ -771,6 +852,7 @@ function DesktopChatPage() {
           agentContext,  // 롤링 맥락 카드 전달
           show_citations: showCitations,  // 인라인 신뢰도 라벨 토글
           context_anchor_time: contextAnchorTimestamp,  // 결정사항 cutoff (이후 created_at만 사용)
+          conversation_id: currentConvIdRef.current,  // 현재 대화방
         }),
         signal: controller.signal,
       });
@@ -1015,7 +1097,7 @@ function DesktopChatPage() {
       .then((data) => {
         if (data.context && sessionId) {
           setAgentContext(data.context);
-          localStorage.setItem(`jordan_agent_context:${sessionId}`, data.context);
+          localStorage.setItem(`jordan_agent_context:${currentConvId ?? sessionId}`, data.context);
         }
       })
       .catch(() => { /* 실패해도 대화 흐름에 영향 없음 */ });
@@ -1962,6 +2044,47 @@ function DesktopChatPage() {
             무엇이든 물어보라고!
           </p>
         </div>
+
+        {/* 대화방 스위처 — 병렬 작업용 (여러 대화방 전환) */}
+        {!selectMode && (
+          <div className="relative">
+            <button
+              onClick={() => setShowConvList(v => !v)}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5"
+              style={{ backgroundColor: "rgba(100,180,255,0.15)", border: "1px solid rgba(100,180,255,0.45)", color: "rgba(180,210,255,1)" }}
+              title="대화방 전환 — 여러 기획서를 병렬로 작업"
+            >
+              <span>💬</span>
+              <span className="truncate" style={{ maxWidth: 150 }}>{conversations.find(c => c.id === currentConvId)?.title ?? "대화방"}</span>
+              <span style={{ fontSize: "9px" }}>▾</span>
+            </button>
+            {showConvList && (
+              <div className="absolute left-0 top-full mt-1 rounded-lg shadow-2xl py-1 z-30" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}`, minWidth: 240, maxHeight: 380, overflowY: "auto" }}>
+                <button onClick={createConversation} className="block w-full text-left text-xs px-3 py-2 font-bold hover:bg-white/5" style={{ color: "#7dd3fc", borderBottom: `1px solid ${SILVER_FAINT}` }}>+ 새 대화방</button>
+                {conversations.map(c => (
+                  <div key={c.id} className="flex items-center gap-1 px-2 py-0.5 hover:bg-white/5" style={{ backgroundColor: c.id === currentConvId ? "rgba(100,180,255,0.12)" : "transparent" }}>
+                    {renamingConvId === c.id ? (
+                      <input
+                        value={convRenameInput}
+                        onChange={e => setConvRenameInput(e.target.value)}
+                        onBlur={() => renameConversation(c.id, convRenameInput)}
+                        onKeyDown={e => { if (e.key === "Enter") renameConversation(c.id, convRenameInput); if (e.key === "Escape") { setRenamingConvId(null); setConvRenameInput(""); } }}
+                        autoFocus
+                        className="flex-1 min-w-0 text-xs px-1.5 py-1 rounded outline-none"
+                        style={{ backgroundColor: "rgba(0,0,0,0.4)", border: "1px solid rgba(100,180,255,0.5)", color: "#e0e8f0" }}
+                      />
+                    ) : (
+                      <button onClick={() => loadConversation(c.id)} className="flex-1 min-w-0 text-left text-xs px-1.5 py-1 truncate" style={{ color: c.id === currentConvId ? "rgba(180,210,255,1)" : "#d0d8e0" }} title={c.title}>{c.title}</button>
+                    )}
+                    <button onClick={() => { setRenamingConvId(c.id); setConvRenameInput(c.title); }} className="text-xs px-1 rounded hover:bg-white/10 flex-shrink-0" style={{ color: SILVER_DIM }} title="이름 변경">✏️</button>
+                    <button onClick={() => deleteConversation(c.id)} className="text-xs px-1 rounded hover:bg-white/10 flex-shrink-0" style={{ color: "rgba(255,160,160,0.7)" }} title="삭제">🗑️</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="ml-auto flex items-center gap-2">
           {/* ─── 선택 모드: 작성 컨트롤만 크게 표시, 다른 헤더 버튼은 숨김 ─── */}
           {selectMode && (
