@@ -8,15 +8,18 @@ import { supabase } from "@/lib/supabase";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const sessionId = searchParams.get("session_id");
+  const conversationId = searchParams.get("conversation_id");  // 있으면 해당 대화방만
 
   if (!sessionId) {
     return Response.json({ error: "session_id 필요" }, { status: 400 });
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("messages")
     .select("role, content, pair_id, is_deleted, detail_content, detail_shown")
-    .eq("session_id", sessionId)
+    .eq("session_id", sessionId);
+  if (conversationId) query = query.eq("conversation_id", conversationId);  // 대화방 필터 (없으면 기존처럼 전체)
+  const { data, error } = await query
     .order("created_at", { ascending: false })  // 내림차순(최신 먼저)으로 가져와서
     .limit(500);
 
@@ -38,6 +41,7 @@ export async function POST(request: Request) {
       role: "user" | "assistant";
       content: string;
       universes?: string;
+      conversation_id?: string | null;
     }>;
   };
   if (!messages || messages.length === 0) {
@@ -50,6 +54,7 @@ export async function POST(request: Request) {
     content: m.content,
     universes: m.universes ?? "게임기획",
     is_deleted: false,
+    conversation_id: m.conversation_id ?? null,
   }));
   const { error } = await supabase.from("messages").insert(rows);
   if (error) return Response.json({ error: error.message }, { status: 500 });

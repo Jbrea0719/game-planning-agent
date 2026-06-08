@@ -1453,7 +1453,7 @@ type Message = { role: "user" | "assistant"; content: string };
 
 export async function POST(request: Request) {
   try {
-    const { messages, session_id, pair_id, detailed, agentContext, show_citations, context_anchor_time } = (await request.json()) as {
+    const { messages, session_id, pair_id, detailed, agentContext, show_citations, context_anchor_time, conversation_id } = (await request.json()) as {
       messages: Message[];
       session_id?: string;
       pair_id?: string;
@@ -1461,6 +1461,7 @@ export async function POST(request: Request) {
       agentContext?: string;  // 롤링 맥락 카드 (클라이언트에서 관리)
       show_citations?: boolean;  // 인라인 신뢰도 라벨 노출 여부 (UI 토글)
       context_anchor_time?: string | null;  // 결정사항 cutoff timestamp (맥락 시작점)
+      conversation_id?: string | null;  // 대화방 id (병렬 작업)
     };
 
     const userMessage = messages[messages.length - 1];
@@ -1485,13 +1486,17 @@ export async function POST(request: Request) {
           // Supabase에 대화 저장
           if (session_id && pair_id) {
             const { error: dbError } = await supabase.from("messages").insert([
-              { session_id, pair_id, role: "user", content: userMessage.content, universes: "게임기획", is_deleted: false },
-              { session_id, pair_id, role: "assistant", content: assistantText, universes: "게임기획", is_deleted: false },
+              { session_id, pair_id, role: "user", content: userMessage.content, universes: "게임기획", is_deleted: false, conversation_id: conversation_id ?? null },
+              { session_id, pair_id, role: "assistant", content: assistantText, universes: "게임기획", is_deleted: false, conversation_id: conversation_id ?? null },
             ]);
             if (dbError) {
               console.error("[agent] Supabase 저장 실패:", dbError.message, dbError.code);
             } else {
               console.log("[agent] Supabase 저장 성공:", session_id, pair_id);
+              // 대화방 최근 활동 시간 갱신 (목록 정렬용)
+              if (conversation_id) {
+                await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversation_id);
+              }
             }
           } else {
             console.warn("[agent] session_id 또는 pair_id 없음 — 저장 건너뜀");
