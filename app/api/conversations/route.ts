@@ -21,12 +21,25 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const { session_id, title, adopt_orphans } = (await request.json()) as {
+  const { session_id, title, adopt_orphans, adopt_into } = (await request.json()) as {
     session_id: string;
     title?: string;
-    adopt_orphans?: boolean;  // 기존(대화방 미배정) 메시지를 이 방으로 흡수 (마이그레이션용)
+    adopt_orphans?: boolean;  // 기존(대화방 미배정) 메시지를 새로 만드는 이 방으로 흡수
+    adopt_into?: string;      // 새로 만들지 않고, 미배정 메시지를 이 기존 방 id로 흡수 (복구용)
   };
   if (!session_id) return Response.json({ error: "session_id 필요" }, { status: 400 });
+
+  // 복구 모드: 미배정(conversation_id NULL) 메시지를 지정 방으로 흡수 (생성 X)
+  if (adopt_into) {
+    const { data: adopted, error: adErr } = await supabase
+      .from("messages")
+      .update({ conversation_id: adopt_into })
+      .eq("session_id", session_id)
+      .is("conversation_id", null)
+      .select("id");
+    if (adErr) return Response.json({ error: adErr.message }, { status: 500 });
+    return Response.json({ adopted: (adopted ?? []).length });
+  }
 
   const { data, error } = await supabase
     .from("conversations")

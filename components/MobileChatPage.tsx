@@ -460,15 +460,25 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     try {
       const res = await fetch(`/api/conversations?session_id=${encodeURIComponent(sessionId)}`);
       const data = await res.json();
-      let convs: { id: string; title: string }[] = data.conversations ?? [];
+      let convs: { id: string; title: string; created_at?: string }[] = data.conversations ?? [];
       if (convs.length === 0) {
         const cr = await fetch("/api/conversations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId, title: "기본 대화", adopt_orphans: true }) });
         const cd = await cr.json();
         if (cd.conversation) convs = [cd.conversation];
       }
-      setConversations(convs);
+      setConversations(convs.map(c => ({ id: c.id, title: c.title })));
+      // 복구: 미배정(숨겨진) 기존 메시지를 가장 오래된 방으로 흡수
+      let recoveredInto: string | null = null;
+      if (convs.length > 0) {
+        const oldest = [...convs].sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""))[0];
+        try {
+          const ar = await fetch("/api/conversations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId, adopt_into: oldest.id }) });
+          const ad = await ar.json();
+          if (ad.adopted > 0) recoveredInto = oldest.id;
+        } catch { /* 무시 */ }
+      }
       const lastUsed = localStorage.getItem(`jordan_current_conv:${sessionId}`);
-      const target = (lastUsed && convs.find(c => c.id === lastUsed)) ? lastUsed : convs[0]?.id ?? null;
+      const target = recoveredInto ?? ((lastUsed && convs.find(c => c.id === lastUsed)) ? lastUsed : convs[0]?.id ?? null);
       if (target) { await loadConversation(target); return; }
       throw new Error("대화방 셋업 불가 — 폴백");
     } catch (err) {

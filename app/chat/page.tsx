@@ -285,6 +285,8 @@ function DesktopChatPage() {
   const [streamingPair, setStreamingPair] = useState<{ user: string; assistant: string } | null>(null);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  // 방별 생성 중 상태 — 여러 대화방에서 동시에 답변 생성(백그라운드) 가능
+  const [generatingConvIds, setGeneratingConvIds] = useState<Set<string>>(new Set());
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [nicknameInput, setNicknameInput] = useState("");
   const [showModal, setShowModal] = useState(false);
@@ -420,6 +422,10 @@ function DesktopChatPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const streamingRawRef = useRef<string>("");
+  // 방별 백그라운드 생성 추적 — convId → AbortController / 진행 중 텍스트
+  const genAbortRef = useRef<Map<string, AbortController>>(new Map());
+  const genStateRef = useRef<Map<string, { user: string; raw: string; pairId: string; time: string }>>(new Map());
+  const streamingConvIdRef = useRef<string | null>(null);  // 현재 streamingPair가 속한 방
   const userScrolledUpRef = useRef(false);
   const isSubLoadingRef = useRef(false); // loadDetail / loadFeedbackSummary 중 여부
 
@@ -441,7 +447,7 @@ function DesktopChatPage() {
     try {
       const res = await fetch(`/api/conversations?session_id=${encodeURIComponent(sid)}`);
       const data = await res.json();
-      let convs: { id: string; title: string }[] = data.conversations ?? [];
+      let convs: { id: string; title: string; created_at?: string }[] = data.conversations ?? [];
       if (convs.length === 0) {
         const cr = await fetch("/api/conversations", {
           method: "POST",
@@ -451,9 +457,19 @@ function DesktopChatPage() {
         const cd = await cr.json();
         if (cd.conversation) convs = [cd.conversation];
       }
-      setConversations(convs);
+      setConversations(convs.map(c => ({ id: c.id, title: c.title })));
+      // 복구: 방에 미배정된(숨겨진) 기존 메시지를 가장 오래된 방으로 흡수
+      let recoveredInto: string | null = null;
+      if (convs.length > 0) {
+        const oldest = [...convs].sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""))[0];
+        try {
+          const ar = await fetch("/api/conversations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sid, adopt_into: oldest.id }) });
+          const ad = await ar.json();
+          if (ad.adopted > 0) recoveredInto = oldest.id;
+        } catch { /* 무시 */ }
+      }
       const lastUsed = localStorage.getItem(`jordan_current_conv:${sid}`);
-      const target = (lastUsed && convs.find(c => c.id === lastUsed)) ? lastUsed : convs[0]?.id ?? null;
+      const target = recoveredInto ?? ((lastUsed && convs.find(c => c.id === lastUsed)) ? lastUsed : convs[0]?.id ?? null);
       if (target) { await loadConversation(target, sid); return; }
       throw new Error("대화방 셋업 불가 — 폴백");
     } catch (err) {
@@ -487,6 +503,20 @@ function DesktopChatPage() {
     setAgentContext(localStorage.getItem(`jordan_agent_context:${convId}`) ?? "");
     setContextAnchorPairId(localStorage.getItem(`jordan_context_anchor_pair:${convId}`));
     setContextAnchorTimestamp(localStorage.getItem(`jordan_context_anchor_time:${convId}`));
+    // 이 방에 진행 중인 백그라운드 생성이 있으면 라이브 스트림 복원
+    const g = genStateRef.current.get(convId);
+    if (g) {
+      let disp = g.raw.replace(/\n__JORDAN_CRITIC_START__[\s\S]*?__JORDAN_CRITIC_END__$/, "");
+      const i = disp.indexOf("__JORDAN_ANSWER_START__");
+      if (i !== -1) disp = disp.slice(i + "__JORDAN_ANSWER_START__".length).trimStart();
+      streamingRawRef.current = g.raw;
+      streamingConvIdRef.current = convId;
+      setStreamingPair({ user: g.user, assistant: disp.replace("__TRUNCATED__", "") });
+    } else {
+      streamingRawRef.current = "";
+      streamingConvIdRef.current = null;
+      setStreamingPair(null);
+    }
   }
 
   async function createConversation() {
@@ -594,6 +624,11 @@ function DesktopChatPage() {
       scrollToBottom();
     }
   }, [streamingPair]);
+
+  // isLoading = "지금 보고 있는 방"이 생성 중인지 (다른 방 생성은 백그라운드로 계속)
+  useEffect(() => {
+    setIsLoading(!!currentConvId && generatingConvIds.has(currentConvId));
+  }, [generatingConvIds, currentConvId]);
 
   // pairs 로드 시 각 pair의 기존 피드백 복원 (병렬 fetch)
   useEffect(() => {
@@ -841,15 +876,21 @@ function DesktopChatPage() {
       ]),
       { role: "user" as const, content: trimmed },
     ];
-    setStreamingPair({ user: trimmed, assistant: "" });
+    const genConvId = currentConvIdRef.current;  // 이 답변이 속한 대화방 (전송 시점 고정)
     setInput("");
     if (inputRef.current) inputRef.current.style.height = "auto"; // 전송 후 입력창 높이 기본값 복원
-    setIsLoading(true);
+    userScrolledUpRef.current = false; // 새 질문 시작 시 초기화
 
     const controller = new AbortController();
-    abortControllerRef.current = controller;
+    if (genConvId) {
+      genAbortRef.current.set(genConvId, controller);
+      genStateRef.current.set(genConvId, { user: trimmed, raw: "", pairId, time });
+      setGeneratingConvIds(prev => new Set(prev).add(genConvId));  // 이 방을 생성 중으로 표시
+    }
+    // 지금 보고 있는 방이면 즉시 스트리밍 표시
+    setStreamingPair({ user: trimmed, assistant: "" });
+    streamingConvIdRef.current = genConvId;
     streamingRawRef.current = "";
-    userScrolledUpRef.current = false; // 새 질문 시작 시 초기화
 
     try {
       const response = await fetch("/api/agent", {
@@ -862,7 +903,7 @@ function DesktopChatPage() {
           agentContext,  // 롤링 맥락 카드 전달
           show_citations: showCitations,  // 인라인 신뢰도 라벨 토글
           context_anchor_time: contextAnchorTimestamp,  // 결정사항 cutoff (이후 created_at만 사용)
-          conversation_id: currentConvIdRef.current,  // 현재 대화방
+          conversation_id: genConvId,  // 이 답변이 속한 대화방
         }),
         signal: controller.signal,
       });
@@ -874,15 +915,19 @@ function DesktopChatPage() {
         const { done, value } = await reader.read();
         if (done) break;
         assistantText += decoder.decode(value);
-        streamingRawRef.current = assistantText;
-        // 화면에는 진행 상태/메타데이터 마커 제외, 조던 답변 부분만 표시
-        let displayText = assistantText.replace(/\n__JORDAN_CRITIC_START__[\s\S]*?__JORDAN_CRITIC_END__$/, "");
-        const dispAnswerIdx = displayText.indexOf("__JORDAN_ANSWER_START__");
-        if (dispAnswerIdx !== -1) {
-          displayText = displayText.slice(dispAnswerIdx + "__JORDAN_ANSWER_START__".length).trimStart();
+        const _st = genConvId ? genStateRef.current.get(genConvId) : null;
+        if (_st) _st.raw = assistantText;  // 백그라운드 누적 (방 전환해도 유지)
+        // 지금 보고 있는 방일 때만 화면 갱신 (다른 방 생성은 화면에 안 보이게)
+        if (genConvId === currentConvIdRef.current) {
+          let displayText = assistantText.replace(/\n__JORDAN_CRITIC_START__[\s\S]*?__JORDAN_CRITIC_END__$/, "");
+          const dispAnswerIdx = displayText.indexOf("__JORDAN_ANSWER_START__");
+          if (dispAnswerIdx !== -1) {
+            displayText = displayText.slice(dispAnswerIdx + "__JORDAN_ANSWER_START__".length).trimStart();
+          }
+          displayText = displayText.replace("__TRUNCATED__", "");
+          streamingRawRef.current = assistantText;
+          setStreamingPair({ user: trimmed, assistant: displayText });
         }
-        displayText = displayText.replace("__TRUNCATED__", "");
-        setStreamingPair({ user: trimmed, assistant: displayText });
       }
 
       // 메타데이터 파싱 및 분리
@@ -937,35 +982,40 @@ function DesktopChatPage() {
         cleanText = cleanTruncated(cleanText);
       }
 
-      const hadScrolledUp = userScrolledUpRef.current;
-      userScrolledUpRef.current = false;
-      setPairs((prev) => [...prev, {
+      const newPair = {
         pair_id: pairId,
-        user: { role: "user", content: trimmed, pair_id: pairId },
-        assistant: { role: "assistant", content: cleanText, pair_id: pairId },
+        user: { role: "user" as const, content: trimmed, pair_id: pairId },
+        assistant: { role: "assistant" as const, content: cleanText, pair_id: pairId },
         is_deleted: false,
         timestamp: time,
         critic_history: criticHistory,
-      }]);
-      setStreamingPair(null);
-      // 맥락 카드 백그라운드 업데이트 (UI 블로킹 없음)
-      updateContextCard(trimmed, cleanText);
-      if (hadScrolledUp) {
-        setShowAnswerCompleteBtn(true);
-      } else {
-        scrollToBottom();
+      };
+      // 지금 그 방을 보고 있으면 즉시 반영. 다른 방이면 DB에 저장됐으니 그 방 다시 열 때 표시됨
+      if (genConvId === currentConvIdRef.current) {
+        const hadScrolledUp = userScrolledUpRef.current;
+        userScrolledUpRef.current = false;
+        setPairs((prev) => [...prev, newPair]);
+        setStreamingPair(null);
+        streamingConvIdRef.current = null;
+        updateContextCard(trimmed, cleanText);  // 맥락 카드 백그라운드 업데이트
+        if (hadScrolledUp) setShowAnswerCompleteBtn(true);
+        else scrollToBottom();
       }
     } catch {
-      // AbortError면 조용히 처리
+      // AbortError·네트워크 오류 — 조용히 처리 (상태 해제는 finally)
     } finally {
-      abortControllerRef.current = null;
-      setIsLoading(false);
+      if (genConvId) {
+        genAbortRef.current.delete(genConvId);
+        genStateRef.current.delete(genConvId);
+        setGeneratingConvIds(prev => { const n = new Set(prev); n.delete(genConvId); return n; });
+      }
     }
   }
 
-  // 질문 실수: 답변 중단 + 질문·답변 모두 삭제
+  // 질문 실수: 답변 중단 + 질문·답변 모두 삭제 (현재 방의 생성만 중단)
   function cancelAndDiscard() {
-    abortControllerRef.current?.abort();
+    const cid = currentConvIdRef.current;
+    if (cid) genAbortRef.current.get(cid)?.abort();
     setStreamingPair(null);
     setInput("");
     if (inputRef.current) inputRef.current.style.height = "auto"; // 입력창 높이 기본값 복원
@@ -973,10 +1023,11 @@ function DesktopChatPage() {
     setShowAnswerCompleteBtn(false);
   }
 
-  // 질문 수정: 답변 중단 + 질문을 입력창에 복원
+  // 질문 수정: 답변 중단 + 질문을 입력창에 복원 (현재 방의 생성만 중단)
   function cancelAndEdit() {
     const question = streamingPair?.user ?? "";
-    abortControllerRef.current?.abort();
+    const cid = currentConvIdRef.current;
+    if (cid) genAbortRef.current.get(cid)?.abort();
     setStreamingPair(null);
     setInput(question);
     userScrolledUpRef.current = false;
