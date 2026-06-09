@@ -2707,8 +2707,7 @@ function DesktopChatPage() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="게임 기획에 대해 질문하세요... (Enter 전송 / Alt+Enter 줄바꿈)"
-          disabled={isLoading}
+          placeholder={isLoading ? "답변 생성 중 — 미리 입력해두면 완료 후 Enter로 전송돼요" : "게임 기획에 대해 질문하세요... (Enter 전송 / Alt+Enter 줄바꿈)"}
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}

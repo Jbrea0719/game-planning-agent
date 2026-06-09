@@ -1228,8 +1228,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           // 모바일은 Enter=줄바꿈(기본 동작), 전송은 ➤ 버튼만 담당 (자판 엔터로 실수 전송 방지)
           onFocus={() => simulateKeyboard && setKeyboardOpen(true)}
           onBlur={() => simulateKeyboard && setKeyboardOpen(false)}
-          placeholder="질문해줘..."
-          disabled={isLoading}
+          placeholder={isLoading ? "답변 생성 중 — 미리 입력해두면 완료 후 ➤로 전송" : "질문해줘..."}
           rows={1}
           className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none resize-none"
           // fontSize 16px: iOS 사파리는 16px 미만 입력칸에 포커스 시 화면을 자동 확대하므로 16px로 고정해 줌인 방지
