@@ -468,8 +468,9 @@ function DesktopChatPage() {
           if (ad.adopted > 0) recoveredInto = oldest.id;
         } catch { /* 무시 */ }
       }
+      // 마지막에 보던 방을 최우선 복원 (복구는 백그라운드로만, 화면은 마지막 방)
       const lastUsed = localStorage.getItem(`jordan_current_conv:${sid}`);
-      const target = recoveredInto ?? ((lastUsed && convs.find(c => c.id === lastUsed)) ? lastUsed : convs[0]?.id ?? null);
+      const target = (lastUsed && convs.find(c => c.id === lastUsed)) ? lastUsed : (recoveredInto ?? convs[0]?.id ?? null);
       if (target) { await loadConversation(target, sid); return; }
       throw new Error("대화방 셋업 불가 — 폴백");
     } catch (err) {
