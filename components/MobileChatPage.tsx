@@ -122,6 +122,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   const detailRetryRef = useRef<Record<string, number>>({}); // 자세히 pair별 자동 재시도 횟수
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [generatingConvIds, setGeneratingConvIds] = useState<Set<string>>(new Set());  // 방별 생성 중
 
   // UI 상태
   const [showMenu, setShowMenu] = useState(false);
@@ -292,6 +293,10 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // 방별 백그라운드 생성 추적
+  const genAbortRef = useRef<Map<string, AbortController>>(new Map());
+  const genStateRef = useRef<Map<string, { user: string; raw: string }>>(new Map());
+  const streamingConvIdRef = useRef<string | null>(null);
   // 음성 입력 — 받아쓰기 시작 시점의 기존 입력값을 보관 → 인식 결과를 그 뒤에 이어붙임
   const voiceBaseRef = useRef("");
   const { supported: voiceSupported, listening: voiceListening, start: startVoice } = useSpeechRecognition({
@@ -505,6 +510,19 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     } catch { setPairs([]); }
     setContextAnchorPairId(localStorage.getItem(`jordan_context_anchor_pair:${convId}`));
     setContextAnchorTimestamp(localStorage.getItem(`jordan_context_anchor_time:${convId}`));
+    // 이 방에 진행 중인 백그라운드 생성이 있으면 라이브 스트림 복원
+    const g = genStateRef.current.get(convId);
+    if (g) {
+      let disp = g.raw;
+      const i = disp.indexOf("__JORDAN_ANSWER_START__");
+      if (i !== -1) disp = disp.slice(i + "__JORDAN_ANSWER_START__".length).trimStart();
+      disp = disp.replace(/\n__JORDAN_CRITIC_START__[\s\S]*?__JORDAN_CRITIC_END__$/, "").replace(/__DECISIONS_(EXTRACTED|HELD)__\d+/g, "").replace("__TRUNCATED__", "");
+      streamingConvIdRef.current = convId;
+      setStreaming({ user: g.user, assistant: disp });
+    } else {
+      streamingConvIdRef.current = null;
+      setStreaming(null);
+    }
   }
 
   async function createConversation() {
@@ -553,6 +571,11 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       else if (distFromBottom < 24) userScrolledUpRef.current = false;
     }
   }
+
+  // isLoading = 지금 보고 있는 방이 생성 중인지 (다른 방 생성은 백그라운드로 계속)
+  useEffect(() => {
+    setIsLoading(!!currentConvId && generatingConvIds.has(currentConvId));
+  }, [generatingConvIds, currentConvId]);
 
   // 기존 피드백 복원
   useEffect(() => {
@@ -615,13 +638,19 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
 
   // 실제 네트워크 스트리밍 — sendMessage·retryStream(재시도)·자동 재시도가 공용으로 호출
   async function runAgentStream(allMessages: { role: string; content: string }[], pairId: string, userText: string) {
+    const genConvId = currentConvIdRef.current;  // 이 답변이 속한 방 (시작 시점 고정)
     setStreaming({ user: userText, assistant: "" });
+    streamingConvIdRef.current = genConvId;
     setStreamFailed(false);
-    setIsLoading(true);
     userScrolledUpRef.current = false;  // 새 답변 시작 시 자동스크롤 재개
     streamCancelledRef.current = false;
     const controller = new AbortController();
     abortRef.current = controller;
+    if (genConvId) {
+      genAbortRef.current.set(genConvId, controller);
+      genStateRef.current.set(genConvId, { user: userText, raw: "" });
+      setGeneratingConvIds(prev => new Set(prev).add(genConvId));  // 이 방 생성 중
+    }
 
     try {
       const res = await fetch("/api/agent", {
@@ -634,7 +663,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           agentContext: "",
           show_citations: showCitations,
           context_anchor_time: contextAnchorTimestamp,
-          conversation_id: currentConvIdRef.current,  // 현재 대화방
+          conversation_id: genConvId,  // 이 답변이 속한 대화방
         }),
         signal: controller.signal,
       });
@@ -646,22 +675,26 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         const { done, value } = await reader.read();
         if (done) break;
         text += decoder.decode(value);
-        let display = text;
-        const idx = display.indexOf("__JORDAN_ANSWER_START__");
-        if (idx !== -1) display = display.slice(idx + "__JORDAN_ANSWER_START__".length).trimStart();
-        display = display.replace(/\n__JORDAN_CRITIC_START__[\s\S]*?__JORDAN_CRITIC_END__$/, "");
-        display = display.replace(/__DECISIONS_(EXTRACTED|HELD)__\d+/g, "");
-        display = display.replace("__TRUNCATED__", "");
-        setStreaming({ user: userText, assistant: display });
+        const _st = genConvId ? genStateRef.current.get(genConvId) : null;
+        if (_st) _st.raw = text;  // 백그라운드 누적 (방 전환해도 유지)
+        if (genConvId === currentConvIdRef.current) {
+          let display = text;
+          const idx = display.indexOf("__JORDAN_ANSWER_START__");
+          if (idx !== -1) display = display.slice(idx + "__JORDAN_ANSWER_START__".length).trimStart();
+          display = display.replace(/\n__JORDAN_CRITIC_START__[\s\S]*?__JORDAN_CRITIC_END__$/, "");
+          display = display.replace(/__DECISIONS_(EXTRACTED|HELD)__\d+/g, "");
+          display = display.replace("__TRUNCATED__", "");
+          setStreaming({ user: userText, assistant: display });
+        }
       }
       let clean = text;
       const extractedMatch = text.match(/__DECISIONS_EXTRACTED__(\d+)/);
       if (extractedMatch && parseInt(extractedMatch[1], 10) > 0) {
         setDecisionReloadKey(k => k + 1);
       }
-      // 추출 데이터 파싱 → 검토 카드
+      // 추출 데이터 파싱 → 검토 카드 (지금 보고 있는 방일 때만 모달)
       const dataMatch = text.match(/__DECISIONS_DATA__([\s\S]+?)__END__/);
-      if (dataMatch) {
+      if (dataMatch && genConvId === currentConvIdRef.current) {
         try {
           const items = JSON.parse(dataMatch[1]) as ExtractedItem[];
           if (items.length > 0) { setExtractedItems(items); setShowExtractedReview(true); }
@@ -675,20 +708,27 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       clean = clean.replace("__TRUNCATED__", "").trimEnd();
 
       if (!clean) throw new Error("empty"); // 빈 응답도 실패로 처리(재시도 가능)
-      setPairs(prev => [...prev, {
-        pair_id: pairId,
-        user: { role: "user", content: userText },
-        assistant: { role: "assistant", content: clean },
-      }]);
-      setStreaming(null);
+      // 지금 그 방을 보고 있으면 즉시 반영. 다른 방이면 DB에 저장됐으니 그 방 다시 열 때 표시됨
+      if (genConvId === currentConvIdRef.current) {
+        setPairs(prev => [...prev, {
+          pair_id: pairId,
+          user: { role: "user", content: userText },
+          assistant: { role: "assistant", content: clean },
+        }]);
+        setStreaming(null);
+      }
       setStreamFailed(false);
       lastReqRef.current = null; // 성공 → 보관 요청 비움
     } catch {
-      // 사용자가 직접 취소한 게 아니라면 '실패'로 표시 → 재시도 버튼·자동 재시도 대상
-      if (!streamCancelledRef.current) setStreamFailed(true);
+      // 사용자가 직접 취소한 게 아니라면 '실패' 표시 (지금 보고 있는 방일 때만)
+      if (!streamCancelledRef.current && genConvId === currentConvIdRef.current) setStreamFailed(true);
     } finally {
-      abortRef.current = null;
-      setIsLoading(false);
+      if (abortRef.current === controller) abortRef.current = null;
+      if (genConvId) {
+        genAbortRef.current.delete(genConvId);
+        genStateRef.current.delete(genConvId);
+        setGeneratingConvIds(prev => { const n = new Set(prev); n.delete(genConvId); return n; });
+      }
     }
   }
 
@@ -701,11 +741,12 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
 
   function cancelStream() {
     streamCancelledRef.current = true;
+    const cid = currentConvIdRef.current;
+    if (cid) genAbortRef.current.get(cid)?.abort();  // 현재 방 생성만 중단
     abortRef.current?.abort();
     setStreaming(null);
     setStreamFailed(false);
     lastReqRef.current = null;
-    setIsLoading(false);
   }
 
   // ── 자동 재시도 (네트워크 복귀·앱 복귀 시) ──────────────────────────
