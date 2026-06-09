@@ -661,12 +661,13 @@ function DesktopChatPage() {
     const el = scrollRef.current;
     if (!el) return;
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    setShowScrollBtn(distFromBottom > 200);
-    // 기본 답변 or 자세한 답변 / 피드백 스트리밍 중 사용자 스크롤 감지
+    setShowScrollBtn(distFromBottom > 120);
+    // 스트리밍 중 사용자 스크롤 감지 — 살짝만 올려도 자동스크롤 멈춤(임계값 낮춤),
+    // 바닥 근처로 내려오면 다시 따라감. (프로그램 자동스크롤은 바닥에 닿으므로 false로 복귀)
     if (isLoading || isSubLoadingRef.current) {
-      if (distFromBottom > 200) {
+      if (distFromBottom > 60) {
         userScrolledUpRef.current = true;
-      } else if (distFromBottom < 50) {
+      } else if (distFromBottom < 24) {
         userScrolledUpRef.current = false;
       }
     }
@@ -2641,9 +2642,9 @@ function DesktopChatPage() {
           답변 완료 ↓
         </button>
       )}
-      {/* 수동 스크롤 버튼 — 답변 완료 버튼 있을 때 숨김 (겹침 방지) */}
+      {/* 수동 스크롤 버튼 — 누르면 자동스크롤 재개 (답변 완료 버튼 있을 때 숨김) */}
       {showScrollBtn && !showAnswerCompleteBtn && (
-        <button onClick={scrollToBottom} className="fixed bottom-24 right-6 w-10 h-10 rounded-full flex items-center justify-center text-base shadow-lg z-40"
+        <button onClick={() => { userScrolledUpRef.current = false; scrollToBottom(); }} className="fixed bottom-24 right-6 w-10 h-10 rounded-full flex items-center justify-center text-base shadow-lg z-40"
           style={{ backgroundColor: SILVER, color: "#0a0e1a", boxShadow: `0 4px 15px rgba(192,200,216,0.4)` }}>↓</button>
       )}
 

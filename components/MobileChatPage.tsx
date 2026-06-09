@@ -288,6 +288,8 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   }
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const userScrolledUpRef = useRef(false);  // 스트리밍 중 사용자가 위로 올렸는지
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   // 음성 입력 — 받아쓰기 시작 시점의 기존 입력값을 보관 → 인식 결과를 그 뒤에 이어붙임
@@ -523,11 +525,24 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
-  // 자동 스크롤
+  // 자동 스크롤 — 사용자가 위로 올렸으면 멈춤(유지)
   useEffect(() => {
+    if (userScrolledUpRef.current) return;
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [pairs, streaming]);
+
+  // 스크롤 감지 — 스트리밍 중 살짝만 올려도 자동스크롤 멈춤, 바닥 근처로 오면 재개
+  function handleMobileScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setShowScrollBtn(distFromBottom > 120);
+    if (isLoading || streaming !== null) {
+      if (distFromBottom > 60) userScrolledUpRef.current = true;
+      else if (distFromBottom < 24) userScrolledUpRef.current = false;
+    }
+  }
 
   // 기존 피드백 복원
   useEffect(() => {
@@ -593,6 +608,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     setStreaming({ user: userText, assistant: "" });
     setStreamFailed(false);
     setIsLoading(true);
+    userScrolledUpRef.current = false;  // 새 답변 시작 시 자동스크롤 재개
     streamCancelledRef.current = false;
     const controller = new AbortController();
     abortRef.current = controller;
@@ -976,7 +992,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       )}
 
       {/* 메시지 영역 */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4" style={{ scrollbarWidth: "thin" }}>
+      <div ref={scrollRef} onScroll={handleMobileScroll} className="flex-1 overflow-y-auto px-3 py-4" style={{ scrollbarWidth: "thin" }}>
         <div className="space-y-4 max-w-xl mx-auto">
           {pairs.length === 0 && !streaming && (
             <div className="text-center mt-12 px-4">
@@ -1140,6 +1156,16 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           )}
         </div>
       </div>
+
+      {/* 아래로 스크롤 — 누르면 자동스크롤 재개 */}
+      {showScrollBtn && (
+        <button
+          onClick={() => { userScrolledUpRef.current = false; const el = scrollRef.current; if (el) el.scrollTop = el.scrollHeight; setShowScrollBtn(false); }}
+          className="fixed right-4 bottom-20 w-10 h-10 rounded-full flex items-center justify-center text-base shadow-lg z-30"
+          style={{ backgroundColor: SILVER, color: "#0a0e1a", boxShadow: "0 4px 15px rgba(192,200,216,0.4)" }}
+          aria-label="맨 아래로"
+        >↓</button>
+      )}
 
       {/* 입력창 */}
       <div className="px-3 py-2.5 flex gap-2 items-end flex-shrink-0" style={{ backgroundColor: "rgba(0,0,0,0.5)", borderTop: `1px solid ${SILVER_FAINT}` }}>
