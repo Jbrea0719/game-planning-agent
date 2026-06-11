@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from("messages")
-    .select("role, content, pair_id, is_deleted, detail_content, detail_shown")
+    .select("role, content, pair_id, is_deleted, detail_content, detail_shown, image_id")
     .eq("session_id", sessionId);
   if (conversationId) query = query.eq("conversation_id", conversationId);  // 대화방 필터 (없으면 기존처럼 전체)
   const { data, error } = await query

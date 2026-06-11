@@ -22,6 +22,7 @@ type Message = {
   content: string;
   pair_id?: string;
   is_deleted?: boolean;
+  image_id?: string;  // 첨부 이미지 (doc_images id) — /api/img/<id>로 표시
 };
 
 type CriticEntry = { round: number; approved: boolean; feedback: string };
@@ -282,7 +283,10 @@ export default function ChatPage() {
 
 function DesktopChatPage() {
   const [pairs, setPairs] = useState<MessagePair[]>([]);
-  const [streamingPair, setStreamingPair] = useState<{ user: string; assistant: string } | null>(null);
+  const [streamingPair, setStreamingPair] = useState<{ user: string; assistant: string; userImageId?: string } | null>(null);
+  // 첨부 이미지 (전송 전 미리보기) + 업로드 상태
+  const [attachedImage, setAttachedImage] = useState<{ dataUrl: string; mime: string; base64: string } | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   // 방별 생성 중 상태 — 여러 대화방에서 동시에 답변 생성(백그라운드) 가능
@@ -420,11 +424,12 @@ function DesktopChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);  // 이미지 첨부용 숨김 input
   const abortControllerRef = useRef<AbortController | null>(null);
   const streamingRawRef = useRef<string>("");
   // 방별 백그라운드 생성 추적 — convId → AbortController / 진행 중 텍스트
   const genAbortRef = useRef<Map<string, AbortController>>(new Map());
-  const genStateRef = useRef<Map<string, { user: string; raw: string; pairId: string; time: string }>>(new Map());
+  const genStateRef = useRef<Map<string, { user: string; raw: string; pairId: string; time: string; imageId?: string }>>(new Map());
   const streamingConvIdRef = useRef<string | null>(null);  // 현재 streamingPair가 속한 방
   const userScrolledUpRef = useRef(false);
   const isSubLoadingRef = useRef(false); // loadDetail / loadFeedbackSummary 중 여부
@@ -512,7 +517,7 @@ function DesktopChatPage() {
       if (i !== -1) disp = disp.slice(i + "__JORDAN_ANSWER_START__".length).trimStart();
       streamingRawRef.current = g.raw;
       streamingConvIdRef.current = convId;
-      setStreamingPair({ user: g.user, assistant: disp.replace("__TRUNCATED__", "") });
+      setStreamingPair({ user: g.user, assistant: disp.replace("__TRUNCATED__", ""), userImageId: g.imageId });
     } else {
       streamingRawRef.current = "";
       streamingConvIdRef.current = null;
@@ -856,11 +861,76 @@ function DesktopChatPage() {
     }
   }
 
+  // 이미지 다운스케일 (긴 변 최대 maxEdge px) → data URL 반환. 토큰·용량·전송시간 절감
+  function downscaleImage(file: File, maxEdge: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = () => {
+        const image = new window.Image();
+        image.onerror = reject;
+        image.onload = () => {
+          let w = image.width, h = image.height;
+          const scale = Math.min(1, maxEdge / Math.max(w, h));
+          w = Math.round(w * scale); h = Math.round(h * scale);
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return reject(new Error("canvas 미지원"));
+          ctx.drawImage(image, 0, 0, w, h);
+          const outMime = file.type === "image/jpeg" ? "image/jpeg" : "image/png";
+          resolve(canvas.toDataURL(outMime, 0.9));
+        };
+        image.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // 파일 선택 → 다운스케일 → 미리보기 상태에 저장
+  async function handleImagePick(file: File | null | undefined) {
+    if (!file || !file.type.startsWith("image/")) return;
+    setImageUploading(true);
+    try {
+      const dataUrl = await downscaleImage(file, 1568);  // Claude 권장 해상도
+      const head = dataUrl.slice(0, dataUrl.indexOf(","));
+      const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+      const mime = head.slice(head.indexOf(":") + 1, head.indexOf(";"));
+      setAttachedImage({ dataUrl, mime, base64 });
+    } catch (e) {
+      console.warn("[image] 처리 실패:", e);
+    } finally {
+      setImageUploading(false);
+    }
+  }
+
   async function sendMessage() {
     const trimmed = input.trim();
-    if (!trimmed || isLoading) return;
+    const img = attachedImage;  // 전송 시점 고정
+    if ((!trimmed && !img) || isLoading || imageUploading) return;
+    const question = trimmed || "첨부한 이미지를 보고 분석·평가해줘.";
     const pairId = crypto.randomUUID();
     const time = getTime();
+
+    // 입력창·첨부 미리보기 즉시 비우기 (UX)
+    setInput("");
+    setAttachedImage(null);
+    if (inputRef.current) inputRef.current.style.height = "auto"; // 전송 후 입력창 높이 기본값 복원
+    userScrolledUpRef.current = false; // 새 질문 시작 시 초기화
+
+    // 첨부 이미지가 있으면 먼저 업로드 → image_id 확보 (표시·조던 전달용)
+    let uploadedImageId: string | null = null;
+    if (img) {
+      try {
+        const up = await fetch("/api/chat-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: sessionId, mime: img.mime, data: img.base64 }),
+        });
+        const uj = await up.json();
+        uploadedImageId = uj.id ?? null;
+      } catch { /* 업로드 실패 시 이미지 없이 진행 */ }
+    }
 
     // 맥락 anchor 적용 — 설정돼 있으면 그 시점 이후 pair만 컨텍스트로 전달
     const visiblePairs = pairs.filter(p => !p.is_deleted);
@@ -875,21 +945,18 @@ function DesktopChatPage() {
         { role: p.user.role, content: p.user.content },
         { role: p.assistant.role, content: p.assistant.content },
       ]),
-      { role: "user" as const, content: trimmed },
+      { role: "user" as const, content: question },
     ];
     const genConvId = currentConvIdRef.current;  // 이 답변이 속한 대화방 (전송 시점 고정)
-    setInput("");
-    if (inputRef.current) inputRef.current.style.height = "auto"; // 전송 후 입력창 높이 기본값 복원
-    userScrolledUpRef.current = false; // 새 질문 시작 시 초기화
 
     const controller = new AbortController();
     if (genConvId) {
       genAbortRef.current.set(genConvId, controller);
-      genStateRef.current.set(genConvId, { user: trimmed, raw: "", pairId, time });
+      genStateRef.current.set(genConvId, { user: question, raw: "", pairId, time, imageId: uploadedImageId ?? undefined });
       setGeneratingConvIds(prev => new Set(prev).add(genConvId));  // 이 방을 생성 중으로 표시
     }
     // 지금 보고 있는 방이면 즉시 스트리밍 표시
-    setStreamingPair({ user: trimmed, assistant: "" });
+    setStreamingPair({ user: question, assistant: "", userImageId: uploadedImageId ?? undefined });
     streamingConvIdRef.current = genConvId;
     streamingRawRef.current = "";
 
@@ -905,6 +972,7 @@ function DesktopChatPage() {
           show_citations: showCitations,  // 인라인 신뢰도 라벨 토글
           context_anchor_time: contextAnchorTimestamp,  // 결정사항 cutoff (이후 created_at만 사용)
           conversation_id: genConvId,  // 이 답변이 속한 대화방
+          image_id: uploadedImageId,  // 첨부 이미지 — 조던이 보고 답변
         }),
         signal: controller.signal,
       });
@@ -927,7 +995,7 @@ function DesktopChatPage() {
           }
           displayText = displayText.replace("__TRUNCATED__", "");
           streamingRawRef.current = assistantText;
-          setStreamingPair({ user: trimmed, assistant: displayText });
+          setStreamingPair({ user: question, assistant: displayText, userImageId: uploadedImageId ?? undefined });
         }
       }
 
@@ -985,7 +1053,7 @@ function DesktopChatPage() {
 
       const newPair = {
         pair_id: pairId,
-        user: { role: "user" as const, content: trimmed, pair_id: pairId },
+        user: { role: "user" as const, content: question, pair_id: pairId, image_id: uploadedImageId ?? undefined },
         assistant: { role: "assistant" as const, content: cleanText, pair_id: pairId },
         is_deleted: false,
         timestamp: time,
@@ -998,7 +1066,7 @@ function DesktopChatPage() {
         setPairs((prev) => [...prev, newPair]);
         setStreamingPair(null);
         streamingConvIdRef.current = null;
-        updateContextCard(trimmed, cleanText);  // 맥락 카드 백그라운드 업데이트
+        updateContextCard(question, cleanText);  // 맥락 카드 백그라운드 업데이트
         if (hadScrolledUp) setShowAnswerCompleteBtn(true);
         else scrollToBottom();
       }
@@ -2467,6 +2535,12 @@ function DesktopChatPage() {
                       {copiedId === `${pair.pair_id}-user` ? "✓" : "⎘"}
                     </span>
                   </button>
+                  {pair.user.image_id && (
+                    <img src={`/api/img/${pair.user.image_id}`} alt="첨부 이미지"
+                      className="mb-2 rounded-xl max-h-72 w-auto ml-auto block cursor-pointer"
+                      style={{ border: `1px solid ${SILVER_FAINT}` }}
+                      onClick={() => window.open(`/api/img/${pair.user.image_id}`, "_blank")} />
+                  )}
                   <div className="px-4 py-3 rounded-2xl rounded-tr-sm text-sm font-medium whitespace-pre-wrap" style={{ backgroundColor: SILVER, color: "#0a0e1a", boxShadow: `0 4px 15px rgba(192,200,216,0.25)` }}>
                     {pair.user.content}
                   </div>
@@ -2608,8 +2682,14 @@ function DesktopChatPage() {
                     </button>
                   </div>
                 </div>
-                <div className="max-w-[70%] px-4 py-3 rounded-2xl rounded-tr-sm text-sm font-medium" style={{ backgroundColor: SILVER, color: "#0a0e1a" }}>
-                  {streamingPair.user}
+                <div className="flex flex-col items-end gap-2 max-w-[70%]">
+                  {streamingPair.userImageId && (
+                    <img src={`/api/img/${streamingPair.userImageId}`} alt="첨부 이미지"
+                      className="rounded-xl max-h-72 w-auto" style={{ border: `1px solid ${SILVER_FAINT}` }} />
+                  )}
+                  <div className="px-4 py-3 rounded-2xl rounded-tr-sm text-sm font-medium" style={{ backgroundColor: SILVER, color: "#0a0e1a" }}>
+                    {streamingPair.user}
+                  </div>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -2701,43 +2781,72 @@ function DesktopChatPage() {
       )}
 
       {/* 입력창 */}
-      <div className="px-4 py-3 flex gap-3 items-end" style={{ backgroundColor: "rgba(0,0,0,0.5)", borderTop: `1px solid ${SILVER_FAINT}` }}>
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={isLoading ? "답변 생성 중 — 미리 입력해두면 완료 후 Enter로 전송돼요" : "게임 기획에 대해 질문하세요... (Enter 전송 / Alt+Enter 줄바꿈)"}
-          autoComplete="off"
-          autoCorrect="off"
-          spellCheck={false}
-          autoFocus
-          rows={1}
-          className="flex-1 px-4 py-3 rounded-xl text-sm outline-none resize-none"
-          style={{
-            backgroundColor: "rgba(255,255,255,0.07)",
-            border: `1px solid ${SILVER_FAINT}`,
-            color: "#e0e8f0",
-            maxHeight: "160px",
-            overflowY: "auto",
-            lineHeight: "1.5",
-            scrollbarWidth: "thin",
-            scrollbarColor: `${SILVER_DIM} transparent`,
-          }}
-          onInput={(e) => {
-            const el = e.currentTarget;
-            el.style.height = "auto";
-            el.style.height = Math.min(el.scrollHeight, 160) + "px";
-          }}
-        />
-        <button
-          onClick={sendMessage}
-          disabled={isLoading || !input.trim()}
-          className="w-11 h-11 rounded-xl flex items-center justify-center text-base flex-shrink-0 font-bold disabled:opacity-40"
-          style={{ backgroundColor: SILVER, color: "#0a0e1a", boxShadow: `0 4px 15px rgba(192,200,216,0.3)` }}
-        >
-          ➤
-        </button>
+      <div style={{ backgroundColor: "rgba(0,0,0,0.5)", borderTop: `1px solid ${SILVER_FAINT}` }}>
+        {/* 첨부 이미지 미리보기 */}
+        {(attachedImage || imageUploading) && (
+          <div className="px-4 pt-3 flex items-center gap-2">
+            {imageUploading && !attachedImage ? (
+              <span className="text-xs animate-pulse" style={{ color: SILVER_DIM }}>🖼️ 이미지 처리 중...</span>
+            ) : attachedImage && (
+              <div className="relative inline-block">
+                <img src={attachedImage.dataUrl} alt="첨부 미리보기" className="h-20 w-auto rounded-lg" style={{ border: `1px solid ${SILVER_FAINT}` }} />
+                <button onClick={() => setAttachedImage(null)}
+                  className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-xs"
+                  style={{ backgroundColor: "rgba(20,28,44,0.95)", border: `1px solid ${SILVER_FAINT}`, color: SILVER }}>✕</button>
+              </div>
+            )}
+          </div>
+        )}
+        <div className="px-4 py-3 flex gap-2 items-end">
+          {/* 숨김 파일 input + 첨부 버튼 */}
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+            onChange={(e) => { handleImagePick(e.target.files?.[0]); e.currentTarget.value = ""; }} />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading}
+            title="이미지 첨부"
+            className="w-11 h-11 rounded-xl flex items-center justify-center text-base flex-shrink-0 disabled:opacity-40"
+            style={{ backgroundColor: "rgba(255,255,255,0.07)", border: `1px solid ${SILVER_FAINT}`, color: SILVER }}
+          >
+            📎
+          </button>
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={isLoading ? "답변 생성 중 — 미리 입력해두면 완료 후 Enter로 전송돼요" : "게임 기획 질문 또는 이미지 첨부... (Enter 전송 / Alt+Enter 줄바꿈)"}
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            autoFocus
+            rows={1}
+            className="flex-1 px-4 py-3 rounded-xl text-sm outline-none resize-none"
+            style={{
+              backgroundColor: "rgba(255,255,255,0.07)",
+              border: `1px solid ${SILVER_FAINT}`,
+              color: "#e0e8f0",
+              maxHeight: "160px",
+              overflowY: "auto",
+              lineHeight: "1.5",
+              scrollbarWidth: "thin",
+              scrollbarColor: `${SILVER_DIM} transparent`,
+            }}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              el.style.height = "auto";
+              el.style.height = Math.min(el.scrollHeight, 160) + "px";
+            }}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={isLoading || (!input.trim() && !attachedImage)}
+            className="w-11 h-11 rounded-xl flex items-center justify-center text-base flex-shrink-0 font-bold disabled:opacity-40"
+            style={{ backgroundColor: SILVER, color: "#0a0e1a", boxShadow: `0 4px 15px rgba(192,200,216,0.3)` }}
+          >
+            ➤
+          </button>
+        </div>
       </div>
     </div>
   );

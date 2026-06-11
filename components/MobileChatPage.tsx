@@ -36,7 +36,7 @@ const SILVER_DIM = "rgba(192,200,216,0.5)";
 const SILVER_FAINT = "rgba(192,200,216,0.15)";
 const DEFAULT_PROJECT_ID = "00000000-0000-0000-0000-000000000001";
 
-type Message = { role: "user" | "assistant"; content: string };
+type Message = { role: "user" | "assistant"; content: string; image_id?: string };  // image_id: 첨부 이미지 (doc_images id) — /api/img/<id>로 표시
 type Pair = {
   pair_id: string;
   user: Message;
@@ -113,11 +113,14 @@ export default function MobileChatPage({ simulateKeyboard = false }: { simulateK
 function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: string; nickname: string; simulateKeyboard?: boolean }) {
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [pairs, setPairs] = useState<Pair[]>([]);
-  const [streaming, setStreaming] = useState<{ user: string; assistant: string } | null>(null);
+  const [streaming, setStreaming] = useState<{ user: string; assistant: string; userImageId?: string } | null>(null);
+  // 첨부 이미지 (전송 전 미리보기) + 업로드 상태
+  const [attachedImage, setAttachedImage] = useState<{ dataUrl: string; mime: string; base64: string } | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
   // 답변 스트림 실패(네트워크 끊김·백그라운드 등) 상태 — 재시도 버튼·자동 재시도용
   const [streamFailed, setStreamFailed] = useState(false);
   const streamCancelledRef = useRef(false); // 사용자가 직접 '취소'한 경우 구분(자동 재시도 안 함)
-  const lastReqRef = useRef<{ allMessages: { role: string; content: string }[]; pairId: string; userText: string } | null>(null);
+  const lastReqRef = useRef<{ allMessages: { role: string; content: string }[]; pairId: string; userText: string; imageId?: string } | null>(null);
   const autoRetryRef = useRef(0);            // 답변 자동 재시도 횟수(무한루프 방지)
   const detailRetryRef = useRef<Record<string, number>>({}); // 자세히 pair별 자동 재시도 횟수
   const [input, setInput] = useState("");
@@ -292,10 +295,11 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   const userScrolledUpRef = useRef(false);  // 스트리밍 중 사용자가 위로 올렸는지
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);  // 이미지 첨부용 숨김 input
   const abortRef = useRef<AbortController | null>(null);
   // 방별 백그라운드 생성 추적
   const genAbortRef = useRef<Map<string, AbortController>>(new Map());
-  const genStateRef = useRef<Map<string, { user: string; raw: string }>>(new Map());
+  const genStateRef = useRef<Map<string, { user: string; raw: string; imageId?: string }>>(new Map());
   const streamingConvIdRef = useRef<string | null>(null);
   // 음성 입력 — 받아쓰기 시작 시점의 기존 입력값을 보관 → 인식 결과를 그 뒤에 이어붙임
   const voiceBaseRef = useRef("");
@@ -438,7 +442,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   }, [decisionCount]);
 
   // 메시지를 pair로 파싱 (detail 복원 포함)
-  function parsePairs(messages: Array<{ role: "user" | "assistant"; content: string; pair_id?: string; is_deleted?: boolean; detail_content?: string; detail_shown?: boolean }>): Pair[] {
+  function parsePairs(messages: Array<{ role: "user" | "assistant"; content: string; pair_id?: string; is_deleted?: boolean; detail_content?: string; detail_shown?: boolean; image_id?: string }>): Pair[] {
     const pairMap = new Map<string, { user?: Message; assistant?: Message; detail_content?: string; detail_shown?: boolean }>();
     const order: string[] = [];
     for (const m of messages) {
@@ -519,7 +523,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       if (i !== -1) disp = disp.slice(i + "__JORDAN_ANSWER_START__".length).trimStart();
       disp = disp.replace(/\n__JORDAN_CRITIC_START__[\s\S]*?__JORDAN_CRITIC_END__$/, "").replace(/__DECISIONS_(EXTRACTED|HELD)__\d+/g, "").replace("__TRUNCATED__", "");
       streamingConvIdRef.current = convId;
-      setStreaming({ user: g.user, assistant: disp });
+      setStreaming({ user: g.user, assistant: disp, userImageId: g.imageId });
     } else {
       streamingConvIdRef.current = null;
       setStreaming(null);
@@ -611,9 +615,54 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     localStorage.removeItem(`jordan_context_anchor_time:${currentConvId ?? sessionId}`);
   }
 
+  // 이미지 다운스케일 (긴 변 최대 maxEdge px) → data URL 반환. 토큰·용량·전송시간 절감
+  function downscaleImage(file: File, maxEdge: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = () => {
+        const image = new window.Image();
+        image.onerror = reject;
+        image.onload = () => {
+          let w = image.width, h = image.height;
+          const scale = Math.min(1, maxEdge / Math.max(w, h));
+          w = Math.round(w * scale); h = Math.round(h * scale);
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return reject(new Error("canvas 미지원"));
+          ctx.drawImage(image, 0, 0, w, h);
+          const outMime = file.type === "image/jpeg" ? "image/jpeg" : "image/png";
+          resolve(canvas.toDataURL(outMime, 0.9));
+        };
+        image.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // 파일 선택 → 다운스케일 → 미리보기 상태에 저장
+  async function handleImagePick(file: File | null | undefined) {
+    if (!file || !file.type.startsWith("image/")) return;
+    setImageUploading(true);
+    try {
+      const dataUrl = await downscaleImage(file, 1568);  // Claude 권장 해상도
+      const head = dataUrl.slice(0, dataUrl.indexOf(","));
+      const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+      const mime = head.slice(head.indexOf(":") + 1, head.indexOf(";"));
+      setAttachedImage({ dataUrl, mime, base64 });
+    } catch (e) {
+      console.warn("[image] 처리 실패:", e);
+    } finally {
+      setImageUploading(false);
+    }
+  }
+
   async function sendMessage() {
     const trimmed = input.trim();
-    if (!trimmed || isLoading) return;
+    const img = attachedImage;  // 전송 시점 고정
+    if ((!trimmed && !img) || isLoading || imageUploading) return;
+    const question = trimmed || "첨부한 이미지를 보고 분석·평가해줘.";
     const pairId = crypto.randomUUID();
 
     const visiblePairs = pairs;
@@ -627,20 +676,36 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         { role: p.user.role, content: p.user.content },
         { role: p.assistant.role, content: p.assistant.content },
       ]),
-      { role: "user" as const, content: trimmed },
+      { role: "user" as const, content: question },
     ];
     setInput("");
+    setAttachedImage(null);  // 첨부 미리보기 즉시 비우기 (UX)
     if (inputRef.current) { inputRef.current.style.height = "auto"; }
+
+    // 첨부 이미지가 있으면 먼저 업로드 → image_id 확보 (표시·조던 전달용)
+    let uploadedImageId: string | null = null;
+    if (img) {
+      try {
+        const up = await fetch("/api/chat-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: sessionId, mime: img.mime, data: img.base64 }),
+        });
+        const uj = await up.json();
+        uploadedImageId = uj.id ?? null;
+      } catch { /* 업로드 실패 시 이미지 없이 진행 */ }
+    }
+
     // 재시도·자동 재시도에서 같은 요청을 다시 보낼 수 있도록 보관
-    lastReqRef.current = { allMessages, pairId, userText: trimmed };
+    lastReqRef.current = { allMessages, pairId, userText: question, imageId: uploadedImageId ?? undefined };
     autoRetryRef.current = 0;
-    await runAgentStream(allMessages, pairId, trimmed);
+    await runAgentStream(allMessages, pairId, question, uploadedImageId ?? undefined);
   }
 
   // 실제 네트워크 스트리밍 — sendMessage·retryStream(재시도)·자동 재시도가 공용으로 호출
-  async function runAgentStream(allMessages: { role: string; content: string }[], pairId: string, userText: string) {
+  async function runAgentStream(allMessages: { role: string; content: string }[], pairId: string, userText: string, imageId?: string) {
     const genConvId = currentConvIdRef.current;  // 이 답변이 속한 방 (시작 시점 고정)
-    setStreaming({ user: userText, assistant: "" });
+    setStreaming({ user: userText, assistant: "", userImageId: imageId });
     streamingConvIdRef.current = genConvId;
     setStreamFailed(false);
     userScrolledUpRef.current = false;  // 새 답변 시작 시 자동스크롤 재개
@@ -649,7 +714,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     abortRef.current = controller;
     if (genConvId) {
       genAbortRef.current.set(genConvId, controller);
-      genStateRef.current.set(genConvId, { user: userText, raw: "" });
+      genStateRef.current.set(genConvId, { user: userText, raw: "", imageId });
       setGeneratingConvIds(prev => new Set(prev).add(genConvId));  // 이 방 생성 중
     }
 
@@ -665,6 +730,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           show_citations: showCitations,
           context_anchor_time: contextAnchorTimestamp,
           conversation_id: genConvId,  // 이 답변이 속한 대화방
+          image_id: imageId ?? null,   // 첨부 이미지 (조던이 보고 응답)
         }),
         signal: controller.signal,
       });
@@ -685,7 +751,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           display = display.replace(/\n__JORDAN_CRITIC_START__[\s\S]*?__JORDAN_CRITIC_END__$/, "");
           display = display.replace(/__DECISIONS_(EXTRACTED|HELD)__\d+/g, "");
           display = display.replace("__TRUNCATED__", "");
-          setStreaming({ user: userText, assistant: display });
+          setStreaming({ user: userText, assistant: display, userImageId: imageId });
         }
       }
       let clean = text;
@@ -713,7 +779,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       if (genConvId === currentConvIdRef.current) {
         setPairs(prev => [...prev, {
           pair_id: pairId,
-          user: { role: "user", content: userText },
+          user: { role: "user", content: userText, image_id: imageId ?? undefined },
           assistant: { role: "assistant", content: clean },
         }]);
         setStreaming(null);
@@ -737,7 +803,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   function retryStream() {
     const req = lastReqRef.current;
     if (!req || abortRef.current) return; // 보관 요청 없거나 이미 진행 중이면 무시
-    void runAgentStream(req.allMessages, req.pairId, req.userText);
+    void runAgentStream(req.allMessages, req.pairId, req.userText, req.imageId);
   }
 
   function cancelStream() {
@@ -1110,12 +1176,20 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                       aria-label="메시지 도구"
                     >🛠️</button>
                   )}
-                  <div
-                    onClick={(e) => { if (!selectMode) { e.stopPropagation(); setActionForPair(pair.pair_id); } }}
-                    className="max-w-[78%] px-3 py-2 rounded-2xl rounded-tr-sm text-sm whitespace-pre-wrap"
-                    style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
-                  >
-                    {pair.user.content}
+                  <div className="flex flex-col items-end gap-1.5 max-w-[78%]">
+                    {pair.user.image_id && (
+                      <img src={`/api/img/${pair.user.image_id}`} alt="첨부 이미지"
+                        className="rounded-xl max-h-72 w-auto cursor-pointer"
+                        style={{ border: `1px solid ${SILVER_FAINT}` }}
+                        onClick={(e) => { e.stopPropagation(); window.open(`/api/img/${pair.user.image_id}`, "_blank"); }} />
+                    )}
+                    <div
+                      onClick={(e) => { if (!selectMode) { e.stopPropagation(); setActionForPair(pair.pair_id); } }}
+                      className="px-3 py-2 rounded-2xl rounded-tr-sm text-sm whitespace-pre-wrap"
+                      style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
+                    >
+                      {pair.user.content}
+                    </div>
                   </div>
                 </div>
                 {/* 조던 답변 */}
@@ -1185,8 +1259,14 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                   className="text-[10px] px-2 py-1 rounded"
                   style={{ backgroundColor: "rgba(255,80,80,0.12)", color: "#f87171", border: "1px solid rgba(255,80,80,0.35)" }}
                 >취소</button>
-                <div className="max-w-[80%] px-3 py-2 rounded-2xl rounded-tr-sm text-sm" style={{ backgroundColor: SILVER, color: "#0a0e1a" }}>
-                  {streaming.user}
+                <div className="flex flex-col items-end gap-1.5 max-w-[80%]">
+                  {streaming.userImageId && (
+                    <img src={`/api/img/${streaming.userImageId}`} alt="첨부 이미지"
+                      className="rounded-xl max-h-72 w-auto" style={{ border: `1px solid ${SILVER_FAINT}` }} />
+                  )}
+                  <div className="px-3 py-2 rounded-2xl rounded-tr-sm text-sm" style={{ backgroundColor: SILVER, color: "#0a0e1a" }}>
+                    {streaming.user}
+                  </div>
                 </div>
               </div>
               <div className="flex items-start gap-2">
@@ -1220,7 +1300,35 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       )}
 
       {/* 입력창 */}
-      <div className="px-3 py-2.5 flex gap-2 items-end flex-shrink-0" style={{ backgroundColor: "rgba(0,0,0,0.5)", borderTop: `1px solid ${SILVER_FAINT}` }}>
+      <div className="flex-shrink-0" style={{ backgroundColor: "rgba(0,0,0,0.5)", borderTop: `1px solid ${SILVER_FAINT}` }}>
+        {/* 첨부 이미지 미리보기 */}
+        {(attachedImage || imageUploading) && (
+          <div className="px-3 pt-2.5 flex items-center gap-2">
+            {imageUploading && !attachedImage ? (
+              <span className="text-xs animate-pulse" style={{ color: SILVER_DIM }}>🖼️ 이미지 처리 중...</span>
+            ) : attachedImage && (
+              <div className="relative inline-block">
+                <img src={attachedImage.dataUrl} alt="첨부 미리보기" className="h-16 w-auto rounded-lg" style={{ border: `1px solid ${SILVER_FAINT}` }} />
+                <button onClick={() => setAttachedImage(null)}
+                  className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-xs"
+                  style={{ backgroundColor: "rgba(20,28,44,0.95)", border: `1px solid ${SILVER_FAINT}`, color: SILVER }}>✕</button>
+              </div>
+            )}
+          </div>
+        )}
+        <div className="px-3 py-2.5 flex gap-2 items-end">
+        {/* 숨김 파일 input + 첨부 버튼 */}
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+          onChange={(e) => { handleImagePick(e.target.files?.[0]); e.currentTarget.value = ""; }} />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isLoading}
+          title="이미지 첨부"
+          className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 disabled:opacity-40"
+          style={{ backgroundColor: "rgba(255,255,255,0.07)", border: `1px solid ${SILVER_FAINT}`, color: SILVER }}
+        >
+          📎
+        </button>
         <textarea
           ref={inputRef}
           value={input}
@@ -1257,12 +1365,13 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         )}
         <button
           onClick={sendMessage}
-          disabled={isLoading || !input.trim()}
+          disabled={isLoading || (!input.trim() && !attachedImage)}
           className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 font-bold disabled:opacity-40"
           style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
         >
           ➤
         </button>
+        </div>
       </div>
 
       {/* PC 프레임 모드 — 가짜 키보드 시뮬레이션 (실제 모바일에선 진짜 키보드가 뜸) */}
