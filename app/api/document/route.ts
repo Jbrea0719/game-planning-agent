@@ -30,6 +30,7 @@ const DOC_SYSTEM_PROMPT = `당신은 영웅수집형 모바일 게임 기획서 
 
 [작성 원칙]
 - 본문 대화에서 논의된 내용을 빠짐없이 반영.
+- 분량은 내용에 맞춰 자유롭게 — 다룰 내용이 많으면 **최대 3만 자까지** 상세하게 작성. 단, 빈 섹션·반복·군더더기로 억지로 늘리지 말 것 (밀도 있게).
 - 구체적인 수치·예시는 그대로 포함.
 - 불분명한 부분은 "추후 논의 필요" 또는 "TBD"로 표시.
 - 실무에서 바로 사용 가능한 수준.
@@ -180,7 +181,7 @@ export async function POST(request: Request) {
     // 백그라운드 생성: 스트리밍으로 받아 max_tokens 상향(긴 기획서 지원, 비스트리밍 타임아웃 회피)
     const stream = client.messages.stream({
       model: MODEL.DOC_WRITING,  // Opus 4.7 — 기획서 작성 최고 품질
-      max_tokens: 16000,
+      max_tokens: 60000,  // 한국어 ~3만 자까지 허용 (스트리밍이라 타임아웃 안전)
       system: DOC_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userContent }],
     });
