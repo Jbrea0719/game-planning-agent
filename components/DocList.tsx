@@ -509,9 +509,15 @@ export default function DocList({
   };
 
   // ── 카운트 배지 (채움/전체) ───────────────────────────────────────
-  const countBadge = (filled: number, total: number) => (
-    <span className="text-[10px] flex-shrink-0" style={{ color: filled < total ? "rgba(255,180,120,0.9)" : "rgba(120,230,170,0.9)", fontWeight: 600 }}>
-      {filled}/{total}
+  // 기획서 개수 기준 카운트 (대/중 옆 배지) — 소분류 폴더 수가 아니라 실제 최하위 기획서 개수
+  const mainDocCount = (m: MainNode): number =>
+    m.directDocs.length
+    + m.subs.reduce((s, l) => s + l.docs.length, 0)
+    + m.areas.reduce((s, a) => s + a.subs.reduce((ss, l) => ss + l.docs.length, 0), 0);
+  const areaDocCount = (a: AreaNode): number => a.subs.reduce((s, l) => s + l.docs.length, 0);
+  const docCountBadge = (n: number) => (
+    <span className="text-[10px] flex-shrink-0" style={{ color: n > 0 ? "rgba(120,230,170,0.9)" : "rgba(255,180,120,0.9)", fontWeight: 600 }}>
+      {n}개
     </span>
   );
 
@@ -530,7 +536,6 @@ export default function DocList({
   const renderMainBlock = (main: MainNode, handle?: DragHandle) => {
     const mainKey = main.id ?? "__none__";
     const mainOpen = isOpen(mainKey);
-    const st = stats(mainLeaves(main));
     return (
       <div key={mainKey} className="mb-2">
         <CatDroppable id={`D:main:${mainKey}`}>
@@ -546,7 +551,7 @@ export default function DocList({
               <span className="truncate" title={main.label}>{main.label}</span>
             </span>
             <span className="flex items-center gap-1.5 flex-shrink-0">
-              {countBadge(st.filled, st.total)}
+              {docCountBadge(mainDocCount(main))}
               <span className="inline-flex items-center justify-center w-4 h-4 rounded text-sm leading-none" style={{ color: SILVER_DIM }}>
                 {mainOpen ? "−" : "+"}
               </span>
@@ -573,7 +578,6 @@ export default function DocList({
             {main.areas.filter(areaVisible).map(area => {
               const areaKey = `${mainKey}::${area.code}`;
               const areaOpen = isOpen(areaKey);
-              const ast = stats(area.subs);
               return (
                 <div key={areaKey} className="ml-2">
                   <button
@@ -586,7 +590,7 @@ export default function DocList({
                       <span className="truncate" title={area.label}>{area.label}</span>
                     </span>
                     <span className="flex items-center gap-1.5 flex-shrink-0">
-                      {countBadge(ast.filled, ast.total)}
+                      {docCountBadge(areaDocCount(area))}
                       <span className="inline-flex items-center justify-center w-4 h-4 rounded text-sm leading-none" style={{ color: SILVER_DIM }}>
                         {areaOpen ? "−" : "+"}
                       </span>
