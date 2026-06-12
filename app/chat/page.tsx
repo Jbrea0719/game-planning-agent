@@ -444,6 +444,7 @@ function DesktopChatPage() {
   const streamingConvIdRef = useRef<string | null>(null);  // 현재 streamingPair가 속한 방
   const userScrolledUpRef = useRef(false);
   const isSubLoadingRef = useRef(false); // loadDetail / loadFeedbackSummary 중 여부
+  const pendingAutoAnchorRef = useRef(false); // 기획서 작성/수정 진입 시 다음 새 대화에 맥락선 자동 설정
 
   useEffect(() => {
     // jordan_agent_nickname 키로 닉네임 저장
@@ -498,6 +499,9 @@ function DesktopChatPage() {
         if (d.messages?.length) setPairs(groupIntoPairs(d.messages));
         const savedCtx = localStorage.getItem(`jordan_agent_context:${sid}`);
         if (savedCtx) setAgentContext(savedCtx);
+        // 폴백 경로에서도 맥락선 복원 (세션 키)
+        setContextAnchorPairId(localStorage.getItem(`jordan_context_anchor_pair:${sid}`));
+        setContextAnchorTimestamp(localStorage.getItem(`jordan_context_anchor_time:${sid}`));
       } catch { /* 무시 */ }
     }
   }
@@ -516,10 +520,17 @@ function DesktopChatPage() {
       const data = await res.json();
       setPairs(data.messages?.length ? groupIntoPairs(data.messages) : []);
     } catch { setPairs([]); }
-    // 방별 맥락 카드·anchor 복원
-    setAgentContext(localStorage.getItem(`jordan_agent_context:${convId}`) ?? "");
-    setContextAnchorPairId(localStorage.getItem(`jordan_context_anchor_pair:${convId}`));
-    setContextAnchorTimestamp(localStorage.getItem(`jordan_context_anchor_time:${convId}`));
+    // 방별 맥락 카드·anchor 복원 (룸 키 우선, 없으면 세션 키로 폴백 — 룸 기능 이전 anchor 보존)
+    setAgentContext(localStorage.getItem(`jordan_agent_context:${convId}`) ?? localStorage.getItem(`jordan_agent_context:${s}`) ?? "");
+    const apair = localStorage.getItem(`jordan_context_anchor_pair:${convId}`) ?? localStorage.getItem(`jordan_context_anchor_pair:${s}`);
+    const atime = localStorage.getItem(`jordan_context_anchor_time:${convId}`) ?? localStorage.getItem(`jordan_context_anchor_time:${s}`);
+    setContextAnchorPairId(apair);
+    setContextAnchorTimestamp(atime);
+    // 세션 키에만 있던 레거시 anchor를 룸 키로 이관 (다음부턴 룸 키로 일관 저장)
+    if (apair && !localStorage.getItem(`jordan_context_anchor_pair:${convId}`)) {
+      localStorage.setItem(`jordan_context_anchor_pair:${convId}`, apair);
+      if (atime) localStorage.setItem(`jordan_context_anchor_time:${convId}`, atime);
+    }
     // 참고 기획서 복원 (방별)
     try {
       const rd = localStorage.getItem(`jordan_ref_docs:${convId}`);
@@ -610,16 +621,19 @@ function DesktopChatPage() {
   }
 
   // anchor 설정·해제 함수 — 맥락 카드도 함께 재생성
+  // 키는 ref 기반(currentConvIdRef)으로 통일 — state 클로저 지연·키 불일치로 새로고침 시 사라지던 문제 방지
   function setContextAnchor(pairId: string, timestamp: string) {
     if (!sessionId) return;
+    const roomKey = currentConvIdRef.current ?? sessionId;
+    pendingAutoAnchorRef.current = false;  // 수동 설정 시 자동 맥락선 대기 해제
     setContextAnchorPairId(pairId);
     setContextAnchorTimestamp(timestamp);
-    localStorage.setItem(`jordan_context_anchor_pair:${currentConvId ?? sessionId}`, pairId);
-    localStorage.setItem(`jordan_context_anchor_time:${currentConvId ?? sessionId}`, timestamp);
+    localStorage.setItem(`jordan_context_anchor_pair:${roomKey}`, pairId);
+    localStorage.setItem(`jordan_context_anchor_time:${roomKey}`, timestamp);
 
     // 맥락 카드 리셋 + anchor 이후 페어 기준으로 재생성
     setAgentContext("");
-    localStorage.removeItem(`jordan_agent_context:${currentConvId ?? sessionId}`);
+    localStorage.removeItem(`jordan_agent_context:${roomKey}`);
     const anchorIdx = pairs.findIndex(p => p.pair_id === pairId);
     if (anchorIdx >= 0) {
       const afterAnchor = pairs.slice(anchorIdx).filter(p => !p.is_deleted);
@@ -628,14 +642,16 @@ function DesktopChatPage() {
   }
   function clearContextAnchor() {
     if (!sessionId) return;
+    const roomKey = currentConvIdRef.current ?? sessionId;
+    pendingAutoAnchorRef.current = false;
     setContextAnchorPairId(null);
     setContextAnchorTimestamp(null);
-    localStorage.removeItem(`jordan_context_anchor_pair:${currentConvId ?? sessionId}`);
-    localStorage.removeItem(`jordan_context_anchor_time:${currentConvId ?? sessionId}`);
+    localStorage.removeItem(`jordan_context_anchor_pair:${roomKey}`);
+    localStorage.removeItem(`jordan_context_anchor_time:${roomKey}`);
 
     // 맥락 카드 리셋 + 전체 활성 페어 기준으로 재생성
     setAgentContext("");
-    localStorage.removeItem(`jordan_agent_context:${currentConvId ?? sessionId}`);
+    localStorage.removeItem(`jordan_agent_context:${roomKey}`);
     const allActive = pairs.filter(p => !p.is_deleted);
     void rebuildContextCard(allActive);
   }
@@ -861,13 +877,17 @@ function DesktopChatPage() {
         }),
       }).catch(() => {});
 
+      const injectTime = getTime();
       setPairs(prev => [...prev, {
         pair_id: pairId,
         user: { role: "user", content: userMsg, pair_id: pairId } as Message,
         assistant: { role: "assistant", content: interviewQuestion, pair_id: pairId } as Message,
         is_deleted: false,
-        timestamp: getTime(),
+        timestamp: injectTime,
       }]);
+
+      // 자동 맥락선 — 기획서 작성 시작 시점부터 맥락선을 찍어 이후 대화만 작성 근거로
+      setContextAnchor(pairId, new Date().toISOString());
 
       setTimeout(() => inputRef.current?.focus(), 100);
     } catch (err) {
@@ -1097,6 +1117,11 @@ function DesktopChatPage() {
         const hadScrolledUp = userScrolledUpRef.current;
         userScrolledUpRef.current = false;
         setPairs((prev) => [...prev, newPair]);
+        // 기획서 수정 진입 등으로 예약된 자동 맥락선 — 이 새 대화를 맥락 시작점으로
+        if (pendingAutoAnchorRef.current) {
+          pendingAutoAnchorRef.current = false;
+          setContextAnchor(newPair.pair_id, new Date().toISOString());
+        }
         setStreamingPair(null);
         streamingConvIdRef.current = null;
         updateContextCard(question, cleanText);  // 맥락 카드 백그라운드 업데이트
@@ -1442,6 +1467,9 @@ function DesktopChatPage() {
     setReviseTargetDocId(docId);
     setReviseTargetTitle(docTitle);
     setShowDocumentView(false);
+    // 자동 맥락선 — 이 시점 이후 대화부터 수정 근거가 되도록, 다음 새 대화에 맥락선 예약
+    pendingAutoAnchorRef.current = true;
+    setTimeout(() => inputRef.current?.focus(), 150);
   }
 
   async function copyDocument() {

@@ -182,6 +182,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   const [renamingConvId, setRenamingConvId] = useState<string | null>(null);
   const [convRenameInput, setConvRenameInput] = useState("");
   const currentConvIdRef = useRef<string | null>(null);
+  const pendingAutoAnchorRef = useRef(false); // 기획서 작성/수정 진입 시 다음 새 대화에 맥락선 자동 설정
 
   // 바이블 카운트 + 리로드
   const [decisionCount, setDecisionCount] = useState(0);
@@ -293,6 +294,8 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         user: { role: "user", content: userMsg },
         assistant: { role: "assistant", content: question },
       }]);
+      // 자동 맥락선 — 기획서 작성 시작 시점부터 맥락선을 찍어 이후 대화만 작성 근거로
+      setContextAnchor(pairId, new Date().toISOString());
       setShowMenu(false);
       setTimeout(() => inputRef.current?.focus(), 100);
     } catch (err) {
@@ -424,15 +427,13 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     setReasonInputText("");
   }
 
-  // 토글·맥락선 localStorage 복원
+  // 토글 localStorage 복원
+  // 맥락선(anchor)은 여기서 복원하지 않음 — 마운트 시 currentConvId가 null이라 잘못된 키(sessionId)를 읽게 됨.
+  // anchor 복원은 loadConversation이 단일 소스(룸 키 기준).
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (localStorage.getItem("jordan_show_citations") === "true") setShowCitations(true);
     if (localStorage.getItem("jordan_doc_new_dot") === "true") setDocNewDot(true);
-    const savedAnchorPair = localStorage.getItem(`jordan_context_anchor_pair:${currentConvId ?? sessionId}`);
-    const savedAnchorTime = localStorage.getItem(`jordan_context_anchor_time:${currentConvId ?? sessionId}`);
-    if (savedAnchorPair) setContextAnchorPairId(savedAnchorPair);
-    if (savedAnchorTime) setContextAnchorTimestamp(savedAnchorTime);
   }, [sessionId]);
 
   // 출처 표시 저장
@@ -509,6 +510,9 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         const r = await fetch(`/api/messages?session_id=${encodeURIComponent(sessionId)}`);
         const d = await r.json();
         if (d.messages?.length) setPairs(parsePairs(d.messages));
+        // 폴백 경로에서도 맥락선 복원 (세션 키)
+        setContextAnchorPairId(localStorage.getItem(`jordan_context_anchor_pair:${sessionId}`));
+        setContextAnchorTimestamp(localStorage.getItem(`jordan_context_anchor_time:${sessionId}`));
       } catch { /* 무시 */ }
     }
   }
@@ -524,8 +528,16 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       const data = await res.json();
       setPairs(data.messages?.length ? parsePairs(data.messages) : []);
     } catch { setPairs([]); }
-    setContextAnchorPairId(localStorage.getItem(`jordan_context_anchor_pair:${convId}`));
-    setContextAnchorTimestamp(localStorage.getItem(`jordan_context_anchor_time:${convId}`));
+    // 맥락선 복원 — 룸 키 우선, 없으면 세션 키로 폴백 (룸 기능 이전에 저장된 anchor 보존)
+    const apair = localStorage.getItem(`jordan_context_anchor_pair:${convId}`) ?? localStorage.getItem(`jordan_context_anchor_pair:${sessionId}`);
+    const atime = localStorage.getItem(`jordan_context_anchor_time:${convId}`) ?? localStorage.getItem(`jordan_context_anchor_time:${sessionId}`);
+    setContextAnchorPairId(apair);
+    setContextAnchorTimestamp(atime);
+    // 세션 키에만 있던 레거시 anchor를 룸 키로 이관 (다음부턴 룸 키로 일관 저장)
+    if (apair && !localStorage.getItem(`jordan_context_anchor_pair:${convId}`)) {
+      localStorage.setItem(`jordan_context_anchor_pair:${convId}`, apair);
+      if (atime) localStorage.setItem(`jordan_context_anchor_time:${convId}`, atime);
+    }
     // 참고 기획서 복원 (방별)
     try {
       const rd = localStorage.getItem(`jordan_ref_docs:${convId}`);
@@ -618,17 +630,22 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   }, [pairs]);
 
   // 맥락선 설정/해제
+  // 키는 ref 기반(currentConvIdRef)으로 통일 — state 클로저 지연·키 불일치로 새로고침 시 사라지던 문제 방지
   function setContextAnchor(pairId: string, timestamp: string) {
+    const roomKey = currentConvIdRef.current ?? sessionId;
+    pendingAutoAnchorRef.current = false;  // 수동 설정 시 자동 맥락선 대기 해제
     setContextAnchorPairId(pairId);
     setContextAnchorTimestamp(timestamp);
-    localStorage.setItem(`jordan_context_anchor_pair:${currentConvId ?? sessionId}`, pairId);
-    localStorage.setItem(`jordan_context_anchor_time:${currentConvId ?? sessionId}`, timestamp);
+    localStorage.setItem(`jordan_context_anchor_pair:${roomKey}`, pairId);
+    localStorage.setItem(`jordan_context_anchor_time:${roomKey}`, timestamp);
   }
   function clearContextAnchor() {
+    const roomKey = currentConvIdRef.current ?? sessionId;
+    pendingAutoAnchorRef.current = false;  // 수동 해제 시 자동 맥락선 대기 해제
     setContextAnchorPairId(null);
     setContextAnchorTimestamp(null);
-    localStorage.removeItem(`jordan_context_anchor_pair:${currentConvId ?? sessionId}`);
-    localStorage.removeItem(`jordan_context_anchor_time:${currentConvId ?? sessionId}`);
+    localStorage.removeItem(`jordan_context_anchor_pair:${roomKey}`);
+    localStorage.removeItem(`jordan_context_anchor_time:${roomKey}`);
   }
 
   // 이미지 다운스케일 (긴 변 최대 maxEdge px) → data URL 반환. 토큰·용량·전송시간 절감
@@ -751,6 +768,9 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     setReviseTargetDocId(docId);
     setReviseTargetTitle(docTitle);
     setShowDocs(false);
+    // 수정 진입 시점 이후의 대화만 근거가 되도록, 다음 새 대화 페어를 맥락선으로 자동 설정
+    pendingAutoAnchorRef.current = true;
+    setTimeout(() => inputRef.current?.focus(), 100);
   }
 
   async function sendMessage() {
@@ -873,12 +893,18 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       if (!clean) throw new Error("empty"); // 빈 응답도 실패로 처리(재시도 가능)
       // 지금 그 방을 보고 있으면 즉시 반영. 다른 방이면 DB에 저장됐으니 그 방 다시 열 때 표시됨
       if (genConvId === currentConvIdRef.current) {
-        setPairs(prev => [...prev, {
+        const newPair = {
           pair_id: pairId,
-          user: { role: "user", content: userText, image_id: imageId ?? undefined },
-          assistant: { role: "assistant", content: clean },
-        }]);
+          user: { role: "user" as const, content: userText, image_id: imageId ?? undefined },
+          assistant: { role: "assistant" as const, content: clean },
+        };
+        setPairs(prev => [...prev, newPair]);
         setStreaming(null);
+        // 기획서 작성/수정 진입 시 대기 중이던 자동 맥락선을 이 새 페어에 적용
+        if (pendingAutoAnchorRef.current) {
+          pendingAutoAnchorRef.current = false;
+          setContextAnchor(newPair.pair_id, new Date().toISOString());
+        }
       }
       setStreamFailed(false);
       lastReqRef.current = null; // 성공 → 보관 요청 비움
