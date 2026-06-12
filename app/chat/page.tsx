@@ -359,6 +359,7 @@ function DesktopChatPage() {
   const [heldNotice, setHeldNotice] = useState<number | null>(null);
   // 기획서 뷰
   const [showDocumentView, setShowDocumentView] = useState(false);
+  const [showDocMenu, setShowDocMenu] = useState(false);  // 헤더 '📄 기획서 ▾' 드롭다운
   // 참고 기획서(다중) — 답변 시 교차 참고·충돌 점검. 방별 유지(localStorage)
   const [refDocIds, setRefDocIds] = useState<string[]>([]);
   const [showRefPicker, setShowRefPicker] = useState(false);
@@ -2206,7 +2207,7 @@ function DesktopChatPage() {
                   <p><b style={{ color: SILVER }}>💬 대화방 (병렬 작업)</b> — 조던 이름 옆 <b>💬 버튼</b>으로 여러 대화방을 만들어 <b>주제별로 병렬 작업</b>. 카톡 채팅방처럼 [새 대화방 / 전환 / ✏️ 이름변경 / 🗑️ 삭제]. <b>방마다 대화·맥락이 독립</b>이라 서로 안 섞여요. 단, <b>기획 바이블·기획서는 전 방 공유</b>라 어느 방에서 작업해도 자산은 하나로 쌓여요. (기존 대화는 "기본 대화" 방에 그대로 보존)</p>
                   <p><b style={{ color: SILVER }}>📌 맥락</b> — 클릭하면 현재 맥락선 위치로 스크롤 + 노란 하이라이트. 설정 안 돼 있으면 <i>"맥락선이 없습니다"</i> 토스트. 설정/해제는 본문 안에서.</p>
                   <p><b style={{ color: SILVER }}>📚 기획 바이블 — 탭</b> — 바이블 패널 상단 <b>[전체] / [현재 맥락]</b> 탭. <b>전체</b>는 누적된 모든 결정, <b>현재 맥락</b>은 맥락선 이후 추가된 결정만 보여줘요. (옛 "📋 맥락 결정사항" 버튼이 이 탭으로 통합됨)</p>
-                  <p><b style={{ color: SILVER }}>📄 기획서 작성</b> — 대화 선택 후 [✓ 작성 시작] 누르면 <i>백그라운드로 생성</i>. 작성 중에는 헤더 버튼이 "작성 중... (취소)" 표시 — <b>다시 누르면 작성 취소</b>. 완료 시 알림 토스트 + 자동으로 기획서 리스트에 새 버전 저장.</p>
+                  <p><b style={{ color: SILVER }}>📄 기획서 ▾ (드롭다운)</b> — 헤더의 한 버튼에 <b>[📂 리스트 이동 / ✍️ 현재 맥락으로 작성 / 🛠️ 현재 맥락으로 수정]</b>이 묶여 있어요. <b>작성</b>은 대화 선택 후 [✓ 작성 시작] → 백그라운드 생성(작성 중엔 메뉴가 "작성 취소"). <b>수정</b>은 맥락선 범위 대화로 기존 기획서를 색상 미리보기 후 적용. <b>리스트 이동</b>은 기획서 뷰 열기.</p>
                   <p><b style={{ color: SILVER }}>📄 기획서</b> — 진입 시 좌측 <b>📚 기획서 리스트</b>가 기본 열림. 좁다 싶으면 헤더 <b>⇤</b> 버튼으로 사이드바 접고 본문 넓게 보기 (모바일·PC 공통, 설정 영속). <b>모바일에서는 좌→우 스와이프로 펼치기, 우→좌 스와이프로 접기</b>도 가능. 리스트는 <b>대 &gt; 중 &gt; 소 &gt; 기획서</b> 4단계 트리. 대(인게임/아웃게임…)는 진한 배경, 중(영웅/PVP…)는 옅은 배경, 소(영웅 등급/스킬…)는 좌측 보더, 기획서는 leaf. 각 단계마다 +/− 토글. 기획서 옆 ✏️로 이름 변경, 📂로 분류 변경. 리스트 헤더의 <b>⚙️</b>로 카테고리 관리 (추가·수정·삭제). 안 본 기획서 옆에는 <b style={{ color: "rgba(255,150,150,1)" }}>빨간 점</b>(클릭하면 영구 해제). 뷰 안에서 <b>🪄 수정 요청</b>으로 자연어 지시 → 같은 기획서를 그 자리에서 갱신. 수정 전 원본은 <b>7일간 백업 폴더에 자동 보관</b>. <b>📥 내보내기</b>는 MD/TXT/HTML/PDF 4가지.</p>
                   <p><b style={{ color: SILVER }}>📖 가이드</b> — 지금 보고 있는 이 화면. 조던의 모든 기능을 한눈에 정리. 기능이 바뀌면 자동 갱신.</p>
                   <p><b style={{ color: SILVER }}>📱 모바일</b> — 같은 URL을 모바일에서 열면 자동으로 모바일 전용 뷰. 햄버거 메뉴(☰) 안에 모든 도구. 닉네임만 같으면 데이터·기획 바이블·기획서 자동 동기화. <i>?view=desktop</i> 쿼리로 PC 뷰 강제 가능.</p>
@@ -2414,23 +2415,7 @@ function DesktopChatPage() {
           {/* ─── 일반 모드: 모든 헤더 버튼 표시 ─── */}
           {!selectMode && (
           <>
-          {/* ⓪ 참고 기획서 — 답변 시 교차 참고·충돌 점검 (맥락 앞에 위치) */}
-          <Tooltip text="답변 시 참고할 기존 기획서 선택 (교차 참고·충돌 점검)">
-            <button
-              onClick={() => setShowRefPicker(true)}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium"
-              style={{
-                backgroundColor: refDocIds.length ? "rgba(100,180,255,0.2)" : "rgba(100,180,255,0.08)",
-                border: `1px solid ${refDocIds.length ? "rgba(100,180,255,0.55)" : "rgba(100,180,255,0.25)"}`,
-                color: refDocIds.length ? "rgba(180,210,255,1)" : "rgba(170,200,235,0.7)",
-              }}
-            >
-              📑 참고 기획서{refDocIds.length ? ` ${refDocIds.length}` : ""}
-            </button>
-          </Tooltip>
-
-          {/* ───────── 그룹 A: 맥락 (황금/앰버) ───────── */}
-          {/* ① 맥락 — 현재 맥락선 위치로 이동 (없으면 안내) */}
+          {/* ① 맥락 — 아이콘만 (맨 앞). 현재 맥락선 위치로 이동 */}
           <Tooltip text={contextAnchorPairId ? "현재 맥락선 위치로 이동" : "맥락선이 설정돼 있지 않아요"}>
             <button
               onClick={() => {
@@ -2451,14 +2436,30 @@ function DesktopChatPage() {
                   setTimeout(() => setNoAnchorNotice(false), 2000);
                 }
               }}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium"
+              className="rounded-lg font-medium flex items-center justify-center w-8 h-8"
               style={{
                 backgroundColor: contextAnchorPairId ? "rgba(255,200,100,0.18)" : "rgba(255,200,100,0.06)",
                 border: `1px solid ${contextAnchorPairId ? "rgba(255,200,100,0.55)" : "rgba(255,200,100,0.2)"}`,
                 color: contextAnchorPairId ? "rgba(255,220,150,1)" : "rgba(255,210,160,0.55)",
+                fontSize: "14px",
               }}
             >
-              📌 맥락
+              📌
+            </button>
+          </Tooltip>
+
+          {/* ② 참고 기획서 — 답변 시 교차 참고·충돌 점검 */}
+          <Tooltip text="답변 시 참고할 기존 기획서 선택 (교차 참고·충돌 점검)">
+            <button
+              onClick={() => setShowRefPicker(true)}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium"
+              style={{
+                backgroundColor: refDocIds.length ? "rgba(100,180,255,0.2)" : "rgba(100,180,255,0.08)",
+                border: `1px solid ${refDocIds.length ? "rgba(100,180,255,0.55)" : "rgba(100,180,255,0.25)"}`,
+                color: refDocIds.length ? "rgba(180,210,255,1)" : "rgba(170,200,235,0.7)",
+              }}
+            >
+              📑 참고 기획서{refDocIds.length ? ` ${refDocIds.length}` : ""}
             </button>
           </Tooltip>
 
@@ -2490,87 +2491,71 @@ function DesktopChatPage() {
           </Tooltip>
           )}
 
-          {/* ③ 기획서 작성 (그룹 B: 행동·생성, 코랄) */}
-          {activePairs.length > 0 && (
-            <Tooltip text={docBackgroundGenerating ? "버튼을 누르면 작성이 취소됩니다" : "맥락선 이하 대화를 중심으로, 기획 바이블도 교차 검증해서 새 기획서 생성"}>
+          {/* ③ 기획서 ▾ — 리스트 이동 / 현재 맥락으로 작성 / 현재 맥락으로 수정 (드롭다운 통합) */}
+          <div className="relative">
+            <Tooltip text="기획서 리스트 이동 · 현재 맥락으로 작성/수정">
               <button
-                onClick={docBackgroundGenerating ? cancelDocGeneration : enterSelectMode}
-                className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5"
+                onClick={() => setShowDocMenu(v => !v)}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium relative flex items-center gap-1.5"
                 style={{
-                  backgroundColor: docBackgroundGenerating ? "rgba(100,180,255,0.18)" : "rgba(255,150,110,0.22)",
-                  border: `1px solid ${docBackgroundGenerating ? "rgba(100,180,255,0.5)" : "rgba(255,150,110,0.6)"}`,
-                  color: docBackgroundGenerating ? "rgba(180,210,255,1)" : "rgba(255,200,170,1)",
-                  cursor: "pointer",
+                  backgroundColor: showDocumentView ? "rgba(100,180,255,0.25)" : "rgba(100,180,255,0.12)",
+                  border: `1px solid ${showDocumentView ? "rgba(100,180,255,0.6)" : "rgba(100,180,255,0.35)"}`,
+                  color: showDocumentView ? "rgba(180,210,255,1)" : "rgba(170,200,235,0.95)",
                 }}
               >
-                {docBackgroundGenerating ? (
-                  <>
-                    <span className="inline-block w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(180,210,255,0.3)", borderTopColor: "rgba(180,210,255,1)" }} />
-                    작성 중... <span style={{ opacity: 0.6, marginLeft: "2px" }}>(취소)</span>
-                  </>
-                ) : (
-                  <>📄 기획서 작성</>
+                {(docBackgroundGenerating || reviseGenLoading) && (
+                  <span className="inline-block w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(180,210,255,0.3)", borderTopColor: "rgba(180,210,255,1)" }} />
+                )}
+                📄 기획서 ▾
+                {docNewDot && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full animate-pulse" style={{ backgroundColor: "rgba(255,80,80,0.95)", boxShadow: "0 0 6px rgba(255,80,80,0.7)" }} />
                 )}
               </button>
             </Tooltip>
-          )}
-          {/* ③-1 기획서 수정 — 맥락선 범위 대화로 기존 기획서 수정 (작성 옆) */}
-          {(activePairs.length > 0 || reviseTargetDocId) && (
-            <Tooltip text="맥락선 범위 대화로 기존 기획서를 수정 (미리보기 후 적용)">
-              <span className="flex items-center gap-1">
-                <button
-                  onClick={() => startConversationRevise()}
-                  disabled={reviseGenLoading}
-                  className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 disabled:opacity-50"
-                  style={{
-                    backgroundColor: reviseTargetDocId ? "rgba(180,140,255,0.24)" : "rgba(255,150,110,0.14)",
-                    border: `1px solid ${reviseTargetDocId ? "rgba(180,140,255,0.6)" : "rgba(255,150,110,0.45)"}`,
-                    color: reviseTargetDocId ? "rgba(210,190,255,1)" : "rgba(255,200,170,0.95)",
-                  }}
-                >
-                  {reviseGenLoading ? (
-                    <>
-                      <span className="inline-block w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(210,190,255,0.3)", borderTopColor: "rgba(210,190,255,1)" }} />
-                      수정본 생성 중...
-                    </>
-                  ) : reviseTargetDocId ? (
-                    <>🛠️ 이 대화로 수정</>
-                  ) : (
-                    <>🛠️ 기획서 수정</>
+            {showDocMenu && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setShowDocMenu(false)} />
+                <div className="absolute right-0 mt-1 rounded-lg overflow-hidden z-30" style={{ minWidth: "240px", backgroundColor: "#141c2e", border: `1px solid ${SILVER_FAINT}`, boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
+                  {/* 기획서 리스트 이동 */}
+                  <button
+                    onClick={() => { setShowDocMenu(false); if (showDocumentView) setShowDocumentView(false); else openDocumentView(); }}
+                    className="w-full text-left text-xs px-3 py-2.5 hover:bg-white/5 flex items-center justify-between"
+                    style={{ color: SILVER }}
+                  >
+                    <span>📂 기획서 리스트 이동</span>
+                    {docNewDot && <span className="text-[10px]" style={{ color: "rgba(255,120,120,1)" }}>● 신규</span>}
+                  </button>
+                  {/* 현재 맥락으로 작성 */}
+                  <button
+                    onClick={() => { setShowDocMenu(false); if (docBackgroundGenerating) cancelDocGeneration(); else enterSelectMode(); }}
+                    disabled={activePairs.length === 0 && !docBackgroundGenerating}
+                    className="w-full text-left text-xs px-3 py-2.5 hover:bg-white/5 disabled:opacity-40"
+                    style={{ color: SILVER, borderTop: `1px solid ${SILVER_FAINT}` }}
+                  >
+                    {docBackgroundGenerating ? "⏳ 작성 중... (취소)" : "✍️ 현재 맥락으로 기획서 작성"}
+                  </button>
+                  {/* 현재 맥락으로 수정 */}
+                  <button
+                    onClick={() => { setShowDocMenu(false); void startConversationRevise(); }}
+                    disabled={reviseGenLoading || (activePairs.length === 0 && !reviseTargetDocId)}
+                    className="w-full text-left text-xs px-3 py-2.5 hover:bg-white/5 disabled:opacity-40"
+                    style={{ color: SILVER, borderTop: `1px solid ${SILVER_FAINT}` }}
+                  >
+                    {reviseGenLoading ? "⏳ 수정본 생성 중..." : reviseTargetDocId ? "🛠️ 이 대화로 기획서 수정" : "🛠️ 현재 맥락으로 기획서 수정"}
+                  </button>
+                  {reviseTargetDocId && (
+                    <button
+                      onClick={() => { setShowDocMenu(false); setReviseTargetDocId(null); setReviseTargetTitle(""); }}
+                      className="w-full text-left text-xs px-3 py-2 hover:bg-white/5"
+                      style={{ color: "#f08a8a", borderTop: `1px solid ${SILVER_FAINT}` }}
+                    >
+                      ✕ 수정 대상 해제
+                    </button>
                   )}
-                </button>
-                {reviseTargetDocId && !reviseGenLoading && (
-                  <button onClick={() => { setReviseTargetDocId(null); setReviseTargetTitle(""); }} title="수정 대상 해제" className="text-xs" style={{ color: "#f08a8a" }}>✕</button>
-                )}
-              </span>
-            </Tooltip>
-          )}
-          {/* ④ 기획서 (그룹 C: 조회, 하늘파랑) */}
-          <Tooltip text={docNewDot ? "신규 기획서 도착 — 확인하기" : "생성된 기획서 버전을 열람·편집·내보내기"}>
-            <button
-              onClick={() => {
-                if (showDocumentView) {
-                  setShowDocumentView(false);
-                } else {
-                  openDocumentView();
-                }
-              }}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium relative"
-              style={{
-                backgroundColor: showDocumentView ? "rgba(100,180,255,0.25)" : "rgba(100,180,255,0.12)",
-                border: `1px solid ${showDocumentView ? "rgba(100,180,255,0.6)" : "rgba(100,180,255,0.35)"}`,
-                color: showDocumentView ? "rgba(180,210,255,1)" : "rgba(170,200,235,0.95)",
-              }}
-            >
-              📄 기획서
-              {docNewDot && (
-                <span
-                  className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full animate-pulse"
-                  style={{ backgroundColor: "rgba(255,80,80,0.95)", boxShadow: "0 0 6px rgba(255,80,80,0.7)" }}
-                />
-              )}
-            </button>
-          </Tooltip>
+                </div>
+              </>
+            )}
+          </div>
 
           {/* 출처 표시·참고 게임·큐레이션은 ⚙️ 설정 모달로 이동됨 */}
 
