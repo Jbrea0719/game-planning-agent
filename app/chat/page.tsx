@@ -2193,8 +2193,8 @@ function DesktopChatPage() {
                   <p><b style={{ color: SILVER }}>실시간 게임 데이터 분석</b> — 등록된 11개 게임의 신뢰 출처(공식·라운지·인벤·디시·나무위키 등)를 실시간 검색해 근거 기반 답변.</p>
                   <p><b style={{ color: SILVER }}>스트리밍 응답</b> — 답변이 작성되는 과정을 실시간으로 표시.</p>
                   <p><b style={{ color: SILVER }}>🖼️ 이미지 첨부 분석</b> — 입력창 <b>📎 버튼</b>으로 게임 UI 스크린샷·와이어프레임·경쟁작 화면을 첨부하면, 조던이 <b>이미지를 직접 보고</b> UX 평가·개선점·의견을 제시해요. (Opus 비전 — 이미지를 글처럼 이해)</p>
-                  <p><b style={{ color: SILVER }}>📑 참고 기획서</b> — 입력창 위 <b>📑 참고 기획서</b>로 기존 기획서를 체크해두면, 조던이 그 내용을 보고 답해요. <b>다른 기획과의 교차 참고·충돌 감지</b>에 활용 (예: "○○ 기획서는 5등급인데 지금은 7등급이라 충돌해요"). 대화방마다 따로 저장돼요.</p>
-                  <p><b style={{ color: SILVER }}>🛠️ 대화로 기획서 수정</b> — 입력창 위 <b>🛠️ 대화로 기획서 수정</b>으로, <b>맥락선 범위 대화</b>를 근거로 기존 기획서를 수정(추가·변경·삭제)해요. 적용 전 <b>색상 미리보기</b>(🟢추가/🟡수정/🔴삭제)로 확인하고 [적용]하면 깨끗한 본문으로 저장(수정 전 자동 백업). 기획서 뷰의 <b>🪄 수정 요청 → 대화를 통한 수정</b>으로도 진입할 수 있어요.</p>
+                  <p><b style={{ color: SILVER }}>📑 참고 기획서</b> — 헤더 <b>📌 맥락 왼쪽의 📑 참고 기획서</b>로 기존 기획서를 체크해두면, 조던이 그 내용을 보고 답해요. <b>다른 기획과의 교차 참고·충돌 감지</b>에 활용 (예: "○○ 기획서는 5등급인데 지금은 7등급이라 충돌해요"). 대화방마다 따로 저장돼요.</p>
+                  <p><b style={{ color: SILVER }}>🛠️ 기획서 수정</b> — 헤더 <b>📄 기획서 작성 옆의 🛠️ 기획서 수정</b>으로, <b>맥락선 범위 대화</b>를 근거로 기존 기획서를 수정(추가·변경·삭제)해요. 적용 전 <b>색상 미리보기</b>(🟢추가/🟡수정/🔴삭제)로 확인하고 [적용]하면 깨끗한 본문으로 저장(수정 전 자동 백업). 기획서 뷰의 <b>🪄 수정 요청 → 대화를 통한 수정</b>으로도 진입할 수 있어요.</p>
                 </div>
               </section>
 
@@ -2413,6 +2413,21 @@ function DesktopChatPage() {
           {/* ─── 일반 모드: 모든 헤더 버튼 표시 ─── */}
           {!selectMode && (
           <>
+          {/* ⓪ 참고 기획서 — 답변 시 교차 참고·충돌 점검 (맥락 앞에 위치) */}
+          <Tooltip text="답변 시 참고할 기존 기획서 선택 (교차 참고·충돌 점검)">
+            <button
+              onClick={() => setShowRefPicker(true)}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium"
+              style={{
+                backgroundColor: refDocIds.length ? "rgba(100,180,255,0.2)" : "rgba(100,180,255,0.08)",
+                border: `1px solid ${refDocIds.length ? "rgba(100,180,255,0.55)" : "rgba(100,180,255,0.25)"}`,
+                color: refDocIds.length ? "rgba(180,210,255,1)" : "rgba(170,200,235,0.7)",
+              }}
+            >
+              📑 참고 기획서{refDocIds.length ? ` ${refDocIds.length}` : ""}
+            </button>
+          </Tooltip>
+
           {/* ───────── 그룹 A: 맥락 (황금/앰버) ───────── */}
           {/* ① 맥락 — 현재 맥락선 위치로 이동 (없으면 안내) */}
           <Tooltip text={contextAnchorPairId ? "현재 맥락선 위치로 이동" : "맥락선이 설정돼 있지 않아요"}>
@@ -2507,6 +2522,37 @@ function DesktopChatPage() {
                   <>📄 기획서 작성</>
                 )}
               </button>
+            </Tooltip>
+          )}
+          {/* ③-1 기획서 수정 — 맥락선 범위 대화로 기존 기획서 수정 (작성 옆) */}
+          {(activePairs.length > 0 || reviseTargetDocId) && (
+            <Tooltip text="맥락선 범위 대화로 기존 기획서를 수정 (미리보기 후 적용)">
+              <span className="flex items-center gap-1">
+                <button
+                  onClick={() => startConversationRevise()}
+                  disabled={reviseGenLoading}
+                  className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 disabled:opacity-50"
+                  style={{
+                    backgroundColor: reviseTargetDocId ? "rgba(180,140,255,0.24)" : "rgba(255,150,110,0.14)",
+                    border: `1px solid ${reviseTargetDocId ? "rgba(180,140,255,0.6)" : "rgba(255,150,110,0.45)"}`,
+                    color: reviseTargetDocId ? "rgba(210,190,255,1)" : "rgba(255,200,170,0.95)",
+                  }}
+                >
+                  {reviseGenLoading ? (
+                    <>
+                      <span className="inline-block w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(210,190,255,0.3)", borderTopColor: "rgba(210,190,255,1)" }} />
+                      수정본 생성 중...
+                    </>
+                  ) : reviseTargetDocId ? (
+                    <>🛠️ 이 대화로 수정</>
+                  ) : (
+                    <>🛠️ 기획서 수정</>
+                  )}
+                </button>
+                {reviseTargetDocId && !reviseGenLoading && (
+                  <button onClick={() => { setReviseTargetDocId(null); setReviseTargetTitle(""); }} title="수정 대상 해제" className="text-xs" style={{ color: "#f08a8a" }}>✕</button>
+                )}
+              </span>
             </Tooltip>
           )}
           {/* ④ 기획서 (그룹 C: 조회, 하늘파랑) */}
@@ -2951,28 +2997,6 @@ function DesktopChatPage() {
 
       {/* 입력창 */}
       <div style={{ backgroundColor: "rgba(0,0,0,0.5)", borderTop: `1px solid ${SILVER_FAINT}` }}>
-        {/* 참고/수정 도구 바 */}
-        <div className="px-4 pt-2 flex items-center gap-2 flex-wrap">
-          <button onClick={() => setShowRefPicker(true)}
-            className="text-xs px-2.5 py-1 rounded-full flex items-center gap-1"
-            style={{ backgroundColor: refDocIds.length ? "rgba(100,180,255,0.18)" : "rgba(255,255,255,0.05)", border: `1px solid ${refDocIds.length ? "rgba(100,180,255,0.4)" : SILVER_FAINT}`, color: refDocIds.length ? "rgba(180,210,255,1)" : SILVER_DIM }}
-            title="답변 시 참고할 기존 기획서 선택 (교차 참고·충돌 점검)">
-            📑 참고 기획서{refDocIds.length ? ` ${refDocIds.length}` : ""}
-          </button>
-          <button onClick={() => startConversationRevise()}
-            disabled={reviseGenLoading}
-            className="text-xs px-2.5 py-1 rounded-full flex items-center gap-1 disabled:opacity-50"
-            style={{ backgroundColor: reviseTargetDocId ? "rgba(180,140,255,0.2)" : "rgba(255,255,255,0.05)", border: `1px solid ${reviseTargetDocId ? "rgba(180,140,255,0.45)" : SILVER_FAINT}`, color: reviseTargetDocId ? "rgba(210,190,255,1)" : SILVER_DIM }}
-            title="맥락선 범위 대화로 기존 기획서 수정 (미리보기 후 적용)">
-            {reviseGenLoading ? "🛠️ 수정본 생성 중..." : reviseTargetDocId ? "🛠️ 이 대화로 수정" : "🛠️ 대화로 기획서 수정"}
-          </button>
-          {reviseTargetDocId && (
-            <span className="text-xs flex items-center gap-1" style={{ color: SILVER_DIM }}>
-              {reviseTargetTitle ? `대상: ${reviseTargetTitle}` : "수정 대상 지정됨"}
-              <button onClick={() => { setReviseTargetDocId(null); setReviseTargetTitle(""); }} title="수정 대상 해제" style={{ color: "#f08a8a" }}>✕</button>
-            </span>
-          )}
-        </div>
         {/* 첨부 이미지 미리보기 */}
         {(attachedImage || imageUploading) && (
           <div className="px-4 pt-3 flex items-center gap-2">

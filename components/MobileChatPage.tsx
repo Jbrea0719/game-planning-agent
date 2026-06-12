@@ -1211,11 +1211,17 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                   onClick={() => alert("사파리 하단의 공유 버튼(□↑)을 누른 뒤 '홈 화면에 추가'를 선택하면 조던이 앱으로 설치됩니다.")} />
               )}
               <MenuBtn icon="🎤" label={interviewLoading ? "분석 중..." : "조던에게 질문 받기"} subtitle="빈 영역 자동 분석 → 다음 결정 질문" onClick={startInterview} />
+              {/* 참고 기획서 — 맥락선 앞에 위치 */}
+              <MenuBtn icon="📑" label={`참고 기획서${refDocIds.length ? ` (${refDocIds.length})` : ""}`} subtitle="답변 시 참고할 기존 기획서 선택" onClick={() => { setShowMenu(false); setShowRefPicker(true); }} />
               <MenuBtn icon="📌" label={contextAnchorPairId ? "맥락선 해제" : "맥락선"} subtitle={contextAnchorPairId ? "이 시점부터 조던에게 전달 중" : "설정 안 됨"}
                 onClick={() => { setShowMenu(false); if (contextAnchorPairId) clearContextAnchor(); }} />
               <MenuBtn icon="📚" label="기획 바이블" subtitle={`현재 ${decisionCount}개 누적`} onClick={() => openMenu("bible")} />
               {pairs.length > 0 && !docBackgroundGenerating && (
                 <MenuBtn icon="📝" label="기획서 작성" subtitle="대화 선택해서 기획서 생성" onClick={enterSelectMode} />
+              )}
+              {/* 기획서 수정 — 작성 바로 뒤에 위치 */}
+              {(pairs.length > 0 || reviseTargetDocId) && (
+                <MenuBtn icon="🛠️" label={reviseTargetDocId ? "이 대화로 기획서 수정" : "기획서 수정"} subtitle="맥락선 범위 대화로 기존 기획서 수정" onClick={() => { setShowMenu(false); void startConversationRevise(); }} />
               )}
               <MenuBtn icon="📄" label="기획서" subtitle="작성·열람·수정" onClick={() => openMenu("docs")} />
               {/* 화면 설계는 📄 기획서 뷰의 [🎨 화면 설계] 버튼으로 통합됨 */}
@@ -1423,26 +1429,6 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
 
       {/* 입력창 */}
       <div className="flex-shrink-0" style={{ backgroundColor: "rgba(0,0,0,0.5)", borderTop: `1px solid ${SILVER_FAINT}` }}>
-        {/* 참고/수정 도구 바 */}
-        <div className="px-3 pt-2 flex items-center gap-1.5 flex-wrap">
-          <button onClick={() => setShowRefPicker(true)}
-            className="text-[11px] px-2.5 py-1 rounded-full flex items-center gap-1"
-            style={{ backgroundColor: refDocIds.length ? "rgba(100,180,255,0.18)" : "rgba(255,255,255,0.05)", border: `1px solid ${refDocIds.length ? "rgba(100,180,255,0.4)" : SILVER_FAINT}`, color: refDocIds.length ? "rgba(180,210,255,1)" : SILVER_DIM }}>
-            📑 참고 기획서{refDocIds.length ? ` ${refDocIds.length}` : ""}
-          </button>
-          <button onClick={() => startConversationRevise()}
-            disabled={reviseGenLoading}
-            className="text-[11px] px-2.5 py-1 rounded-full flex items-center gap-1 disabled:opacity-50"
-            style={{ backgroundColor: reviseTargetDocId ? "rgba(180,140,255,0.2)" : "rgba(255,255,255,0.05)", border: `1px solid ${reviseTargetDocId ? "rgba(180,140,255,0.45)" : SILVER_FAINT}`, color: reviseTargetDocId ? "rgba(210,190,255,1)" : SILVER_DIM }}>
-            {reviseGenLoading ? "🛠️ 수정본 생성 중..." : reviseTargetDocId ? "🛠️ 이 대화로 수정" : "🛠️ 대화로 기획서 수정"}
-          </button>
-          {reviseTargetDocId && (
-            <span className="text-[11px] flex items-center gap-1" style={{ color: SILVER_DIM }}>
-              {reviseTargetTitle ? `대상: ${reviseTargetTitle}` : "대상 지정됨"}
-              <button onClick={() => { setReviseTargetDocId(null); setReviseTargetTitle(""); }} style={{ color: "#f08a8a" }}>✕</button>
-            </span>
-          )}
-        </div>
         {/* 첨부 이미지 미리보기 */}
         {(attachedImage || imageUploading) && (
           <div className="px-3 pt-2.5 flex items-center gap-2">
@@ -1623,6 +1609,15 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           localStorage.setItem("jordan_doc_new_dot", "true");
         }}
       />
+      {/* 대화 기반 수정 — 수정본 생성 중 로딩 오버레이 (메뉴가 닫혀 진행 표시가 없으므로) */}
+      {reviseGenLoading && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}>
+          <div className="px-5 py-4 rounded-xl flex items-center gap-3" style={{ backgroundColor: "#141c2e", border: `1px solid ${SILVER_FAINT}` }}>
+            <span className="inline-block w-4 h-4 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(210,190,255,0.3)", borderTopColor: "rgba(210,190,255,1)" }} />
+            <span className="text-sm" style={{ color: SILVER }}>수정본 생성 중...</span>
+          </div>
+        </div>
+      )}
 
       {/* 설정 모달 */}
       {showSettings && (
@@ -1987,8 +1982,8 @@ function MobileGuide({ onClose }: { onClose: () => void }) {
             <p>입력창 <b>📎</b>로 게임 UI 스크린샷·와이어프레임·경쟁작 화면을 첨부하면, 조던이 <b>직접 보고</b> UX 평가·개선점·의견을 줘요. (Opus 비전)</p>
           </section>
           <section>
-            <p className="font-bold mb-1.5" style={{ color: "rgba(150,255,200,1)" }}>📑 참고 기획서 / 🛠️ 대화로 수정</p>
-            <p>입력창 위 <b>📑 참고 기획서</b>로 기존 기획서를 체크하면 조던이 보고 답해요(교차 참고·충돌 감지). <b>🛠️ 대화로 기획서 수정</b>은 맥락선 범위 대화로 기존 기획서를 수정 — 색상 미리보기(🟢추가/🟡수정/🔴삭제) 확인 후 적용(자동 백업).</p>
+            <p className="font-bold mb-1.5" style={{ color: "rgba(150,255,200,1)" }}>📑 참고 기획서 / 🛠️ 기획서 수정</p>
+            <p>메뉴(≡)의 <b>📑 참고 기획서</b>로 기존 기획서를 체크하면 조던이 보고 답해요(교차 참고·충돌 감지). <b>🛠️ 기획서 수정</b>은 맥락선 범위 대화로 기존 기획서를 수정 — 색상 미리보기(🟢추가/🟡수정/🔴삭제) 확인 후 적용(자동 백업).</p>
           </section>
           <section>
             <p className="font-bold mb-1.5" style={{ color: "rgba(180,210,255,1)" }}>📚 기획 바이블</p>
