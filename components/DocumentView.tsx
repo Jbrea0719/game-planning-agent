@@ -76,6 +76,7 @@ export default function DocumentView({
   onCategoriesChanged,
   onDecisionsChanged,
   onStartWriting,
+  onReviseViaChat,
 }: {
   open: boolean;
   onClose: () => void;
@@ -85,6 +86,7 @@ export default function DocumentView({
   onCategoriesChanged?: () => void;  // 카테고리 변경 시 부모에 알림 (바이블 패널 실시간 동기화용)
   onDecisionsChanged?: () => void;   // 결정사항 변경 시 부모에 알림 (AI 재분류 적용 후 바이블 새로고침용)
   onStartWriting?: (subCategoryId: string, label: string) => void;  // 빈 소분류 '작성하기' → 채팅으로 이동해 조던 인터뷰 시작
+  onReviseViaChat?: (docId: string, docTitle: string) => void;  // '대화를 통한 수정' → 채팅으로 이동해 이 기획서를 수정 대상으로 지정
 }) {
   const [versions, setVersions] = useState<DocMeta[]>([]);
   const [currentDoc, setCurrentDoc] = useState<DocFull | null>(null);
@@ -132,6 +134,7 @@ export default function DocumentView({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   // 화면 설계 메뉴 (와이어프레임 / AI 시안)
   const [showScreenDesignMenu, setShowScreenDesignMenu] = useState(false);
+  const [showReviseMenu, setShowReviseMenu] = useState(false);  // 수정 요청 → [직접수정 / 대화를 통한 수정]
   const [screenDesignOpen, setScreenDesignOpen] = useState<"wireframe" | "mockup" | null>(null);
   // 카테고리 관리 모달
   const [showCatManager, setShowCatManager] = useState(false);
@@ -641,20 +644,42 @@ export default function DocumentView({
               >
                 ✏️ 편집
               </button>
-              <button
-                onClick={() => { setReviseInstruction(""); setShowReviseModal(true); }}
-                disabled={!currentDoc}
-                title="조던에게 수정 요청 — 자연어로 지시하면 AI가 새 버전 생성"
-                className="text-xs px-3 py-1.5 rounded-lg font-medium"
-                style={{
-                  backgroundColor: "rgba(100,180,255,0.18)",
-                  border: "1px solid rgba(100,180,255,0.5)",
-                  color: "rgba(180,210,255,1)",
-                  opacity: currentDoc ? 1 : 0.5,
-                }}
-              >
-                🪄 수정 요청
-              </button>
+              {/* 수정 요청 → [직접수정 / 대화를 통한 수정] 메뉴 */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowReviseMenu(v => !v)}
+                  disabled={!currentDoc}
+                  title="수정 요청 — 직접수정(지시문) 또는 대화를 통한 수정"
+                  className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                  style={{
+                    backgroundColor: "rgba(100,180,255,0.18)",
+                    border: "1px solid rgba(100,180,255,0.5)",
+                    color: "rgba(180,210,255,1)",
+                    opacity: currentDoc ? 1 : 0.5,
+                  }}
+                >
+                  🪄 수정 요청 ▾
+                </button>
+                {showReviseMenu && currentDoc && (
+                  <div className="absolute left-0 mt-1 rounded-lg overflow-hidden z-30 min-w-[200px]"
+                    style={{ backgroundColor: "#141c2e", border: `1px solid ${SILVER_FAINT}`, boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
+                    <button
+                      onClick={() => { setShowReviseMenu(false); setReviseInstruction(""); setShowReviseModal(true); }}
+                      className="block w-full text-left text-xs px-3 py-2.5 hover:bg-white/5"
+                      style={{ color: SILVER }}
+                    >
+                      ✍️ <b>직접수정</b> — 지시문으로 수정
+                    </button>
+                    <button
+                      onClick={() => { setShowReviseMenu(false); onReviseViaChat?.(currentDoc.id, currentDoc.title); }}
+                      className="block w-full text-left text-xs px-3 py-2.5 hover:bg-white/5"
+                      style={{ color: SILVER, borderTop: `1px solid ${SILVER_FAINT}` }}
+                    >
+                      💬 <b>대화를 통한 수정</b> — 채팅에서 논의 후 반영
+                    </button>
+                  </div>
+                )}
+              </div>
               {/* 화면 설계 — 와이어프레임 또는 AI 시안 */}
               <div className="relative">
                 <button
