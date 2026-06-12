@@ -26,6 +26,13 @@ interface MainItem {
   icon: string | null;
   areas: AreaGroup[];   // null 영역 포함
 }
+interface DocMeta {
+  id: string;
+  title: string;
+  category_main_id: string | null;
+  category_area_code: string | null;
+  category_sub_id: string | null;
+}
 
 export default function CategoryManager({
   open,
@@ -33,14 +40,17 @@ export default function CategoryManager({
   onChanged,
   onOrphaned,
   onOrphanedDocs,
+  projectId,
 }: {
   open: boolean;
   onClose: () => void;
   onChanged: () => void;   // 변경 발생 시 호출 (외부에서 카테고리 다시 로드)
   onOrphaned?: (decisionIds: string[]) => void;  // 소카테고리 삭제로 미분류된 결정사항 id (AI 재분류 검토용)
   onOrphanedDocs?: (docIds: string[]) => void;   // 소카테고리 삭제로 미분류된 기획서 id (AI 재분류 검토용)
+  projectId: string;       // 기획서(최하위) 목록 로드용
 }) {
   const [mains, setMains] = useState<MainItem[]>([]);
+  const [docs, setDocs] = useState<DocMeta[]>([]);  // 최하위 기획서 목록
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -63,6 +73,11 @@ export default function CategoryManager({
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      // 기획서(최하위) 목록도 병렬 로드 — 카테고리 트리 아래에 표시·삭제용
+      fetch(`/api/design-docs?project_id=${encodeURIComponent(projectId)}`)
+        .then(r => r.json())
+        .then(d => setDocs(d.docs ?? []))
+        .catch(err => console.error("[cat-mgr] 기획서 로드 실패:", err));
       const res = await fetch("/api/categories");
       const data = await res.json();
       const raw = (data.main_categories ?? []) as Array<{
@@ -85,7 +100,7 @@ export default function CategoryManager({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
   useEffect(() => { if (open) void load(); }, [open, load]);
   // 모달이 닫히면 편집/추가 진행 상태를 모두 초기화 (다시 열 때 "이름 변경 중"이 남지 않도록)
@@ -211,6 +226,37 @@ export default function CategoryManager({
     if (ok) { await load(); onChanged(); }
   }
 
+  // ── 기획서(최하위) 삭제 ───────────────────────────────────────
+  async function deleteDoc(id: string, title: string) {
+    if (!confirm(`기획서 "${title || "(제목 없음)"}"을(를) 삭제할까요? 되돌릴 수 없어요.`)) return;
+    const ok = await api(`/api/design-docs/${id}`, { method: "DELETE" });
+    if (ok) {
+      setDocs(prev => prev.filter(d => d.id !== id));  // 즉시 화면 반영
+      onChanged();  // DocumentView 기획서 트리도 새로고침
+    }
+  }
+
+  // 카테고리별 기획서 묶기
+  const docsForSub = (subId: string) => docs.filter(d => d.category_sub_id === subId);
+  const mainDirectDocs = (mainId: string) => docs.filter(d => d.category_main_id === mainId && !d.category_sub_id);
+  const uncategorizedDocs = docs.filter(d => !d.category_main_id);
+
+  // 기획서 한 줄 렌더
+  function docRow(d: DocMeta) {
+    return (
+      <div key={d.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white/5">
+        <span style={{ fontSize: "10px" }}>📄</span>
+        <span className="flex-1 text-xs truncate" style={{ color: "rgba(170,200,235,0.95)" }}>{d.title || "(제목 없음)"}</span>
+        <button
+          onClick={() => deleteDoc(d.id, d.title)}
+          className="text-xs px-1 py-0.5 rounded hover:bg-white/10"
+          style={{ color: "rgba(255,180,180,0.7)" }}
+          title="기획서 삭제 (되돌릴 수 없음)"
+        >🗑️</button>
+      </div>
+    );
+  }
+
   // ── 인라인 편집 UI 헬퍼 ───────────────────────────────────────
   function startEdit(type: string, key: string, initial: string) {
     setEditing({ type, key });
@@ -237,7 +283,7 @@ export default function CategoryManager({
               <span>⚙️</span> 카테고리 관리
             </p>
             <p className="text-xs mt-0.5" style={{ color: SILVER_DIM }}>
-              대(📁) → 중(📂) → 소(•) 3단계 분류. 기획 바이블과 공유돼요.
+              대(📁) → 중(📂) → 소(•) → 기획서(📄). 각 카테고리·기획서를 🗑️로 삭제할 수 있어요.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -265,6 +311,16 @@ export default function CategoryManager({
             <p className="text-xs text-center mt-6" style={{ color: SILVER_DIM }}>
               카테고리가 없어요. [+ 대카테고리]로 추가하세요.
             </p>
+          )}
+
+          {/* 미분류 기획서 (대분류 미지정) — 최상단 */}
+          {uncategorizedDocs.length > 0 && (
+            <div className="mb-4 rounded-lg px-3 py-2.5" style={{ border: "1px dashed rgba(255,200,100,0.4)", backgroundColor: "rgba(255,200,100,0.05)" }}>
+              <p className="text-xs font-bold mb-1.5" style={{ color: "rgba(255,220,150,1)" }}>📄 미분류 기획서 ({uncategorizedDocs.length})</p>
+              <div className="flex flex-col gap-0.5">
+                {uncategorizedDocs.map(docRow)}
+              </div>
+            </div>
           )}
 
           {mains.map(m => (
@@ -366,7 +422,8 @@ export default function CategoryManager({
                       {/* 소카테고리 리스트 */}
                       <div className={`${a.code ? "pl-6 pr-2 pb-2" : "px-2 py-1"} flex flex-col gap-0.5`}>
                         {a.subs.map(s => (
-                          <div key={s.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white/5">
+                          <div key={s.id}>
+                          <div className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white/5">
                             <span style={{ color: SILVER_DIM, fontSize: "10px" }}>•</span>
                             {editing?.type === "sub" && editing.key === s.id ? (
                               <input
@@ -395,11 +452,28 @@ export default function CategoryManager({
                               style={{ color: "rgba(255,180,180,0.7)" }}
                             >🗑️</button>
                           </div>
+                          {/* 이 소카테고리에 속한 기획서 */}
+                          {docsForSub(s.id).length > 0 && (
+                            <div className="ml-5 mt-0.5 flex flex-col gap-0.5">
+                              {docsForSub(s.id).map(docRow)}
+                            </div>
+                          )}
+                          </div>
                         ))}
                       </div>
                     </div>
                   );
                 })}
+
+                {/* 이 대분류 직속 기획서 (소카테고리 없이 바로 붙은 기획서) */}
+                {mainDirectDocs(m.id).length > 0 && (
+                  <div className="rounded px-2 py-1.5" style={{ backgroundColor: "rgba(100,180,255,0.04)", border: `1px dashed ${SILVER_FAINT}` }}>
+                    <p className="text-[10px] mb-1" style={{ color: SILVER_DIM }}>📄 직속 기획서 (소분류 미지정)</p>
+                    <div className="flex flex-col gap-0.5">
+                      {mainDirectDocs(m.id).map(docRow)}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ))}

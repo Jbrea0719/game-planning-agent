@@ -1006,6 +1006,7 @@ export default function DocumentView({
         onChanged={reloadCategories}
         onOrphaned={(ids) => setReclassifyIds(ids)}
         onOrphanedDocs={(ids) => setReclassifyDocIds(ids)}
+        projectId={projectId}
       />
 
       {/* AI 재분류 검토 모달 — 카테고리 삭제로 미분류된 결정사항을 새 위치로 제안 */}
