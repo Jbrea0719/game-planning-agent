@@ -3016,6 +3016,21 @@ function DesktopChatPage() {
 
       {/* 입력창 */}
       <div style={{ backgroundColor: "rgba(0,0,0,0.5)", borderTop: `1px solid ${SILVER_FAINT}` }}>
+        {/* 자세한 답변 기본 보기 토글 (⚙️ 설정과 연동) */}
+        <div className="px-4 pt-2">
+          <button
+            onClick={() => setAutoDetail(v => !v)}
+            title="켜면 답변마다 자세한 답변까지 자동으로 펼쳐요 (답변마다 비용↑)"
+            className="text-xs px-2.5 py-1 rounded-full flex items-center gap-1.5"
+            style={{
+              backgroundColor: autoDetail ? "rgba(100,220,160,0.18)" : "rgba(255,255,255,0.05)",
+              border: `1px solid ${autoDetail ? "rgba(100,220,160,0.55)" : SILVER_FAINT}`,
+              color: autoDetail ? "rgba(150,255,200,1)" : SILVER_DIM,
+            }}
+          >
+            {autoDetail ? "☑" : "☐"} 자세한 답변 기본 보기
+          </button>
+        </div>
         {/* 첨부 이미지 미리보기 */}
         {(attachedImage || imageUploading) && (
           <div className="px-4 pt-3 flex items-center gap-2">

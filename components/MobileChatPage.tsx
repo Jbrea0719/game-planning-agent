@@ -1448,6 +1448,20 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
 
       {/* 입력창 */}
       <div className="flex-shrink-0" style={{ backgroundColor: "rgba(0,0,0,0.5)", borderTop: `1px solid ${SILVER_FAINT}` }}>
+        {/* 자세한 답변 기본 보기 토글 (⚙️ 설정과 연동) */}
+        <div className="px-3 pt-2">
+          <button
+            onClick={() => setAutoDetail(v => !v)}
+            className="text-[11px] px-2.5 py-1 rounded-full flex items-center gap-1.5"
+            style={{
+              backgroundColor: autoDetail ? "rgba(100,220,160,0.18)" : "rgba(255,255,255,0.05)",
+              border: `1px solid ${autoDetail ? "rgba(100,220,160,0.55)" : SILVER_FAINT}`,
+              color: autoDetail ? "rgba(150,255,200,1)" : SILVER_DIM,
+            }}
+          >
+            {autoDetail ? "☑" : "☐"} 자세한 답변 기본 보기
+          </button>
+        </div>
         {/* 첨부 이미지 미리보기 */}
         {(attachedImage || imageUploading) && (
           <div className="px-3 pt-2.5 flex items-center gap-2">
