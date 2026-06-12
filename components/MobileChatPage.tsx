@@ -10,6 +10,8 @@ import remarkGfm from "remark-gfm"; // GFM 지원 — 표(table)·취소선 등 
 import dynamic from "next/dynamic";
 import DecisionPanel from "@/components/DecisionPanel";
 import DocumentView from "@/components/DocumentView";
+import DocPickerModal from "@/components/DocPickerModal";
+import DocRevisePreview, { type RevisePreview } from "@/components/DocRevisePreview";
 import { REFERENCE_GAMES } from "@/lib/reference-games";
 
 // 안드로이드 크롬의 PWA 설치 이벤트 타입 (표준 DOM 타입에 없어 직접 선언)
@@ -164,6 +166,15 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   const [showCitations, setShowCitations] = useState(false);
   const [contextAnchorPairId, setContextAnchorPairId] = useState<string | null>(null);
   const [contextAnchorTimestamp, setContextAnchorTimestamp] = useState<string | null>(null);
+  // 참고 기획서(다중) — 답변 시 교차 참고·충돌 점검. 방별 유지(localStorage)
+  const [refDocIds, setRefDocIds] = useState<string[]>([]);
+  const [showRefPicker, setShowRefPicker] = useState(false);
+  // 대화 기반 기획서 수정 — 수정 대상(단일) + 미리보기
+  const [reviseTargetDocId, setReviseTargetDocId] = useState<string | null>(null);
+  const [reviseTargetTitle, setReviseTargetTitle] = useState<string>("");
+  const [showReviseTargetPicker, setShowReviseTargetPicker] = useState(false);
+  const [revisePreview, setRevisePreview] = useState<RevisePreview | null>(null);
+  const [reviseGenLoading, setReviseGenLoading] = useState(false);
   // 대화방 (병렬 작업)
   const [conversations, setConversations] = useState<{ id: string; title: string }[]>([]);
   const [currentConvId, setCurrentConvId] = useState<string | null>(null);
@@ -515,6 +526,11 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     } catch { setPairs([]); }
     setContextAnchorPairId(localStorage.getItem(`jordan_context_anchor_pair:${convId}`));
     setContextAnchorTimestamp(localStorage.getItem(`jordan_context_anchor_time:${convId}`));
+    // 참고 기획서 복원 (방별)
+    try {
+      const rd = localStorage.getItem(`jordan_ref_docs:${convId}`);
+      setRefDocIds(rd ? (JSON.parse(rd) as string[]) : []);
+    } catch { setRefDocIds([]); }
     // 이 방에 진행 중인 백그라운드 생성이 있으면 라이브 스트림 복원
     const g = genStateRef.current.get(convId);
     if (g) {
@@ -674,6 +690,69 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     }
   }
 
+  // 참고 기획서 적용 + 방별 localStorage 저장 (비면 키 삭제)
+  function applyRefDocs(ids: string[]) {
+    setRefDocIds(ids);
+    const key = `jordan_ref_docs:${currentConvId ?? sessionId}`;
+    if (ids.length > 0) localStorage.setItem(key, JSON.stringify(ids));
+    else localStorage.removeItem(key);
+  }
+
+  // 맥락선 범위 대화 → {role,content}[] (수정 근거)
+  // 모바일 pairs는 is_deleted 개념 없이 활성 페어만 보관하므로 pairs를 그대로 사용
+  function getAnchorRangeMessages() {
+    let range = pairs;
+    if (contextAnchorPairId) {
+      const idx = pairs.findIndex(p => p.pair_id === contextAnchorPairId);
+      if (idx >= 0) range = pairs.slice(idx);
+    }
+    return range.flatMap(p => [
+      { role: p.user.role, content: p.user.content },
+      { role: p.assistant.role, content: p.assistant.content },
+    ]);
+  }
+
+  // 대화를 통한 수정 — 수정 대상 없으면 선택 모달, 있으면 미리보기 생성
+  // docIdOverride: 방금 선택한 대상으로 즉시 미리보기 (state 비동기 회피)
+  async function startConversationRevise(docIdOverride?: string) {
+    const targetId = docIdOverride ?? reviseTargetDocId;
+    if (!targetId) { setShowReviseTargetPicker(true); return; }
+    const msgs = getAnchorRangeMessages();
+    if (msgs.length === 0) { alert("수정 근거가 될 대화가 없어요. (맥락선 범위 확인)"); return; }
+    setReviseGenLoading(true);
+    try {
+      const res = await fetch("/api/design-docs/revise-from-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          doc_id: targetId,
+          messages: msgs,
+          nickname: sessionId?.replace(/^agent:/, "") ?? null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error ?? "미리보기 실패");
+      setRevisePreview({
+        doc_id: targetId,
+        doc_title: data.doc_title ?? reviseTargetTitle,
+        title: data.title,
+        original_markdown: data.original_markdown,
+        revised_markdown: data.revised_markdown,
+      });
+    } catch (err) {
+      alert(`수정 미리보기 실패: ${String(err)}`);
+    } finally {
+      setReviseGenLoading(false);
+    }
+  }
+
+  // DocumentView "대화를 통한 수정" 진입 → 수정 대상 지정 + 기획서 뷰 닫기
+  function enterReviseViaChat(docId: string, docTitle: string) {
+    setReviseTargetDocId(docId);
+    setReviseTargetTitle(docTitle);
+    setShowDocs(false);
+  }
+
   async function sendMessage() {
     const trimmed = input.trim();
     const img = attachedImage;  // 전송 시점 고정
@@ -747,6 +826,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           context_anchor_time: contextAnchorTimestamp,
           conversation_id: genConvId,  // 이 답변이 속한 대화방
           image_id: imageId ?? null,   // 첨부 이미지 (조던이 보고 응답)
+          reference_doc_ids: refDocIds,  // 참고 기획서 — 교차 참고·충돌 점검
         }),
         signal: controller.signal,
       });
@@ -1317,6 +1397,26 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
 
       {/* 입력창 */}
       <div className="flex-shrink-0" style={{ backgroundColor: "rgba(0,0,0,0.5)", borderTop: `1px solid ${SILVER_FAINT}` }}>
+        {/* 참고/수정 도구 바 */}
+        <div className="px-3 pt-2 flex items-center gap-1.5 flex-wrap">
+          <button onClick={() => setShowRefPicker(true)}
+            className="text-[11px] px-2.5 py-1 rounded-full flex items-center gap-1"
+            style={{ backgroundColor: refDocIds.length ? "rgba(100,180,255,0.18)" : "rgba(255,255,255,0.05)", border: `1px solid ${refDocIds.length ? "rgba(100,180,255,0.4)" : SILVER_FAINT}`, color: refDocIds.length ? "rgba(180,210,255,1)" : SILVER_DIM }}>
+            📑 참고 기획서{refDocIds.length ? ` ${refDocIds.length}` : ""}
+          </button>
+          <button onClick={() => startConversationRevise()}
+            disabled={reviseGenLoading}
+            className="text-[11px] px-2.5 py-1 rounded-full flex items-center gap-1 disabled:opacity-50"
+            style={{ backgroundColor: reviseTargetDocId ? "rgba(180,140,255,0.2)" : "rgba(255,255,255,0.05)", border: `1px solid ${reviseTargetDocId ? "rgba(180,140,255,0.45)" : SILVER_FAINT}`, color: reviseTargetDocId ? "rgba(210,190,255,1)" : SILVER_DIM }}>
+            {reviseGenLoading ? "🛠️ 수정본 생성 중..." : reviseTargetDocId ? "🛠️ 이 대화로 수정" : "🛠️ 대화로 기획서 수정"}
+          </button>
+          {reviseTargetDocId && (
+            <span className="text-[11px] flex items-center gap-1" style={{ color: SILVER_DIM }}>
+              {reviseTargetTitle ? `대상: ${reviseTargetTitle}` : "대상 지정됨"}
+              <button onClick={() => { setReviseTargetDocId(null); setReviseTargetTitle(""); }} style={{ color: "#f08a8a" }}>✕</button>
+            </span>
+          )}
+        </div>
         {/* 첨부 이미지 미리보기 */}
         {(attachedImage || imageUploading) && (
           <div className="px-3 pt-2.5 flex items-center gap-2">
@@ -1454,6 +1554,48 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         onCategoriesChanged={() => setCategoryReloadKey(k => k + 1)}
         onDecisionsChanged={() => setDecisionReloadKey(k => k + 1)}
         onStartWriting={(subId, label) => startInterviewForCategory(subId, label)}
+        onReviseViaChat={(docId, docTitle) => enterReviseViaChat(docId, docTitle)}
+      />
+
+      {/* 참고 기획서 선택 (다중) */}
+      <DocPickerModal
+        open={showRefPicker}
+        onClose={() => setShowRefPicker(false)}
+        projectId={DEFAULT_PROJECT_ID}
+        mode="multi"
+        title="📑 참고 기획서 선택"
+        selectedIds={refDocIds}
+        onConfirm={(ids) => applyRefDocs(ids)}
+      />
+      {/* 수정 대상 선택 (단일) → 즉시 미리보기 생성 */}
+      <DocPickerModal
+        open={showReviseTargetPicker}
+        onClose={() => setShowReviseTargetPicker(false)}
+        projectId={DEFAULT_PROJECT_ID}
+        mode="single"
+        title="🛠️ 수정할 기획서 선택"
+        onConfirm={(ids) => {
+          if (ids[0]) {
+            setReviseTargetDocId(ids[0]);
+            setReviseTargetTitle("");
+            void startConversationRevise(ids[0]);
+          }
+        }}
+      />
+      {/* 대화 기반 수정 — 색상 diff 미리보기 + 적용 */}
+      <DocRevisePreview
+        open={!!revisePreview}
+        preview={revisePreview}
+        nickname={nickname}
+        onClose={() => setRevisePreview(null)}
+        onApplied={() => {
+          setRevisePreview(null);
+          setReviseTargetDocId(null);
+          setReviseTargetTitle("");
+          setDocReloadKey(k => k + 1);
+          setDocNewDot(true);
+          localStorage.setItem("jordan_doc_new_dot", "true");
+        }}
       />
 
       {/* 설정 모달 */}
@@ -1817,6 +1959,10 @@ function MobileGuide({ onClose }: { onClose: () => void }) {
           <section>
             <p className="font-bold mb-1.5" style={{ color: "rgba(150,255,200,1)" }}>🖼️ 이미지 첨부 분석</p>
             <p>입력창 <b>📎</b>로 게임 UI 스크린샷·와이어프레임·경쟁작 화면을 첨부하면, 조던이 <b>직접 보고</b> UX 평가·개선점·의견을 줘요. (Opus 비전)</p>
+          </section>
+          <section>
+            <p className="font-bold mb-1.5" style={{ color: "rgba(150,255,200,1)" }}>📑 참고 기획서 / 🛠️ 대화로 수정</p>
+            <p>입력창 위 <b>📑 참고 기획서</b>로 기존 기획서를 체크하면 조던이 보고 답해요(교차 참고·충돌 감지). <b>🛠️ 대화로 기획서 수정</b>은 맥락선 범위 대화로 기존 기획서를 수정 — 색상 미리보기(🟢추가/🟡수정/🔴삭제) 확인 후 적용(자동 백업).</p>
           </section>
           <section>
             <p className="font-bold mb-1.5" style={{ color: "rgba(180,210,255,1)" }}>📚 기획 바이블</p>
