@@ -4,7 +4,7 @@
 // 데스크톱과 동일한 백엔드(/api/agent, Supabase)를 호출 — 데이터 자동 공유
 // 기존 모달 컴포넌트(DecisionPanel·DocumentView)는 재사용
 
-import { useState, useRef, useEffect, memo, type ReactNode } from "react";
+import { useState, useRef, useEffect, memo, type ReactNode, type ClipboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm"; // GFM 지원 — 표(table)·취소선 등 마크다운 확장 렌더링
 import dynamic from "next/dynamic";
@@ -639,6 +639,22 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       };
       reader.readAsDataURL(file);
     });
+  }
+
+  // 클립보드 붙여넣기(Ctrl+V) → 캡처 이미지를 별도 파일 없이 바로 첨부 (클로드와 동일한 UX)
+  function handlePaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();  // 이미지 붙여넣기 시 텍스트 삽입 방지
+          void handleImagePick(file);
+          return;
+        }
+      }
+    }
   }
 
   // 파일 선택 → 다운스케일 → 미리보기 상태에 저장
@@ -1333,6 +1349,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onPaste={handlePaste}
           // 모바일은 Enter=줄바꿈(기본 동작), 전송은 ➤ 버튼만 담당 (자판 엔터로 실수 전송 방지)
           onFocus={() => simulateKeyboard && setKeyboardOpen(true)}
           onBlur={() => simulateKeyboard && setKeyboardOpen(false)}

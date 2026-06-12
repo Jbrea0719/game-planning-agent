@@ -1,7 +1,7 @@
 "use client";
 
 import { REFERENCE_GAMES } from "@/lib/reference-games";
-import { useState, useRef, useEffect, memo, KeyboardEvent } from "react";
+import { useState, useRef, useEffect, memo, KeyboardEvent, ClipboardEvent } from "react";
 import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm"; // GFM 지원 — 표(table)·취소선 등 마크다운 확장 렌더링
@@ -885,6 +885,22 @@ function DesktopChatPage() {
       };
       reader.readAsDataURL(file);
     });
+  }
+
+  // 클립보드 붙여넣기(Ctrl+V) → 캡처 이미지를 별도 파일 없이 바로 첨부 (클로드와 동일한 UX)
+  function handlePaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();  // 이미지 붙여넣기 시 텍스트(파일경로 등) 삽입 방지
+          void handleImagePick(file);
+          return;
+        }
+      }
+    }
   }
 
   // 파일 선택 → 다운스케일 → 미리보기 상태에 저장
@@ -2816,7 +2832,8 @@ function DesktopChatPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={isLoading ? "답변 생성 중 — 미리 입력해두면 완료 후 Enter로 전송돼요" : "게임 기획 질문 또는 이미지 첨부... (Enter 전송 / Alt+Enter 줄바꿈)"}
+            onPaste={handlePaste}
+            placeholder={isLoading ? "답변 생성 중 — 미리 입력해두면 완료 후 Enter로 전송돼요" : "게임 기획 질문 또는 이미지 첨부/붙여넣기(Ctrl+V)... (Enter 전송 / Alt+Enter 줄바꿈)"}
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
