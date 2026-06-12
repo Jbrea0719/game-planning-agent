@@ -13,11 +13,13 @@ export async function PATCH(request: Request, context: RouteContext) {
       name_ko?: string;
       area_code?: string | null;
       area_name?: string | null;
+      icon?: string | null;
     };
     const updates: Record<string, unknown> = {};
     if (body.name_ko !== undefined) updates.name_ko = body.name_ko.trim();
     if (body.area_code !== undefined) updates.area_code = body.area_code;
     if (body.area_name !== undefined) updates.area_name = body.area_name;
+    if (body.icon !== undefined) updates.icon = body.icon;
 
     const { data, error } = await supabase
       .from("sub_categories")

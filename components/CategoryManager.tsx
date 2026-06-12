@@ -23,6 +23,7 @@ interface SubItem {
   name_ko: string;
   area_code: string | null;
   area_name: string | null;
+  icon?: string | null;
 }
 interface AreaGroup {
   code: string | null;     // null = 영역 없음
@@ -60,7 +61,7 @@ export default function CategoryManager({
 }) {
   const [mains, setMains] = useState<MainItem[]>([]);
   const [docs, setDocs] = useState<DocMeta[]>([]);  // 최하위 기획서 목록
-  const [iconPicker, setIconPicker] = useState<string | null>(null);  // 아이콘 변경 중인 대카테고리 id
+  const [iconPicker, setIconPicker] = useState<{ kind: "main" | "sub"; id: string } | null>(null);  // 아이콘 변경 중인 대상
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -165,8 +166,9 @@ export default function CategoryManager({
     });
     if (ok) { await load(); onChanged(); }
   }
-  async function setMainIcon(id: string, icon: string) {
-    const ok = await api(`/api/categories/main/${id}`, {
+  async function setCatIcon(kind: "main" | "sub", id: string, icon: string) {
+    const url = kind === "main" ? `/api/categories/main/${id}` : `/api/categories/sub/${id}`;
+    const ok = await api(url, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ icon }),
@@ -174,6 +176,45 @@ export default function CategoryManager({
     setIconPicker(null);
     if (ok) { await load(); onChanged(); }
   }
+
+  // ── 순서 변경 (display_order 일괄 저장) ───────────────────────
+  async function reorder(type: "main" | "sub", orderedIds: string[]) {
+    const ok = await api("/api/categories/reorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, ordered_ids: orderedIds }),
+    });
+    if (ok) { await load(); onChanged(); }
+  }
+  // 대카테고리 위(-1)/아래(+1)
+  function moveMain(mainId: string, dir: -1 | 1) {
+    const idx = mains.findIndex(m => m.id === mainId);
+    const j = idx + dir;
+    if (idx < 0 || j < 0 || j >= mains.length) return;
+    const ids = mains.map(m => m.id);
+    [ids[idx], ids[j]] = [ids[j], ids[idx]];
+    void reorder("main", ids);
+  }
+  // 소카테고리 위/아래 — 같은 영역 안에서만 이동, 전체 소 순서로 저장
+  function moveSub(m: MainItem, areaIdx: number, subIdx: number, dir: -1 | 1) {
+    const area = m.areas[areaIdx];
+    const j = subIdx + dir;
+    if (j < 0 || j >= area.subs.length) return;
+    const newAreaSubs = [...area.subs];
+    [newAreaSubs[subIdx], newAreaSubs[j]] = [newAreaSubs[j], newAreaSubs[subIdx]];
+    const orderedIds: string[] = [];
+    m.areas.forEach((a, ai) => (ai === areaIdx ? newAreaSubs : a.subs).forEach(s => orderedIds.push(s.id)));
+    void reorder("sub", orderedIds);
+  }
+  // 중카테고리(영역) 위/아래 — 영역 블록 통째로 이동
+  function moveArea(m: MainItem, areaIdx: number, dir: -1 | 1) {
+    const j = areaIdx + dir;
+    if (j < 0 || j >= m.areas.length) return;
+    const areas = [...m.areas];
+    [areas[areaIdx], areas[j]] = [areas[j], areas[areaIdx]];
+    void reorder("sub", areas.flatMap(a => a.subs.map(s => s.id)));
+  }
+
   async function deleteMain(id: string, name: string) {
     if (!confirm(`대카테고리 "${name}"을 삭제할까요? 하위 항목이 있으면 삭제할 수 없어요.`)) return;
     const ok = await api(`/api/categories/main/${id}`, { method: "DELETE" });
@@ -303,7 +344,7 @@ export default function CategoryManager({
               <span>⚙️</span> 카테고리 관리
             </p>
             <p className="text-xs mt-0.5" style={{ color: SILVER_DIM }}>
-              대(📁) → 중(📂) → 소(•) → 기획서(📄). 🗑️ 삭제 · 대카테고리 <b>아이콘 클릭 → 변경</b>.
+              대(📁) → 중(📂) → 소 → 기획서(📄). <b>아이콘 클릭→변경</b>(대·소) · <b>▲▼ 순서 이동</b> · ✏️ 이름 · 🗑️ 삭제.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -343,12 +384,16 @@ export default function CategoryManager({
             </div>
           )}
 
-          {mains.map(m => (
+          {mains.map((m, mi) => (
             <div key={m.id} className="mb-4 rounded-lg" style={{ border: `1px solid ${SILVER_FAINT}` }}>
               {/* 대카테고리 헤더 */}
               <div className="flex items-center gap-2 px-3 py-2 rounded-t-lg" style={{ backgroundColor: "rgba(192,200,216,0.08)" }}>
+                <div className="flex flex-col leading-none">
+                  <button onClick={() => moveMain(m.id, -1)} disabled={mi === 0 || busy} className="text-[9px] disabled:opacity-20 hover:text-white" style={{ color: SILVER_DIM }} title="위로">▲</button>
+                  <button onClick={() => moveMain(m.id, 1)} disabled={mi === mains.length - 1 || busy} className="text-[9px] disabled:opacity-20 hover:text-white" style={{ color: SILVER_DIM }} title="아래로">▼</button>
+                </div>
                 <button
-                  onClick={() => setIconPicker(iconPicker === m.id ? null : m.id)}
+                  onClick={() => setIconPicker({ kind: "main", id: m.id })}
                   title="아이콘 변경 — 클릭하면 아이콘 목록"
                   className="rounded hover:bg-white/10 px-1 py-0.5 leading-none"
                   style={{ fontSize: "15px" }}
@@ -409,6 +454,10 @@ export default function CategoryManager({
                       {/* 중카테고리 헤더 */}
                       {a.code && (
                         <div className="flex items-center gap-2 px-2 py-1.5">
+                          <div className="flex flex-col leading-none">
+                            <button onClick={() => moveArea(m, ai, -1)} disabled={ai === 0 || busy} className="text-[8px] disabled:opacity-20 hover:text-white" style={{ color: SILVER_DIM }} title="위로">▲</button>
+                            <button onClick={() => moveArea(m, ai, 1)} disabled={ai === m.areas.length - 1 || busy} className="text-[8px] disabled:opacity-20 hover:text-white" style={{ color: SILVER_DIM }} title="아래로">▼</button>
+                          </div>
                           <span style={{ fontSize: "12px" }}>📂</span>
                           {editing?.type === "area-rename" && editing.key === areaKey ? (
                             <input
@@ -446,10 +495,19 @@ export default function CategoryManager({
 
                       {/* 소카테고리 리스트 */}
                       <div className={`${a.code ? "pl-6 pr-2 pb-2" : "px-2 py-1"} flex flex-col gap-0.5`}>
-                        {a.subs.map(s => (
+                        {a.subs.map((s, si) => (
                           <div key={s.id}>
                           <div className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white/5">
-                            <span style={{ color: SILVER_DIM, fontSize: "10px" }}>•</span>
+                            <div className="flex flex-col leading-none">
+                              <button onClick={() => moveSub(m, ai, si, -1)} disabled={si === 0 || busy} className="text-[8px] disabled:opacity-20 hover:text-white" style={{ color: SILVER_DIM }} title="위로">▲</button>
+                              <button onClick={() => moveSub(m, ai, si, 1)} disabled={si === a.subs.length - 1 || busy} className="text-[8px] disabled:opacity-20 hover:text-white" style={{ color: SILVER_DIM }} title="아래로">▼</button>
+                            </div>
+                            <button
+                              onClick={() => setIconPicker({ kind: "sub", id: s.id })}
+                              title="아이콘 변경"
+                              className="rounded hover:bg-white/10 leading-none px-0.5"
+                              style={{ fontSize: "12px", color: s.icon ? undefined : SILVER_DIM }}
+                            >{s.icon ?? "•"}</button>
                             {editing?.type === "sub" && editing.key === s.id ? (
                               <input
                                 value={editText}
@@ -522,12 +580,14 @@ export default function CategoryManager({
               </div>
               <div className="grid grid-cols-8 gap-1">
                 {ICON_CHOICES.map((ic) => {
-                  const cur = mains.find(m => m.id === iconPicker)?.icon ?? "📁";
+                  const cur = iconPicker.kind === "main"
+                    ? (mains.find(m => m.id === iconPicker.id)?.icon ?? "📁")
+                    : (mains.flatMap(m => m.areas).flatMap(a => a.subs).find(s => s.id === iconPicker.id)?.icon ?? "•");
                   const selected = cur === ic;
                   return (
                     <button
                       key={ic}
-                      onClick={() => setMainIcon(iconPicker, ic)}
+                      onClick={() => setCatIcon(iconPicker.kind, iconPicker.id, ic)}
                       disabled={busy}
                       className="aspect-square rounded-lg flex items-center justify-center hover:bg-white/10 disabled:opacity-40"
                       style={{ fontSize: "18px", backgroundColor: selected ? "rgba(100,180,255,0.25)" : "transparent", border: `1px solid ${selected ? "rgba(100,180,255,0.6)" : "transparent"}` }}
