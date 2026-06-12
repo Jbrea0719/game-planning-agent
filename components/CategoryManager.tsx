@@ -9,6 +9,15 @@ const SILVER = "#c0c8d8";
 const SILVER_DIM = "rgba(192,200,216,0.5)";
 const SILVER_FAINT = "rgba(192,200,216,0.15)";
 
+// 카테고리 아이콘 선택 목록 (게임 기획 친화)
+const ICON_CHOICES = [
+  "📁","📂","📦","🎮","🕹️","⚔️","🛡️","🗡️","🏹","🎯",
+  "⭐","🌟","💎","🔥","⚡","💰","🪙","🎁","🎰","🃏",
+  "🏆","👑","🦸","🦹","🐉","🧙","🗺️","🏰","⛩️","🌍",
+  "🌐","📊","📈","🧩","🔧","⚙️","🎨","🖼️","🎵","🔔",
+  "💬","📜","📝","✨","❤️","🔮","🧪","🪄","🚀","🧭",
+];
+
 interface SubItem {
   id: string;
   name_ko: string;
@@ -51,6 +60,7 @@ export default function CategoryManager({
 }) {
   const [mains, setMains] = useState<MainItem[]>([]);
   const [docs, setDocs] = useState<DocMeta[]>([]);  // 최하위 기획서 목록
+  const [iconPicker, setIconPicker] = useState<string | null>(null);  // 아이콘 변경 중인 대카테고리 id
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -111,6 +121,7 @@ export default function CategoryManager({
       setAdding(null);
       setAddText("");
       setAddExtra("");
+      setIconPicker(null);
     }
   }, [open]);
   useEffect(() => {
@@ -152,6 +163,15 @@ export default function CategoryManager({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name_ko: name }),
     });
+    if (ok) { await load(); onChanged(); }
+  }
+  async function setMainIcon(id: string, icon: string) {
+    const ok = await api(`/api/categories/main/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ icon }),
+    });
+    setIconPicker(null);
     if (ok) { await load(); onChanged(); }
   }
   async function deleteMain(id: string, name: string) {
@@ -283,7 +303,7 @@ export default function CategoryManager({
               <span>⚙️</span> 카테고리 관리
             </p>
             <p className="text-xs mt-0.5" style={{ color: SILVER_DIM }}>
-              대(📁) → 중(📂) → 소(•) → 기획서(📄). 각 카테고리·기획서를 🗑️로 삭제할 수 있어요.
+              대(📁) → 중(📂) → 소(•) → 기획서(📄). 🗑️ 삭제 · 대카테고리 <b>아이콘 클릭 → 변경</b>.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -327,7 +347,12 @@ export default function CategoryManager({
             <div key={m.id} className="mb-4 rounded-lg" style={{ border: `1px solid ${SILVER_FAINT}` }}>
               {/* 대카테고리 헤더 */}
               <div className="flex items-center gap-2 px-3 py-2 rounded-t-lg" style={{ backgroundColor: "rgba(192,200,216,0.08)" }}>
-                <span style={{ fontSize: "14px" }}>{m.icon ?? "📁"}</span>
+                <button
+                  onClick={() => setIconPicker(iconPicker === m.id ? null : m.id)}
+                  title="아이콘 변경 — 클릭하면 아이콘 목록"
+                  className="rounded hover:bg-white/10 px-1 py-0.5 leading-none"
+                  style={{ fontSize: "15px" }}
+                >{m.icon ?? "📁"}</button>
                 {editing?.type === "main" && editing.key === m.id ? (
                   <input
                     value={editText}
@@ -478,6 +503,41 @@ export default function CategoryManager({
             </div>
           ))}
         </div>
+
+        {/* 아이콘 선택 팝업 */}
+        {iconPicker && (
+          <div
+            className="absolute inset-0 z-[80] flex items-center justify-center p-4"
+            style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+            onClick={() => setIconPicker(null)}
+          >
+            <div
+              className="rounded-xl p-4 w-full max-w-sm shadow-2xl"
+              style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-bold" style={{ color: SILVER }}>아이콘 선택</p>
+                <button onClick={() => setIconPicker(null)} className="text-xs px-2 py-1 rounded" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>
+              </div>
+              <div className="grid grid-cols-8 gap-1">
+                {ICON_CHOICES.map((ic) => {
+                  const cur = mains.find(m => m.id === iconPicker)?.icon ?? "📁";
+                  const selected = cur === ic;
+                  return (
+                    <button
+                      key={ic}
+                      onClick={() => setMainIcon(iconPicker, ic)}
+                      disabled={busy}
+                      className="aspect-square rounded-lg flex items-center justify-center hover:bg-white/10 disabled:opacity-40"
+                      style={{ fontSize: "18px", backgroundColor: selected ? "rgba(100,180,255,0.25)" : "transparent", border: `1px solid ${selected ? "rgba(100,180,255,0.6)" : "transparent"}` }}
+                    >{ic}</button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 신규 추가 모달 */}
         {adding && (
