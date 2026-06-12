@@ -1178,7 +1178,8 @@ async function runMultiAgentPipeline(
   showCitations = false,  // 인라인 신뢰도 라벨 노출 여부 (기본 OFF)
   contextAnchorTime: string | null = null,  // 결정사항 cutoff (이후 created_at만 컨텍스트로)
   sessionId: string | null = null,  // 피드백 컨텍스트 조회용 (👍/👎 누적 반영)
-  imageId: string | null = null  // 첨부 이미지 id (doc_images) — 조던이 보고 답변
+  imageId: string | null = null,  // 첨부 이미지 id (doc_images) — 조던이 보고 답변
+  referenceDocIds: string[] = []  // 참고 기획서 id 목록 — 답변 시 교차 참고·충돌 점검
 ): Promise<string> {
 
   // ── 검색 + 분석 (라우터 → 도메인 발견 → Claude 웹 검색 통합 흐름)
@@ -1227,13 +1228,36 @@ async function runMultiAgentPipeline(
 - 조던 자문 영역: ${route.needs_jordan_consulting}
 - 신뢰도: ${route.confidence}`;
 
-  // 누적 결정사항 + 피드백 + 라우터 분석 + 라운지 + 검색 데이터를 함께 전달
+  // ── 참고 기획서 — 사용자가 선택한 기존 기획서 본문을 컨텍스트로 주입 (교차 참고·충돌 감지) ──
+  let referenceSection = "";
+  if (referenceDocIds.length > 0) {
+    try {
+      const { data: refDocs } = await supabase
+        .from("design_docs")
+        .select("title, content_markdown")
+        .in("id", referenceDocIds);
+      if (refDocs && refDocs.length > 0) {
+        const PER = 6000;  // 기획서당 길이 상한 (토큰 폭주 방지)
+        const blocks = refDocs.map((d, i) => {
+          const full = d.content_markdown || "";
+          const body = full.slice(0, PER) + (full.length > PER ? "\n…(이하 생략)" : "");
+          return `[참고 기획서 ${i + 1}: ${d.title}]\n${body}`;
+        });
+        referenceSection = `\n\n[참고 기획서 — 사용자가 선택한 기존 기획서. 교차 참고·충돌 점검 대상]\n${blocks.join("\n\n---\n\n")}`;
+        onChunk(`📑 참고 기획서 ${refDocs.length}개를 함께 검토합니다.\n`);
+      }
+    } catch (err) {
+      console.error("[agent] 참고 기획서 로드 실패:", err);
+    }
+  }
+
+  // 누적 결정사항 + 피드백 + 참고 기획서 + 라우터 분석 + 라운지 + 검색 데이터를 함께 전달
   // 라운지는 1순위 신뢰 출처이므로 검색 데이터보다 앞에 배치
   const decisionSection = decisionContext ? `\n\n${decisionContext}` : "";
   const feedbackSection = feedbackContext ? `\n\n${feedbackContext}` : "";
   const loungeSection = loungeContext ? `\n\n${loungeContext}` : "";
   const webtoonSection = webtoonContext ? `\n\n${webtoonContext}` : "";
-  const combinedContext = `${routeContext}${decisionSection}${feedbackSection}${webtoonSection}${loungeSection}\n\n[실시간 검색 데이터]\n${analysisResult}`;
+  const combinedContext = `${routeContext}${decisionSection}${feedbackSection}${referenceSection}${webtoonSection}${loungeSection}\n\n[실시간 검색 데이터]\n${analysisResult}`;
 
   // 현재 날짜 — 학습 데이터 시점과 혼동 방지 위해 명시 주입
   const today = new Date();
@@ -1244,6 +1268,13 @@ async function runMultiAgentPipeline(
   const baseSystemPrompt = `당신의 이름은 조던(Jordan)이에요. 영웅수집형 모바일 게임 기획 전문가 AI예요.
 10년 이상 현장에서 게임을 만들어온 베테랑 디렉터의 시선으로 답변해요.
 직설적이고 실무 중심으로, "이 구조는 이래서 망합니다"처럼 솔직하게 말해줘요.
+
+[★ 참고 기획서 — 교차 참고·충돌 점검 ★]
+사용자 메시지에 "[참고 기획서]" 섹션이 포함될 수 있어요. 이는 사용자가 답변 시 참고하라고 직접 선택한 기존 기획서예요.
+- 답변할 때 이 기획서들의 내용을 적극 참고하세요 (다른 기획과의 연계·일관성).
+- **현재 대화/결정이 참고 기획서와 충돌하면 반드시 짚어주세요.** (예: "○○ 기획서에선 5등급인데 지금은 7등급이라 충돌해요 — 어느 쪽으로 통일할까요?")
+- 충돌·중복·빈틈을 발견하면 개선 방향을 제안하세요.
+- 참고 기획서에 없는 내용을 그 기획서 것으로 단정하지 마세요.
 
 [★ 대화 맥락 — 매우 중요 ★]
 앞에 오는 메시지들은 사용자와 지금까지 나눈 실제 대화예요.
@@ -1513,7 +1544,7 @@ type Message = { role: "user" | "assistant"; content: string };
 
 export async function POST(request: Request) {
   try {
-    const { messages, session_id, pair_id, detailed, agentContext, show_citations, context_anchor_time, conversation_id, image_id } = (await request.json()) as {
+    const { messages, session_id, pair_id, detailed, agentContext, show_citations, context_anchor_time, conversation_id, image_id, reference_doc_ids } = (await request.json()) as {
       messages: Message[];
       session_id?: string;
       pair_id?: string;
@@ -1523,6 +1554,7 @@ export async function POST(request: Request) {
       context_anchor_time?: string | null;  // 결정사항 cutoff timestamp (맥락 시작점)
       conversation_id?: string | null;  // 대화방 id (병렬 작업)
       image_id?: string | null;  // 첨부 이미지 id (doc_images) — 조던이 보고 답변
+      reference_doc_ids?: string[];  // 참고 기획서 id 목록 — 답변 시 교차 참고·충돌 점검
     };
 
     const userMessage = messages[messages.length - 1];
@@ -1544,7 +1576,8 @@ export async function POST(request: Request) {
             show_citations ?? false,  // 기본값 OFF (가독성 우선)
             context_anchor_time ?? null,  // 결정사항 cutoff
             session_id ?? null,  // 피드백 컨텍스트 조회용
-            image_id ?? null  // 첨부 이미지 — 조던이 보고 답변
+            image_id ?? null,  // 첨부 이미지 — 조던이 보고 답변
+            reference_doc_ids ?? []  // 참고 기획서 — 교차 참고·충돌 점검
           );
           // Supabase에 대화 저장
           if (session_id && pair_id) {
