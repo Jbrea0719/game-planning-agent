@@ -16,15 +16,16 @@ import { MODEL } from "@/lib/models";
 const DOC_SYSTEM_PROMPT = `당신은 영웅수집형 모바일 게임 기획서 작성 전문가입니다.
 
 [입력 구성]
-1. **본문 대화** — 사용자가 선택한 대화 구간. 이번 기획서의 주제·세부 결정의 1차 근거.
+1. **본문 대화** — 사용자가 선택한 대화 구간(맥락 전체). 이번 기획서의 주제·세부 결정의 1차 근거. **빠짐없이 반영할 것.**
 2. **기획 바이블** — 이 프로젝트에서 지금까지 누적된 전체 결정·검토 사항. 모든 기획에 일관되게 적용돼야 하는 기준 자산.
+3. **참고 기획서** — 사용자가 함께 참고하라고 선택한 기존 기획서들(있을 때만). 이번 기획서와 연계·일관성을 유지하고, 충돌·중복이 있으면 명시한다.
 
 [작성 절차]
-1단계 — 본문 대화에서 이번 기획서에 들어갈 핵심 결정·세부 사양을 추출한다.
-2단계 — 추출한 내용을 **기획 바이블 전체와 반드시 교차 검증**한다.
+1단계 — 본문 대화 전체에서 이번 기획서에 들어갈 핵심 결정·세부 사양을 빠짐없이 추출한다.
+2단계 — 추출한 내용을 **기획 바이블 전체 + 참고 기획서와 반드시 교차 검증**한다.
   • 일치하는 항목 → 본문에 자연스럽게 통합한다.
-  • 충돌하는 항목 → 본문 대화를 우선하되, "⚠️ 기획 바이블과 차이: [원래 결정] → [이번 변경]"으로 명시한다.
-  • 본문 대화에 없지만 기획 바이블에 명시된 관련 기준 → "참고: 기획 바이블 기준 [내용]"으로 보강한다.
+  • 충돌하는 항목 → 본문 대화를 우선하되, "⚠️ 기획 바이블과 차이: [원래 결정] → [이번 변경]" 또는 "⚠️ 참고 기획서와 차이: ..."로 명시한다.
+  • 본문 대화에 없지만 기획 바이블·참고 기획서에 명시된 관련 기준 → "참고: [출처] 기준 [내용]"으로 보강한다.
 3단계 — 본문의 **주제 유형을 판단**하고 그에 맞는 목차로 작성한다.
 
 [작성 원칙]
@@ -118,46 +119,72 @@ type Message = { role: "user" | "assistant"; content: string };
 
 export async function POST(request: Request) {
   try {
-    const { messages, project_id, nickname } = (await request.json()) as {
+    const { messages, project_id, nickname, reference_doc_ids } = (await request.json()) as {
       messages: Message[];
       project_id?: string;
       nickname?: string;
+      reference_doc_ids?: string[];  // 참고 기획서 id 목록 — 작성 시 연계·교차 검증
     };
 
     if (!messages || messages.length === 0) {
       return Response.json({ error: "대화 내용이 없습니다" }, { status: 400 });
     }
 
-    // 본문 대화 정리
+    // 본문 대화 정리 (선택 구간 전체, 잘림 없음)
     const conversationText = messages
       .map((m) => `[${m.role === "user" ? "질문" : "조던"}] ${m.content}`)
       .join("\n\n");
 
-    // 기획 바이블 전체 로드
+    // 기획 바이블 전체 로드 (한도 상향 — 사실상 전체)
     let bibleText = "";
     if (project_id) {
       try {
-        bibleText = await buildDecisionContext(project_id, 500, null);
+        bibleText = await buildDecisionContext(project_id, 1000, null);
       } catch (err) {
         console.error("[api/document] 기획 바이블 로드 실패:", err);
       }
     }
 
-    const userContent = bibleText
-      ? `아래 입력을 토대로 게임 기획서를 작성해주세요.\n\n` +
-        `=== 1. 본문 대화 (이번 기획서의 중심 데이터) ===\n${conversationText}\n\n` +
-        `=== 2. 기획 바이블 (전체 누적 기준 — 반드시 교차 검증) ===\n${bibleText}`
-      : `아래 대화 내용을 바탕으로 게임 기획서를 작성해주세요.\n(기획 바이블 항목은 아직 없습니다)\n\n${conversationText}`;
+    // 참고 기획서 로드 (사용자가 선택한 기존 기획서 본문)
+    let referenceText = "";
+    if (reference_doc_ids && reference_doc_ids.length > 0) {
+      try {
+        const { data: refDocs } = await supabase
+          .from("design_docs")
+          .select("title, content_markdown")
+          .in("id", reference_doc_ids);
+        if (refDocs && refDocs.length > 0) {
+          const PER = 12000;  // 기획서당 길이 상한 (토큰 관리)
+          referenceText = refDocs
+            .map((d, i) => {
+              const full = d.content_markdown || "";
+              const body = full.slice(0, PER) + (full.length > PER ? "\n…(이하 생략)" : "");
+              return `[참고 기획서 ${i + 1}: ${d.title}]\n${body}`;
+            })
+            .join("\n\n---\n\n");
+        }
+      } catch (err) {
+        console.error("[api/document] 참고 기획서 로드 실패:", err);
+      }
+    }
+
+    const sections: string[] = [
+      `=== 1. 본문 대화 (이번 기획서의 중심 데이터 — 맥락 전체) ===\n${conversationText}`,
+    ];
+    if (bibleText) sections.push(`=== 2. 기획 바이블 (전체 누적 기준 — 반드시 교차 검증) ===\n${bibleText}`);
+    if (referenceText) sections.push(`=== 3. 참고 기획서 (사용자 선택 — 연계·충돌 점검) ===\n${referenceText}`);
+    const userContent = `아래 입력을 토대로 게임 기획서를 작성해주세요. 본문 대화 전체와 기획 바이블${referenceText ? "·참고 기획서" : ""}를 빠짐없이 반영하세요.\n\n${sections.join("\n\n")}`;
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-    // 백그라운드 생성: non-streaming, 완성까지 대기
-    const res = await client.messages.create({
+    // 백그라운드 생성: 스트리밍으로 받아 max_tokens 상향(긴 기획서 지원, 비스트리밍 타임아웃 회피)
+    const stream = client.messages.stream({
       model: MODEL.DOC_WRITING,  // Opus 4.7 — 기획서 작성 최고 품질
-      max_tokens: 8192,
+      max_tokens: 16000,
       system: DOC_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userContent }],
     });
+    const res = await stream.finalMessage();
 
     const fullText = res.content
       .filter((b) => b.type === "text")

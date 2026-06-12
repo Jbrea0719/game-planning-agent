@@ -1043,6 +1043,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           messages: selectedMsgs,
           project_id: DEFAULT_PROJECT_ID,
           nickname,
+          reference_doc_ids: refDocIds,  // 참고 기획서 — 작성 시 연계·교차 검증
         }),
         signal: controller.signal,
       });
