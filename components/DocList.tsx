@@ -237,11 +237,21 @@ export default function DocList({
   function mainLeaves(m: MainNode): Leaf[] {
     return [...m.subs, ...m.areas.flatMap(a => a.subs)];
   }
-  function stats(leaves: Leaf[]): { filled: number; total: number } {
-    return { total: leaves.length, filled: leaves.filter(l => l.docs.length > 0).length };
+  // 기획서 단위 진척 — 완성(작성된 기획서 수) / 총(작성된 기획서 + 빈 소분류 슬롯)
+  function mainDocCount(m: MainNode): number {
+    return m.directDocs.length
+      + m.subs.reduce((s, l) => s + l.docs.length, 0)
+      + m.areas.reduce((s, a) => s + a.subs.reduce((ss, l) => ss + l.docs.length, 0), 0);
   }
-  const overall = stats(mains.flatMap(mainLeaves));
-  const overallPct = overall.total > 0 ? Math.round((overall.filled / overall.total) * 100) : 0;
+  function areaDocCount(a: AreaNode): number {
+    return a.subs.reduce((s, l) => s + l.docs.length, 0);
+  }
+  function emptyLeafCount(leaves: Leaf[]): number {
+    return leaves.filter(l => l.docs.length === 0).length;
+  }
+  const overallDone = mains.reduce((s, m) => s + mainDocCount(m), 0);
+  const overallTotal = overallDone + emptyLeafCount(mains.flatMap(mainLeaves));
+  const overallPct = overallTotal > 0 ? Math.round((overallDone / overallTotal) * 100) : 0;
 
   // ── 4. 필터 ────────────────────────────────────────────────────────
   const passes = (leaf: Leaf) =>
@@ -510,16 +520,15 @@ export default function DocList({
 
   // ── 카운트 배지 (채움/전체) ───────────────────────────────────────
   // 기획서 개수 기준 카운트 (대/중 옆 배지) — 소분류 폴더 수가 아니라 실제 최하위 기획서 개수
-  const mainDocCount = (m: MainNode): number =>
-    m.directDocs.length
-    + m.subs.reduce((s, l) => s + l.docs.length, 0)
-    + m.areas.reduce((s, a) => s + a.subs.reduce((ss, l) => ss + l.docs.length, 0), 0);
-  const areaDocCount = (a: AreaNode): number => a.subs.reduce((s, l) => s + l.docs.length, 0);
-  const docCountBadge = (n: number) => (
-    <span className="text-[10px] flex-shrink-0" style={{ color: n > 0 ? "rgba(120,230,170,0.9)" : "rgba(255,180,120,0.9)", fontWeight: 600 }}>
-      {n}개
-    </span>
-  );
+  // 완성된 기획서 / 총 기획서 (%) 배지 (기획서 단위)
+  const progressBadge = (done: number, total: number) => {
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    return (
+      <span className="text-[10px] flex-shrink-0" style={{ color: done < total ? "rgba(255,180,120,0.9)" : "rgba(120,230,170,0.9)", fontWeight: 600 }}>
+        {done}/{total} ({pct}%)
+      </span>
+    );
+  };
 
   // 소분류 그룹 렌더 — 드래그 정렬(전체 필터에서만) 가능
   const renderSubGroup = (leaves: Leaf[], parentKey: string) => (
@@ -551,7 +560,7 @@ export default function DocList({
               <span className="truncate" title={main.label}>{main.label}</span>
             </span>
             <span className="flex items-center gap-1.5 flex-shrink-0">
-              {docCountBadge(mainDocCount(main))}
+              {progressBadge(mainDocCount(main), mainDocCount(main) + emptyLeafCount(mainLeaves(main)))}
               <span className="inline-flex items-center justify-center w-4 h-4 rounded text-sm leading-none" style={{ color: SILVER_DIM }}>
                 {mainOpen ? "−" : "+"}
               </span>
@@ -590,7 +599,7 @@ export default function DocList({
                       <span className="truncate" title={area.label}>{area.label}</span>
                     </span>
                     <span className="flex items-center gap-1.5 flex-shrink-0">
-                      {docCountBadge(areaDocCount(area))}
+                      {progressBadge(areaDocCount(area), areaDocCount(area) + emptyLeafCount(area.subs))}
                       <span className="inline-flex items-center justify-center w-4 h-4 rounded text-sm leading-none" style={{ color: SILVER_DIM }}>
                         {areaOpen ? "−" : "+"}
                       </span>
@@ -636,7 +645,7 @@ export default function DocList({
         <div className="flex items-center justify-between mb-1">
           <span className="text-[11px]" style={{ color: SILVER_DIM }}>전체 채움</span>
           <span className="text-[11px] font-bold" style={{ color: "rgba(180,210,255,1)" }}>
-            {overall.filled}/{overall.total} ({overallPct}%)
+            {overallDone}/{overallTotal} ({overallPct}%)
           </span>
         </div>
         <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.08)" }}>
