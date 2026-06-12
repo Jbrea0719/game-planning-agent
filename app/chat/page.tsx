@@ -337,6 +337,8 @@ function DesktopChatPage() {
   const [recentDecisionsLoading, setRecentDecisionsLoading] = useState(false);
   // 인라인 신뢰도 라벨 토글 (기본 OFF — 가독성 우선, localStorage에 저장)
   const [showCitations, setShowCitations] = useState(false);
+  // 자세한 답변 자동 표시 (기본 OFF) — ON이면 답변 완료 시 자동으로 '자세한 답변'까지 펼침
+  const [autoDetail, setAutoDetail] = useState(false);
   // 결정사항 트래커 패널 (UI 명칭: 기획 바이블)
   const [showDecisionPanel, setShowDecisionPanel] = useState(false);
   const [decisionCount, setDecisionCount] = useState(0);
@@ -384,6 +386,7 @@ function DesktopChatPage() {
     if (typeof window === "undefined") return;
     const saved = localStorage.getItem("jordan_show_citations");
     if (saved === "true") setShowCitations(true);
+    if (localStorage.getItem("jordan_auto_detail") === "true") setAutoDetail(true);
     // 미확인 기획서 레드닷 복원
     const dotSaved = localStorage.getItem("jordan_doc_new_dot");
     if (dotSaved === "true") setDocNewDot(true);
@@ -394,6 +397,10 @@ function DesktopChatPage() {
     if (typeof window === "undefined") return;
     localStorage.setItem("jordan_show_citations", String(showCitations));
   }, [showCitations]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("jordan_auto_detail", String(autoDetail));
+  }, [autoDetail]);
 
   // 맥락 결정사항 모달 열릴 때 + 결정사항 갱신 시 fetch
   // 맥락선이 있으면 그 이후 created_at만 표시
@@ -1128,6 +1135,8 @@ function DesktopChatPage() {
         updateContextCard(question, cleanText);  // 맥락 카드 백그라운드 업데이트
         if (hadScrolledUp) setShowAnswerCompleteBtn(true);
         else scrollToBottom();
+        // 자세한 답변 자동 표시 옵션 ON → 답변 완료 후 자동으로 자세한 답변까지 펼침
+        if (autoDetail) void loadDetail(newPair.pair_id, newPair);
       }
     } catch {
       // AbortError·네트워크 오류 — 조용히 처리 (상태 해제는 finally)
@@ -1175,8 +1184,9 @@ function DesktopChatPage() {
     }
   }
 
-  async function loadDetail(pairId: string) {
-    const pair = pairs.find((p) => p.pair_id === pairId);
+  // pairOverride: state에 아직 반영 안 된 방금 만든 pair로도 자세한 답변을 바로 받을 수 있게 (자동 표시용)
+  async function loadDetail(pairId: string, pairOverride?: MessagePair) {
+    const pair = pairOverride ?? pairs.find((p) => p.pair_id === pairId);
     if (!pair) return;
     // 이미 저장된 자세한 답변 있으면 → 토글만 (재요청 X)
     if (pair.detail_content) {
@@ -2027,6 +2037,24 @@ function DesktopChatPage() {
                       {showCitations ? "ON" : "OFF"}
                     </button>
                   </div>
+                  {/* 자세한 답변 자동 표시 */}
+                  <div className="px-3 py-2.5 mt-2 rounded-lg flex items-center justify-between" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
+                    <div className="flex-1">
+                      <p className="text-xs font-medium" style={{ color: SILVER }}>자세한 답변 자동 표시</p>
+                      <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>답변 완료 시 [▼ 자세한 답변]을 자동으로 펼쳐요. (켜면 답변마다 비용↑ — 자세한 답변을 매번 추가 생성)</p>
+                    </div>
+                    <button
+                      onClick={() => setAutoDetail(v => !v)}
+                      className="text-xs px-3 py-1.5 rounded-lg font-medium ml-2 flex-shrink-0"
+                      style={{
+                        backgroundColor: autoDetail ? "rgba(100,220,160,0.25)" : SILVER_FAINT,
+                        border: `1px solid ${autoDetail ? "rgba(100,220,160,0.7)" : SILVER_DIM}`,
+                        color: autoDetail ? "rgba(150,255,200,1)" : SILVER,
+                      }}
+                    >
+                      {autoDetail ? "ON" : "OFF"}
+                    </button>
+                  </div>
                 </section>
 
                 {/* 화면 설계는 📄 기획서 뷰의 [🎨 화면 설계] 버튼으로 이동됨 */}
@@ -2221,7 +2249,7 @@ function DesktopChatPage() {
               <section>
                 <p className="text-xs font-bold mb-2" style={{ color: "rgba(255,220,150,1)" }}>💬 답변별 도구</p>
                 <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
-                  <p><b style={{ color: SILVER }}>▼ 자세한 답변 보기</b> — 같은 질문에 대해 더 깊이 있는 확장 설명. <b>최고 품질 모델(Opus)</b>로 작성되고 글자가 흐르듯 실시간 표시돼요.</p>
+                  <p><b style={{ color: SILVER }}>▼ 자세한 답변 보기</b> — 같은 질문에 대해 더 깊이 있는 확장 설명. <b>최고 품질 모델(Opus)</b>로 작성되고 글자가 흐르듯 실시간 표시돼요. <b>⚙️ 설정 → 답변 표시 → "자세한 답변 자동 표시"</b>를 켜면 매 답변마다 자동으로 펼쳐져요 (대신 답변마다 비용↑).</p>
                   <p><b style={{ color: SILVER }}>📋 디렉터 검토 의견</b> — 검토 에이전트가 본 답변에 대해 짚은 보완점·우려 사항.</p>
                   <p><b style={{ color: SILVER }}>👍 정확함 / 👎 부정확</b> — 피드백 저장. 부정확은 사유 입력 가능 → 차후 품질 개선에 활용.</p>
                   <p><b style={{ color: SILVER }}>📌 호버 압정</b> — 답변 좌측에 호버 시 나타남. <b>모든 페어에 표시되며 언제든 다른 시점으로 변경 가능</b>. 해제는 본문 내 맥락선 ✕로.</p>

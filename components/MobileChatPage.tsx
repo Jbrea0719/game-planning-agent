@@ -164,6 +164,8 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
 
   // 설정 상태
   const [showCitations, setShowCitations] = useState(false);
+  // 자세한 답변 자동 표시 (기본 OFF)
+  const [autoDetail, setAutoDetail] = useState(false);
   const [contextAnchorPairId, setContextAnchorPairId] = useState<string | null>(null);
   const [contextAnchorTimestamp, setContextAnchorTimestamp] = useState<string | null>(null);
   // 참고 기획서(다중) — 답변 시 교차 참고·충돌 점검. 방별 유지(localStorage)
@@ -352,8 +354,9 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     }
   }
 
-  async function loadDetail(pairId: string) {
-    const pair = pairs.find(p => p.pair_id === pairId);
+  // pairOverride: state 반영 전 방금 만든 pair로도 자세한 답변을 바로 받게 (자동 표시용)
+  async function loadDetail(pairId: string, pairOverride?: { pair_id: string; user: { content: string }; assistant: { content: string }; detail_content?: string; detail_shown?: boolean }) {
+    const pair = pairOverride ?? pairs.find(p => p.pair_id === pairId);
     if (!pair) return;
     // 이미 불러온 자세한 답변이 있으면 → 펼침/접힘 토글만 (재요청 X) + 상태 저장
     if (pair.detail_content) {
@@ -433,6 +436,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (localStorage.getItem("jordan_show_citations") === "true") setShowCitations(true);
+    if (localStorage.getItem("jordan_auto_detail") === "true") setAutoDetail(true);
     if (localStorage.getItem("jordan_doc_new_dot") === "true") setDocNewDot(true);
   }, [sessionId]);
 
@@ -441,6 +445,10 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     if (typeof window === "undefined") return;
     localStorage.setItem("jordan_show_citations", String(showCitations));
   }, [showCitations]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("jordan_auto_detail", String(autoDetail));
+  }, [autoDetail]);
 
   // 바이블 카운트 증가 → 빨간 점
   useEffect(() => {
@@ -905,6 +913,8 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           pendingAutoAnchorRef.current = false;
           setContextAnchor(newPair.pair_id, new Date().toISOString());
         }
+        // 자세한 답변 자동 표시 옵션 ON → 자동으로 자세한 답변까지 펼침
+        if (autoDetail) void loadDetail(newPair.pair_id, newPair);
       }
       setStreamFailed(false);
       lastReqRef.current = null; // 성공 → 보관 요청 비움
@@ -1629,6 +1639,8 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           isAdmin={isAdmin}
           showCitations={showCitations}
           setShowCitations={setShowCitations}
+          autoDetail={autoDetail}
+          setAutoDetail={setAutoDetail}
           onClose={() => setShowSettings(false)}
         />
       )}
@@ -1776,11 +1788,13 @@ function MenuBtn({ icon, label, subtitle, onClick }: {
 
 // ── 모바일 설정 모달 ──────────────────────────────────────────────
 function MobileSettings({
-  isAdmin, showCitations, setShowCitations, onClose,
+  isAdmin, showCitations, setShowCitations, autoDetail, setAutoDetail, onClose,
 }: {
   isAdmin: boolean;
   showCitations: boolean;
   setShowCitations: (v: boolean) => void;
+  autoDetail: boolean;
+  setAutoDetail: (v: boolean) => void;
   onClose: () => void;
 }) {
   const [showGameModal, setShowGameModal] = useState(false);
@@ -1818,6 +1832,24 @@ function MobileSettings({
                 }}
               >
                 {showCitations ? "ON" : "OFF"}
+              </button>
+            </div>
+            {/* 자세한 답변 자동 표시 */}
+            <div className="px-3 py-2.5 mt-2 rounded-lg flex items-center justify-between" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
+              <div className="flex-1">
+                <p className="text-xs font-medium" style={{ color: SILVER }}>자세한 답변 자동 표시</p>
+                <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>답변마다 자세한 답변 자동 펼침 (비용↑)</p>
+              </div>
+              <button
+                onClick={() => setAutoDetail(!autoDetail)}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium ml-2 flex-shrink-0"
+                style={{
+                  backgroundColor: autoDetail ? "rgba(100,220,160,0.25)" : SILVER_FAINT,
+                  border: `1px solid ${autoDetail ? "rgba(100,220,160,0.7)" : SILVER_DIM}`,
+                  color: autoDetail ? "rgba(150,255,200,1)" : SILVER,
+                }}
+              >
+                {autoDetail ? "ON" : "OFF"}
               </button>
             </div>
           </section>
