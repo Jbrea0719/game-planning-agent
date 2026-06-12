@@ -48,6 +48,7 @@ export default function DecisionPanel({
   reloadKey,
   categoryReloadKey,
   onGenerateDoc,
+  contextAnchorTimestamp,
 }: {
   open: boolean;
   onClose: () => void;
@@ -57,7 +58,10 @@ export default function DecisionPanel({
   reloadKey?: number;
   categoryReloadKey?: number;   // 외부에서 카테고리 변경 시 증가 → 카테고리 다시 fetch (기획서와 실시간 동기화)
   onGenerateDoc?: () => void;   // 기획서 제작 버튼 클릭 시 호출 (부모가 실제 생성 처리)
+  contextAnchorTimestamp?: string | null;  // 맥락선 시점 — '현재 맥락' 탭에서 이 이후 결정만 표시
 }) {
+  // 탭: 전체 바이블 / 현재 맥락(맥락선 이후 결정만)
+  const [tab, setTab] = useState<"all" | "context">("all");
   const [categories, setCategories] = useState<MainCategoryItem[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [loading, setLoading] = useState(false);
@@ -228,10 +232,16 @@ export default function DecisionPanel({
     }
   }
 
+  // ── 탭에 따른 표시 대상 결정 ──────────────────────────────────────
+  // '현재 맥락' 탭: 맥락선(anchor) 시점 이후 created_at 결정만. 맥락선 없으면 안내 후 빈 목록.
+  const viewDecisions = (tab === "context")
+    ? (contextAnchorTimestamp ? decisions.filter(d => d.created_at >= contextAnchorTimestamp) : [])
+    : decisions;
+
   // ── 카테고리별 결정사항 그룹핑 ────────────────────────────────────
   // sub_category_id → 결정사항들 (확정된 것만 카테고리 트리에 표시. 미정·보류는 상단 섹션으로)
   const subIdToDecisions = new Map<string, Decision[]>();
-  for (const d of decisions) {
+  for (const d of viewDecisions) {
     if (d.confidence !== "decided") continue;
     const key = d.sub_category_id ?? "_uncategorized";
     if (!subIdToDecisions.has(key)) subIdToDecisions.set(key, []);
@@ -239,7 +249,7 @@ export default function DecisionPanel({
   }
 
   // 미정·보류(확정 안 된) 결정 — 상단에 모아 표시
-  const pendingDecisions = decisions.filter(d => d.confidence !== "decided");
+  const pendingDecisions = viewDecisions.filter(d => d.confidence !== "decided");
 
   // sub_category_id → 사람이 읽는 이름 (미정 섹션의 카드에 소속 카테고리 표시용)
   function subLabelOf(subId: string | null): string {
@@ -322,6 +332,34 @@ export default function DecisionPanel({
         </button>
       </div>
 
+      {/* 탭 — 전체 / 현재 맥락 결정사항 */}
+      <div className="flex gap-1 px-4 pt-2 flex-shrink-0">
+        <button
+          onClick={() => setTab("all")}
+          className="text-xs px-3 py-1.5 rounded-t-lg font-medium"
+          style={{
+            backgroundColor: tab === "all" ? "rgba(100,220,160,0.18)" : "transparent",
+            border: `1px solid ${tab === "all" ? "rgba(100,220,160,0.5)" : SILVER_FAINT}`,
+            borderBottom: tab === "all" ? "none" : `1px solid ${SILVER_FAINT}`,
+            color: tab === "all" ? "rgba(150,255,200,1)" : SILVER_DIM,
+          }}
+        >
+          📚 전체 ({decisions.length})
+        </button>
+        <button
+          onClick={() => setTab("context")}
+          className="text-xs px-3 py-1.5 rounded-t-lg font-medium"
+          style={{
+            backgroundColor: tab === "context" ? "rgba(255,200,100,0.18)" : "transparent",
+            border: `1px solid ${tab === "context" ? "rgba(255,200,100,0.5)" : SILVER_FAINT}`,
+            borderBottom: tab === "context" ? "none" : `1px solid ${SILVER_FAINT}`,
+            color: tab === "context" ? "rgba(255,220,150,1)" : SILVER_DIM,
+          }}
+        >
+          📌 현재 맥락{contextAnchorTimestamp ? ` (${viewDecisions.length})` : ""}
+        </button>
+      </div>
+
       {/* 액션 바 */}
       <div className="flex gap-2 px-4 py-2 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
         <button
@@ -372,7 +410,19 @@ export default function DecisionPanel({
 
       {/* 결정사항 트리 */}
       <div className="flex-1 overflow-y-auto px-3 py-3" style={{ scrollbarWidth: "thin", scrollbarColor: `${SILVER_DIM} transparent` }}>
-        {decisions.length === 0 && (
+        {tab === "context" && !contextAnchorTimestamp && (
+          <p className="text-xs text-center mt-6 leading-relaxed" style={{ color: SILVER_DIM }}>
+            📌 맥락선이 설정되어 있지 않아요.<br />
+            대화에서 메시지 옆 압정(📌)으로 맥락선을 설정하면,<br />
+            그 이후 추가된 결정사항만 여기에 모여요.
+          </p>
+        )}
+        {tab === "context" && contextAnchorTimestamp && viewDecisions.length === 0 && (
+          <p className="text-xs text-center mt-6 leading-relaxed" style={{ color: SILVER_DIM }}>
+            맥락선 이후 추가된 결정사항이 아직 없어요.
+          </p>
+        )}
+        {tab === "all" && decisions.length === 0 && (
           <p className="text-xs text-center mt-6" style={{ color: SILVER_DIM }}>
             아직 누적된 기획 바이블이 없어요.<br />
             상단의 [+ 새 항목 추가] 버튼으로 추가하세요.

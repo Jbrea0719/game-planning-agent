@@ -1210,7 +1210,10 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                 <MenuBtn icon={<InstallIcon />} label="홈 화면에 추가" subtitle="사파리 공유 → '홈 화면에 추가'"
                   onClick={() => alert("사파리 하단의 공유 버튼(□↑)을 누른 뒤 '홈 화면에 추가'를 선택하면 조던이 앱으로 설치됩니다.")} />
               )}
-              <MenuBtn icon="🎤" label={interviewLoading ? "분석 중..." : "조던에게 질문 받기"} subtitle="빈 영역 자동 분석 → 다음 결정 질문" onClick={startInterview} />
+              {/* 🎤 질문 받기 — 정리를 위해 숨김. 복구하려면 false → true */}
+              {false && (
+                <MenuBtn icon="🎤" label={interviewLoading ? "분석 중..." : "조던에게 질문 받기"} subtitle="빈 영역 자동 분석 → 다음 결정 질문" onClick={startInterview} />
+              )}
               {/* 참고 기획서 — 맥락선 앞에 위치 */}
               <MenuBtn icon="📑" label={`참고 기획서${refDocIds.length ? ` (${refDocIds.length})` : ""}`} subtitle="답변 시 참고할 기존 기획서 선택" onClick={() => { setShowMenu(false); setShowRefPicker(true); }} />
               <MenuBtn icon="📌" label={contextAnchorPairId ? "맥락선 해제" : "맥락선"} subtitle={contextAnchorPairId ? "이 시점부터 조던에게 전달 중" : "설정 안 됨"}
@@ -1556,6 +1559,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         onCountChange={setDecisionCount}
         reloadKey={decisionReloadKey}
         categoryReloadKey={categoryReloadKey}
+        contextAnchorTimestamp={contextAnchorTimestamp}
       />
       <DocumentView
         open={showDocs}
@@ -1987,7 +1991,7 @@ function MobileGuide({ onClose }: { onClose: () => void }) {
           </section>
           <section>
             <p className="font-bold mb-1.5" style={{ color: "rgba(180,210,255,1)" }}>📚 기획 바이블</p>
-            <p>대화하면서 결정한 내용을 자동으로 누적·저장. 모든 기획서 작성 시 참조됨.</p>
+            <p>대화하면서 결정한 내용을 자동으로 누적·저장. 모든 기획서 작성 시 참조됨. 패널 상단 <b>[전체]/[현재 맥락]</b> 탭으로 전체 또는 맥락선 이후 결정만 볼 수 있어요.</p>
           </section>
           <section>
             <p className="font-bold mb-1.5" style={{ color: "rgba(180,210,255,1)" }}>📄 기획서</p>

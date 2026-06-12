@@ -1727,6 +1727,7 @@ function DesktopChatPage() {
         reloadKey={decisionReloadKey}
         categoryReloadKey={categoryReloadKey}
         onGenerateDoc={handleGenerateDoc}
+        contextAnchorTimestamp={contextAnchorTimestamp}
       />
 
       {/* 기획서 보기 모드 (전체 화면) */}
@@ -2204,7 +2205,7 @@ function DesktopChatPage() {
                 <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
                   <p><b style={{ color: SILVER }}>💬 대화방 (병렬 작업)</b> — 조던 이름 옆 <b>💬 버튼</b>으로 여러 대화방을 만들어 <b>주제별로 병렬 작업</b>. 카톡 채팅방처럼 [새 대화방 / 전환 / ✏️ 이름변경 / 🗑️ 삭제]. <b>방마다 대화·맥락이 독립</b>이라 서로 안 섞여요. 단, <b>기획 바이블·기획서는 전 방 공유</b>라 어느 방에서 작업해도 자산은 하나로 쌓여요. (기존 대화는 "기본 대화" 방에 그대로 보존)</p>
                   <p><b style={{ color: SILVER }}>📌 맥락</b> — 클릭하면 현재 맥락선 위치로 스크롤 + 노란 하이라이트. 설정 안 돼 있으면 <i>"맥락선이 없습니다"</i> 토스트. 설정/해제는 본문 안에서.</p>
-                  <p><b style={{ color: SILVER }}>📋 맥락 결정사항</b> — 맥락선 이하 추가된 기획 바이블 결정 목록을 빠르게 확인. 맥락선이 없으면 전체 누적 결정을 보여줘요.</p>
+                  <p><b style={{ color: SILVER }}>📚 기획 바이블 — 탭</b> — 바이블 패널 상단 <b>[전체] / [현재 맥락]</b> 탭. <b>전체</b>는 누적된 모든 결정, <b>현재 맥락</b>은 맥락선 이후 추가된 결정만 보여줘요. (옛 "📋 맥락 결정사항" 버튼이 이 탭으로 통합됨)</p>
                   <p><b style={{ color: SILVER }}>📄 기획서 작성</b> — 대화 선택 후 [✓ 작성 시작] 누르면 <i>백그라운드로 생성</i>. 작성 중에는 헤더 버튼이 "작성 중... (취소)" 표시 — <b>다시 누르면 작성 취소</b>. 완료 시 알림 토스트 + 자동으로 기획서 리스트에 새 버전 저장.</p>
                   <p><b style={{ color: SILVER }}>📄 기획서</b> — 진입 시 좌측 <b>📚 기획서 리스트</b>가 기본 열림. 좁다 싶으면 헤더 <b>⇤</b> 버튼으로 사이드바 접고 본문 넓게 보기 (모바일·PC 공통, 설정 영속). <b>모바일에서는 좌→우 스와이프로 펼치기, 우→좌 스와이프로 접기</b>도 가능. 리스트는 <b>대 &gt; 중 &gt; 소 &gt; 기획서</b> 4단계 트리. 대(인게임/아웃게임…)는 진한 배경, 중(영웅/PVP…)는 옅은 배경, 소(영웅 등급/스킬…)는 좌측 보더, 기획서는 leaf. 각 단계마다 +/− 토글. 기획서 옆 ✏️로 이름 변경, 📂로 분류 변경. 리스트 헤더의 <b>⚙️</b>로 카테고리 관리 (추가·수정·삭제). 안 본 기획서 옆에는 <b style={{ color: "rgba(255,150,150,1)" }}>빨간 점</b>(클릭하면 영구 해제). 뷰 안에서 <b>🪄 수정 요청</b>으로 자연어 지시 → 같은 기획서를 그 자리에서 갱신. 수정 전 원본은 <b>7일간 백업 폴더에 자동 보관</b>. <b>📥 내보내기</b>는 MD/TXT/HTML/PDF 4가지.</p>
                   <p><b style={{ color: SILVER }}>📖 가이드</b> — 지금 보고 있는 이 화면. 조던의 모든 기능을 한눈에 정리. 기능이 바뀌면 자동 갱신.</p>
@@ -2232,7 +2233,7 @@ function DesktopChatPage() {
                 <p className="text-xs font-bold mb-2" style={{ color: "rgba(255,210,160,1)" }}>🎤 조던 인터뷰 (능동 질문)</p>
                 <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
                   <p><b style={{ color: SILVER }}>답변 끝 후속 질문</b> — 모든 답변 끝에 조던이 다음 결정에 도움될 질문 1~2개를 자연스럽게 제안. 선택지 포함이라 답변 부담 ↓.</p>
-                  <p><b style={{ color: SILVER }}>🎤 조던에게 질문 받기 버튼</b> — 헤더(또는 모바일 ☰)에서 클릭 시, 조던이 바이블의 빈 영역을 자동 분석해 가장 중요한 미결정 항목 1개를 질문. 답변하면 자동으로 바이블에 추가.</p>
+                  <p><b style={{ color: SILVER }}>🎤 조던에게 질문 받기</b> — (현재 버튼은 숨김 처리, 기능은 보존 — 필요 시 복구 가능) 조던이 바이블의 빈 영역을 자동 분석해 미결정 항목을 질문하던 기능.</p>
                   <p>두 가지 모두 사용자가 주도하지 않아도 조던이 능동적으로 결정 영역을 채워나가도록 유도.</p>
                 </div>
               </section>
@@ -2461,23 +2462,11 @@ function DesktopChatPage() {
             </button>
           </Tooltip>
 
-          {/* ② 맥락 결정사항 — 맥락선 이하 기획 바이블에 추가된 결정 목록 */}
-          <Tooltip text={contextAnchorPairId ? "맥락선 이하 추가된 기획 결정사항 보기" : "현재 기획 바이블에 누적된 결정사항 보기"}>
-            <button
-              onClick={() => setShowContextModal(true)}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium"
-              style={{
-                backgroundColor: "rgba(255,200,100,0.1)",
-                border: "1px solid rgba(255,200,100,0.32)",
-                color: "rgba(255,215,155,0.92)",
-              }}
-            >
-              📋 맥락 결정사항
-            </button>
-          </Tooltip>
+          {/* 📋 맥락 결정사항 버튼 제거 → 기획 바이블 패널의 '현재 맥락' 탭으로 통합됨 */}
 
           {/* ───────── 그룹 B: 행동·생성 (코랄/주황) ───────── */}
-          {/* ②-1 🎤 조던 인터뷰 — 빈 곳 자동 분석해서 다음 질문 받기 */}
+          {/* ②-1 🎤 조던 인터뷰 — 헤더 정리를 위해 숨김. 복구하려면 false → true 로 변경 */}
+          {false && (
           <Tooltip text="조던이 바이블에서 빈 곳을 찾아 다음 결정을 위한 질문을 던져요">
             <button
               onClick={startInterview}
@@ -2499,6 +2488,7 @@ function DesktopChatPage() {
               )}
             </button>
           </Tooltip>
+          )}
 
           {/* ③ 기획서 작성 (그룹 B: 행동·생성, 코랄) */}
           {activePairs.length > 0 && (
