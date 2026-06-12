@@ -120,13 +120,55 @@ type Message = { role: "user" | "assistant"; content: string };
 
 export async function POST(request: Request) {
   try {
-    const { messages, project_id, nickname, reference_doc_ids } = (await request.json()) as {
-      messages: Message[];
+    const body = (await request.json()) as {
+      messages?: Message[];
       project_id?: string;
       nickname?: string;
       reference_doc_ids?: string[];  // 참고 기획서 id 목록 — 작성 시 연계·교차 검증
+      // 저장(apply) 모드 — 미리보기에서 확정한 내용을 저장만 (재생성 없음)
+      apply?: boolean;
+      content_markdown?: string;
+      title?: string;
+      category_main_id?: string | null;
+      category_area_code?: string | null;
+      category_sub_id?: string | null;
+      messages_count?: number;
     };
 
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    // ── 저장(apply) 모드: 미리보기에서 확정한 제목·내용·카테고리를 저장 (생성 X) ──
+    if (body.apply) {
+      const finalTitle = (body.title ?? "").trim() || "대화 기반 기획서";
+      if (!body.project_id || !body.content_markdown?.trim()) {
+        return Response.json({ error: "저장할 내용이 없어요" }, { status: 400 });
+      }
+      const { data: doc, error: saveErr } = await supabase
+        .from("design_docs")
+        .insert({
+          project_id: body.project_id,
+          title: finalTitle,
+          content_markdown: body.content_markdown,
+          status: "draft",
+          category_main_id: body.category_main_id ?? null,
+          category_area_code: body.category_area_code ?? null,
+          category_sub_id: body.category_sub_id ?? null,
+          decision_snapshot: { source: "chat_selection", messages_count: body.messages_count ?? 0, generated_at: new Date().toISOString() },
+          source_decision_ids: [],
+          created_by_nickname: body.nickname ?? null,
+          changes_summary: `대화 ${body.messages_count ?? 0}개 선택 + 기획 바이블 교차 검증`,
+        })
+        .select()
+        .single();
+      if (saveErr) {
+        console.error("[api/document] 저장 실패:", saveErr.message);
+        return Response.json({ error: saveErr.message }, { status: 500 });
+      }
+      return Response.json({ success: true, doc });
+    }
+
+    // ── 미리보기(preview) 모드: 생성만, 저장 안 함 ──
+    const { messages, project_id, nickname, reference_doc_ids } = body;
     if (!messages || messages.length === 0) {
       return Response.json({ error: "대화 내용이 없습니다" }, { status: 400 });
     }
@@ -176,9 +218,7 @@ export async function POST(request: Request) {
     if (referenceText) sections.push(`=== 3. 참고 기획서 (사용자 선택 — 연계·충돌 점검) ===\n${referenceText}`);
     const userContent = `아래 입력을 토대로 게임 기획서를 작성해주세요. 본문 대화 전체와 기획 바이블${referenceText ? "·참고 기획서" : ""}를 빠짐없이 반영하세요.\n\n${sections.join("\n\n")}`;
 
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    // 백그라운드 생성: 스트리밍으로 받아 max_tokens 상향(긴 기획서 지원, 비스트리밍 타임아웃 회피)
+    // 생성: 스트리밍으로 받아 max_tokens 상향(긴 기획서 지원, 비스트리밍 타임아웃 회피)
     const stream = client.messages.stream({
       model: MODEL.DOC_WRITING,  // Opus 4.7 — 기획서 작성 최고 품질
       max_tokens: 60000,  // 한국어 ~3만 자까지 허용 (스트리밍이라 타임아웃 안전)
@@ -192,55 +232,47 @@ export async function POST(request: Request) {
       .map((b) => (b as Anthropic.TextBlock).text)
       .join("");
 
-    // design_docs에 저장 (project_id 있을 때만)
-    let saved: unknown = null;
-    if (project_id) {
-      // 제목: 본문 첫 H1 추출 (없으면 기본값)
-      const titleMatch = fullText.match(/^#\s+(.+?)$/m);
-      const title = titleMatch
-        ? titleMatch[1]
-            .slice(0, 80)
-            .replace(/\s*기획서\s*$/, "")
-            .replace(/\s*기획\s*$/, "")
-            .trim() || "대화 기반 기획서"
-        : "대화 기반 기획서";
+    // 제목: 본문 첫 H1 추출 (없으면 기본값) — 미리보기에서 사용자가 수정 가능
+    const titleMatch = fullText.match(/^#\s+(.+?)$/m);
+    const title = titleMatch
+      ? titleMatch[1]
+          .slice(0, 80)
+          .replace(/\s*기획서\s*$/, "")
+          .replace(/\s*기획\s*$/, "")
+          .trim() || "대화 기반 기획서"
+      : "대화 기반 기획서";
 
-      // AI 자동 분류 — 생성된 기획서를 현재 카테고리 트리의 알맞은 폴더에 배치 (없으면 미분류)
-      const suggestion = await suggestDocumentCategory(title, fullText);
+    // 카테고리 제안 + 전체 요약 (병렬) — 미리보기 표시용
+    const [suggestion, summary] = await Promise.all([
+      suggestDocumentCategory(title, fullText),
+      (async () => {
+        try {
+          const sres = await client.messages.create({
+            model: "claude-haiku-4-5",  // 요약은 저렴한 모델로
+            max_tokens: 500,
+            system: "다음 게임 기획서를 2~4문장으로 핵심만 간략히 요약하세요. 무엇에 대한 기획서이고 어떤 핵심 결정·구조를 담았는지. 머리말·군더더기 없이 요약 본문만.",
+            messages: [{ role: "user", content: fullText.slice(0, 14000) }],
+          });
+          return sres.content.filter((b) => b.type === "text").map((b) => (b as Anthropic.TextBlock).text).join("").trim();
+        } catch {
+          return "";
+        }
+      })(),
+    ]);
 
-      const { data: doc, error: saveErr } = await supabase
-        .from("design_docs")
-        .insert({
-          project_id,
-          title,
-          content_markdown: fullText,
-          status: "draft",
-          category_main_id: suggestion.main_id,
-          category_area_code: suggestion.area_code,
-          category_sub_id: suggestion.sub_id,
-          decision_snapshot: {
-            source: "chat_selection",
-            messages_count: messages.length,
-            generated_at: new Date().toISOString(),
-          },
-          source_decision_ids: [],
-          created_by_nickname: nickname ?? null,
-          changes_summary: `대화 ${messages.length}개 선택 + 기획 바이블 교차 검증`,
-        })
-        .select()
-        .single();
-
-      if (saveErr) {
-        console.error("[api/document] 저장 실패:", saveErr.message);
-      } else {
-        saved = doc;
-      }
-    }
-
+    // 저장하지 않고 미리보기 데이터만 반환 (사용자가 제목 수정·확인 후 apply로 저장)
     return Response.json({
-      success: true,
+      preview: true,
       content: fullText,
-      doc: saved,
+      title,
+      summary,
+      category: {
+        main_id: suggestion.main_id,
+        area_code: suggestion.area_code,
+        sub_id: suggestion.sub_id,
+        label: suggestion.label,  // "대 > 영역 > 소" 또는 null(미분류)
+      },
+      messages_count: messages.length,
     });
   } catch (error) {
     console.error("[api/document] 오류:", error);

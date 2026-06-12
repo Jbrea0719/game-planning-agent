@@ -10,6 +10,7 @@ import DecisionPanel from "@/components/DecisionPanel";
 import DocumentView from "@/components/DocumentView";
 import DocPickerModal from "@/components/DocPickerModal";
 import DocRevisePreview, { type RevisePreview } from "@/components/DocRevisePreview";
+import DocGenPreview, { type DocGenPreviewData } from "@/components/DocGenPreview";
 import ExtractedReviewCard from "@/components/ExtractedReviewCard";
 import MobileChatPage from "@/components/MobileChatPage";
 import { useDeviceMode, DEVICE_FRAMES } from "@/hooks/useIsMobile";
@@ -362,6 +363,7 @@ function DesktopChatPage() {
   // 기획서 뷰
   const [showDocumentView, setShowDocumentView] = useState(false);
   const [showDocMenu, setShowDocMenu] = useState(false);  // 헤더 '📄 기획서 ▾' 드롭다운
+  const [docGenPreview, setDocGenPreview] = useState<DocGenPreviewData | null>(null);  // 기획서 작성 미리보기
   // 참고 기획서(다중) — 답변 시 교차 참고·충돌 점검. 방별 유지(localStorage)
   const [refDocIds, setRefDocIds] = useState<string[]>([]);
   const [showRefPicker, setShowRefPicker] = useState(false);
@@ -1371,21 +1373,18 @@ function DesktopChatPage() {
         signal: controller.signal,
       });
       const data = await response.json();
-      if (!response.ok || !data.success) {
+      if (!response.ok || !data.preview) {
         throw new Error(data.error ?? "생성 실패");
       }
 
-      // 저장된 doc 정보
-      const doc = data.doc as { title?: string; version_no?: number } | null;
-      const title = doc?.title ?? "새 기획서";
-      const version_no = doc?.version_no ?? 0;
-
-      // 완료 알림 + 레드닷
-      setDocCompletedNotice({ title, version_no });
-      setDocNewDot(true);
-      localStorage.setItem("jordan_doc_new_dot", "true");
-      // DocumentView 리로드 트리거
-      setDocReloadKey(k => k + 1);
+      // 저장 전 미리보기 — 제목·카테고리·요약 확인 후 [저장]에서 실제 저장
+      setDocGenPreview({
+        content: data.content,
+        title: data.title,
+        summary: data.summary ?? "",
+        category: data.category ?? { main_id: null, area_code: null, sub_id: null, label: null },
+        messages_count: data.messages_count ?? 0,
+      });
     } catch (err) {
       // 사용자가 취소한 경우는 조용히 처리
       if (err instanceof Error && err.name === "AbortError") {
@@ -1780,6 +1779,22 @@ function DesktopChatPage() {
           }
         }}
       />
+      {/* 기획서 작성 — 저장 전 미리보기 (제목 수정·카테고리·요약) */}
+      <DocGenPreview
+        open={!!docGenPreview}
+        preview={docGenPreview}
+        projectId={DEFAULT_PROJECT_ID}
+        nickname={sessionId?.replace(/^agent:/, "") ?? undefined}
+        onClose={() => setDocGenPreview(null)}
+        onSaved={(doc) => {
+          setDocGenPreview(null);
+          setDocCompletedNotice({ title: doc?.title ?? "새 기획서", version_no: doc?.version_no ?? 0 });
+          setDocNewDot(true);
+          localStorage.setItem("jordan_doc_new_dot", "true");
+          setDocReloadKey(k => k + 1);
+        }}
+      />
+
       {/* 대화 기반 수정 — 색상 diff 미리보기 + 적용 */}
       <DocRevisePreview
         open={!!revisePreview}
@@ -2236,7 +2251,7 @@ function DesktopChatPage() {
                   <p><b style={{ color: SILVER }}>💬 대화방 (병렬 작업)</b> — 조던 이름 옆 <b>💬 버튼</b>으로 여러 대화방을 만들어 <b>주제별로 병렬 작업</b>. 카톡 채팅방처럼 [새 대화방 / 전환 / ✏️ 이름변경 / 🗑️ 삭제]. <b>방마다 대화·맥락이 독립</b>이라 서로 안 섞여요. 단, <b>기획 바이블·기획서는 전 방 공유</b>라 어느 방에서 작업해도 자산은 하나로 쌓여요. (기존 대화는 "기본 대화" 방에 그대로 보존)</p>
                   <p><b style={{ color: SILVER }}>📌 맥락</b> — 클릭하면 현재 맥락선 위치로 스크롤 + 노란 하이라이트. 설정 안 돼 있으면 <i>"맥락선이 없습니다"</i> 토스트. 설정/해제는 본문 안에서.</p>
                   <p><b style={{ color: SILVER }}>📚 기획 바이블 — 탭</b> — 바이블 패널 상단 <b>[전체] / [현재 맥락]</b> 탭. <b>전체</b>는 누적된 모든 결정, <b>현재 맥락</b>은 맥락선 이후 추가된 결정만 보여줘요. (옛 "📋 맥락 결정사항" 버튼이 이 탭으로 통합됨)</p>
-                  <p><b style={{ color: SILVER }}>📄 기획서 ▾ (드롭다운)</b> — 헤더의 한 버튼에 <b>[📂 리스트 이동 / ✍️ 현재 맥락으로 작성 / 🛠️ 현재 맥락으로 수정]</b>이 묶여 있어요. <b>작성</b>은 대화 선택 후 [✓ 작성 시작] → 백그라운드 생성(작성 중엔 메뉴가 "작성 취소"). <b>수정</b>은 맥락선 범위 대화로 기존 기획서를 색상 미리보기 후 적용. <b>리스트 이동</b>은 기획서 뷰 열기.</p>
+                  <p><b style={{ color: SILVER }}>📄 기획서 ▾ (드롭다운)</b> — 헤더의 한 버튼에 <b>[📂 리스트 이동 / ✍️ 현재 맥락으로 작성 / 🛠️ 현재 맥락으로 수정]</b>이 묶여 있어요. <b>작성</b>은 대화 선택 후 [✓ 작성 시작] → 백그라운드 생성 → <b>저장 전 미리보기</b>(제목 수정 가능·카테고리 위치·전체 요약 확인) → [저장]. <b>수정</b>은 맥락선 범위 대화로 기존 기획서를 색상 미리보기 후 적용. <b>리스트 이동</b>은 기획서 뷰 열기.</p>
                   <p><b style={{ color: SILVER }}>📄 기획서</b> — 진입 시 좌측 <b>📚 기획서 리스트</b>가 기본 열림. 좁다 싶으면 헤더 <b>⇤</b> 버튼으로 사이드바 접고 본문 넓게 보기 (모바일·PC 공통, 설정 영속). <b>모바일에서는 좌→우 스와이프로 펼치기, 우→좌 스와이프로 접기</b>도 가능. 리스트는 <b>대 &gt; 중 &gt; 소 &gt; 기획서</b> 4단계 트리. 대(인게임/아웃게임…)는 진한 배경, 중(영웅/PVP…)는 옅은 배경, 소(영웅 등급/스킬…)는 좌측 보더, 기획서는 leaf. 각 단계마다 +/− 토글. 기획서 옆 ✏️로 이름 변경, 📂로 분류 변경. 리스트 헤더의 <b>⚙️</b>로 카테고리 관리 — 대/중/소 추가·수정·삭제는 물론, <b>각 카테고리 아래 최하위 기획서(📄)도 표시돼 🗑️로 삭제</b> 가능 (미분류·직속 기획서 포함). 안 본 기획서 옆에는 <b style={{ color: "rgba(255,150,150,1)" }}>빨간 점</b>(클릭하면 영구 해제). 뷰 안에서 <b>🪄 수정 요청</b>으로 자연어 지시 → 같은 기획서를 그 자리에서 갱신. 수정 전 원본은 <b>7일간 백업 폴더에 자동 보관</b>. <b>📥 내보내기</b>는 MD/TXT/HTML/PDF 4가지.</p>
                   <p><b style={{ color: SILVER }}>📖 가이드</b> — 지금 보고 있는 이 화면. 조던의 모든 기능을 한눈에 정리. 기능이 바뀌면 자동 갱신.</p>
                   <p><b style={{ color: SILVER }}>📱 모바일</b> — 같은 URL을 모바일에서 열면 자동으로 모바일 전용 뷰. 햄버거 메뉴(☰) 안에 모든 도구. 닉네임만 같으면 데이터·기획 바이블·기획서 자동 동기화. <i>?view=desktop</i> 쿼리로 PC 뷰 강제 가능.</p>

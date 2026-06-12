@@ -12,6 +12,7 @@ import DecisionPanel from "@/components/DecisionPanel";
 import DocumentView from "@/components/DocumentView";
 import DocPickerModal from "@/components/DocPickerModal";
 import DocRevisePreview, { type RevisePreview } from "@/components/DocRevisePreview";
+import DocGenPreview, { type DocGenPreviewData } from "@/components/DocGenPreview";
 import { REFERENCE_GAMES } from "@/lib/reference-games";
 
 // 안드로이드 크롬의 PWA 설치 이벤트 타입 (표준 DOM 타입에 없어 직접 선언)
@@ -177,6 +178,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   const [showReviseTargetPicker, setShowReviseTargetPicker] = useState(false);
   const [revisePreview, setRevisePreview] = useState<RevisePreview | null>(null);
   const [reviseGenLoading, setReviseGenLoading] = useState(false);
+  const [docGenPreview, setDocGenPreview] = useState<DocGenPreviewData | null>(null);  // 기획서 작성 미리보기
   // 대화방 (병렬 작업)
   const [conversations, setConversations] = useState<{ id: string; title: string }[]>([]);
   const [currentConvId, setCurrentConvId] = useState<string | null>(null);
@@ -1048,12 +1050,15 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         signal: controller.signal,
       });
       const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error ?? "fail");
-      const title = data.doc?.title ?? "새 기획서";
-      setDocCompletedNotice({ title });
-      setDocNewDot(true);
-      localStorage.setItem("jordan_doc_new_dot", "true");
-      setDocReloadKey(k => k + 1);
+      if (!res.ok || !data.preview) throw new Error(data.error ?? "fail");
+      // 저장 전 미리보기 — 제목·카테고리·요약 확인 후 저장
+      setDocGenPreview({
+        content: data.content,
+        title: data.title,
+        summary: data.summary ?? "",
+        category: data.category ?? { main_id: null, area_code: null, sub_id: null, label: null },
+        messages_count: data.messages_count ?? 0,
+      });
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") { /* 취소 */ }
       else alert(`기획서 작성 실패: ${String(err)}`);
@@ -1610,6 +1615,21 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         }}
       />
       {/* 대화 기반 수정 — 색상 diff 미리보기 + 적용 */}
+      {/* 기획서 작성 — 저장 전 미리보기 (제목 수정·카테고리·요약) */}
+      <DocGenPreview
+        open={!!docGenPreview}
+        preview={docGenPreview}
+        projectId={DEFAULT_PROJECT_ID}
+        nickname={nickname}
+        onClose={() => setDocGenPreview(null)}
+        onSaved={(doc) => {
+          setDocGenPreview(null);
+          setDocCompletedNotice({ title: doc?.title ?? "새 기획서" });
+          setDocNewDot(true);
+          localStorage.setItem("jordan_doc_new_dot", "true");
+          setDocReloadKey(k => k + 1);
+        }}
+      />
       <DocRevisePreview
         open={!!revisePreview}
         preview={revisePreview}
