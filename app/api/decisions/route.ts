@@ -3,6 +3,7 @@
 // POST /api/decisions                 → 새 결정사항 추가 (수동 입력)
 
 import { supabase } from "@/lib/supabase";
+import { logActivity } from "@/lib/activity-log";
 
 interface DecisionRow {
   id: string;
@@ -123,6 +124,16 @@ export async function POST(request: Request) {
       console.error("[decisions] 생성 실패:", error.message);
       return Response.json({ error: error.message }, { status: 500 });
     }
+
+    // 변경 히스토리 기록 (실패해도 무시)
+    await logActivity({
+      scope: "jordan",
+      action: "create",
+      entity: "decision",
+      title: body.content.slice(0, 80),
+      target_id: data?.id,
+      nickname: body.nickname,
+    });
 
     return Response.json({ decision: data });
   } catch (err) {

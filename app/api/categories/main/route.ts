@@ -2,6 +2,7 @@
 // POST: 신규 생성
 
 import { supabase } from "@/lib/supabase";
+import { logActivity } from "@/lib/activity-log";
 
 export async function POST(request: Request) {
   try {
@@ -43,6 +44,17 @@ export async function POST(request: Request) {
       .single();
 
     if (error) return Response.json({ error: error.message }, { status: 500 });
+
+    // 변경 히스토리 기록 (실패해도 무시)
+    await logActivity({
+      scope: "jordan",
+      action: "create",
+      entity: "category",
+      title: name_ko.trim(),
+      detail: "대카테고리",
+      target_id: safeId,
+    });
+
     return Response.json({ main: data });
   } catch (err) {
     return Response.json({ error: String(err) }, { status: 500 });

@@ -2,6 +2,7 @@
 // area_code/area_name이 있으면 그 영역(중카테고리) 아래로 들어감
 
 import { supabase } from "@/lib/supabase";
+import { logActivity } from "@/lib/activity-log";
 
 export async function POST(request: Request) {
   try {
@@ -44,6 +45,17 @@ export async function POST(request: Request) {
       .single();
 
     if (error) return Response.json({ error: error.message }, { status: 500 });
+
+    // 변경 히스토리 기록 (실패해도 무시)
+    await logActivity({
+      scope: "jordan",
+      action: "create",
+      entity: "category",
+      title: name_ko.trim(),
+      detail: "소카테고리",
+      target_id: safeId,
+    });
+
     return Response.json({ sub: data });
   } catch (err) {
     return Response.json({ error: String(err) }, { status: 500 });

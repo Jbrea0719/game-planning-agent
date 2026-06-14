@@ -4,6 +4,7 @@
 // DELETE /api/decisions/[id]  → 삭제
 
 import { supabase } from "@/lib/supabase";
+import { logActivity } from "@/lib/activity-log";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -68,6 +69,16 @@ export async function PATCH(request: Request, context: RouteContext) {
       return Response.json({ error: error.message }, { status: 500 });
     }
 
+    // 변경 히스토리 기록 (실패해도 무시)
+    await logActivity({
+      scope: "jordan",
+      action: "update",
+      entity: "decision",
+      title: (body.content ?? (data?.content as string | undefined) ?? id).slice(0, 80),
+      target_id: id,
+      nickname: body.nickname,
+    });
+
     return Response.json({ decision: data });
   } catch (err) {
     console.error("[decisions/id] 오류:", err);
@@ -79,12 +90,29 @@ export async function PATCH(request: Request, context: RouteContext) {
 export async function DELETE(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
+
+    // 삭제 전 content를 미리 읽어 히스토리 제목으로 사용
+    const { data: existing } = await supabase
+      .from("decisions")
+      .select("content")
+      .eq("id", id)
+      .maybeSingle();
+
     const { error } = await supabase.from("decisions").delete().eq("id", id);
 
     if (error) {
       console.error("[decisions/id] 삭제 실패:", error.message);
       return Response.json({ error: error.message }, { status: 500 });
     }
+
+    // 변경 히스토리 기록 (실패해도 무시)
+    await logActivity({
+      scope: "jordan",
+      action: "delete",
+      entity: "decision",
+      title: ((existing?.content as string | undefined) ?? id).slice(0, 80),
+      target_id: id,
+    });
 
     return Response.json({ ok: true });
   } catch (err) {

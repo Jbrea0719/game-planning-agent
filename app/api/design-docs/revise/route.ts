@@ -13,6 +13,7 @@ import { buildDecisionContext } from "@/lib/decision-context";
 import { supabase } from "@/lib/supabase";
 import { createBackup } from "@/lib/doc-backup";
 import { MODEL } from "@/lib/models";
+import { logActivity } from "@/lib/activity-log";
 
 const REVISE_SYSTEM_PROMPT = `당신은 영웅수집형 모바일 게임 기획서 편집 전문가입니다.
 
@@ -136,6 +137,17 @@ export async function POST(request: Request) {
       console.error("[design-docs/revise] 저장 실패:", saveErr.message);
       return Response.json({ error: saveErr.message }, { status: 500 });
     }
+
+    // 변경 히스토리 기록 (실패해도 무시)
+    await logActivity({
+      scope: "doc",
+      action: "update",
+      entity: "doc",
+      title: newTitle,
+      detail: `수정 요청: ${shortInstr}`,
+      target_id: doc_id,
+      nickname,
+    });
 
     return Response.json({ success: true, doc: saved });
   } catch (err) {

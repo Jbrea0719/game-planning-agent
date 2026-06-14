@@ -13,6 +13,7 @@ import DocRevisePreview, { type RevisePreview } from "@/components/DocRevisePrev
 import DocGenPreview, { type DocGenPreviewData } from "@/components/DocGenPreview";
 import ExtractedReviewCard from "@/components/ExtractedReviewCard";
 import MobileChatPage from "@/components/MobileChatPage";
+import HistoryPanel from "@/components/HistoryPanel";
 import { useDeviceMode, DEVICE_FRAMES } from "@/hooks/useIsMobile";
 import { useCrossTabSync } from "@/hooks/useCrossTabSync";
 
@@ -2099,6 +2100,13 @@ function DesktopChatPage() {
                       {autoDetail ? "ON" : "OFF"}
                     </button>
                   </div>
+                </section>
+
+                {/* 🕘 히스토리 — 변경 이력 (조던 기능 / 기획서) */}
+                <section>
+                  <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🕘 히스토리</p>
+                  <p className="text-[10px] mb-2" style={{ color: SILVER_DIM }}>결정사항·카테고리·기획서의 추가·수정·삭제 기록 (각 항목 수정·삭제 가능)</p>
+                  <HistoryPanel />
                 </section>
 
                 {/* 화면 설계는 📄 기획서 뷰의 [🎨 화면 설계] 버튼으로 이동됨 */}

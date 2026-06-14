@@ -15,6 +15,7 @@ import DocRevisePreview, { type RevisePreview } from "@/components/DocRevisePrev
 import DocGenPreview, { type DocGenPreviewData } from "@/components/DocGenPreview";
 import { useCrossTabSync } from "@/hooks/useCrossTabSync";
 import { REFERENCE_GAMES } from "@/lib/reference-games";
+import HistoryPanel from "@/components/HistoryPanel";
 
 // 안드로이드 크롬의 PWA 설치 이벤트 타입 (표준 DOM 타입에 없어 직접 선언)
 interface BeforeInstallPromptEvent extends Event {
@@ -1913,6 +1914,13 @@ function MobileSettings({
                 {autoDetail ? "ON" : "OFF"}
               </button>
             </div>
+          </section>
+
+          {/* 🕘 히스토리 — 변경 이력 (조던 기능 / 기획서) */}
+          <section>
+            <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🕘 히스토리</p>
+            <p className="text-[10px] mb-2" style={{ color: SILVER_DIM }}>결정사항·카테고리·기획서의 추가·수정·삭제 기록</p>
+            <HistoryPanel />
           </section>
 
           {/* 참고 게임 — 데스크톱과 동일(공용 REFERENCE_GAMES). 탭하면 라이브러리 모달 */}

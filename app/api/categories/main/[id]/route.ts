@@ -1,6 +1,7 @@
 // 대카테고리 단건 PATCH / DELETE
 
 import { supabase } from "@/lib/supabase";
+import { logActivity } from "@/lib/activity-log";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -27,6 +28,17 @@ export async function PATCH(request: Request, context: RouteContext) {
       .single();
 
     if (error) return Response.json({ error: error.message }, { status: 500 });
+
+    // 변경 히스토리 기록 (실패해도 무시)
+    await logActivity({
+      scope: "jordan",
+      action: "update",
+      entity: "category",
+      title: (data?.name_ko as string | undefined) ?? id,
+      detail: "대카테고리",
+      target_id: id,
+    });
+
     return Response.json({ main: data });
   } catch (err) {
     return Response.json({ error: String(err) }, { status: 500 });
@@ -50,11 +62,29 @@ export async function DELETE(request: Request, context: RouteContext) {
       );
     }
 
+    // 삭제 전 이름을 미리 읽어 히스토리 제목으로 사용
+    const { data: existing } = await supabase
+      .from("main_categories")
+      .select("name_ko")
+      .eq("id", id)
+      .maybeSingle();
+
     const { error } = await supabase
       .from("main_categories")
       .delete()
       .eq("id", id);
     if (error) return Response.json({ error: error.message }, { status: 500 });
+
+    // 변경 히스토리 기록 (실패해도 무시)
+    await logActivity({
+      scope: "jordan",
+      action: "delete",
+      entity: "category",
+      title: (existing?.name_ko as string | undefined) ?? id,
+      detail: "대카테고리",
+      target_id: id,
+    });
+
     return Response.json({ ok: true });
   } catch (err) {
     return Response.json({ error: String(err) }, { status: 500 });

@@ -4,6 +4,7 @@
 // DELETE /api/design-docs/[id]  → 삭제
 
 import { supabase } from "@/lib/supabase";
+import { logActivity } from "@/lib/activity-log";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -61,6 +62,18 @@ export async function PATCH(request: Request, context: RouteContext) {
       console.error("[design-docs/id] 편집 실패:", error.message);
       return Response.json({ error: error.message }, { status: 500 });
     }
+
+    // 변경 히스토리 기록 (실패해도 무시)
+    await logActivity({
+      scope: "doc",
+      action: "update",
+      entity: "doc",
+      title: (data?.title as string | undefined) ?? id,
+      detail: "직접 편집",
+      target_id: id,
+      nickname: body.nickname,
+    });
+
     return Response.json({ doc: data });
   } catch (err) {
     return Response.json({ error: String(err) }, { status: 500 });
@@ -70,11 +83,29 @@ export async function PATCH(request: Request, context: RouteContext) {
 export async function DELETE(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
+
+    // 삭제 전 제목을 미리 읽어 히스토리 제목으로 사용
+    const { data: existing } = await supabase
+      .from("design_docs")
+      .select("title")
+      .eq("id", id)
+      .maybeSingle();
+
     const { error } = await supabase.from("design_docs").delete().eq("id", id);
     if (error) {
       console.error("[design-docs/id] 삭제 실패:", error.message);
       return Response.json({ error: error.message }, { status: 500 });
     }
+
+    // 변경 히스토리 기록 (실패해도 무시)
+    await logActivity({
+      scope: "doc",
+      action: "delete",
+      entity: "doc",
+      title: (existing?.title as string | undefined) ?? id,
+      target_id: id,
+    });
+
     return Response.json({ ok: true });
   } catch (err) {
     return Response.json({ error: String(err) }, { status: 500 });

@@ -12,6 +12,7 @@ import { buildDecisionContext } from "@/lib/decision-context";
 import { supabase } from "@/lib/supabase";
 import { suggestDocumentCategory } from "@/lib/document-categorizer";
 import { MODEL } from "@/lib/models";
+import { logActivity } from "@/lib/activity-log";
 
 const DOC_SYSTEM_PROMPT = `당신은 영웅수집형 모바일 게임 기획서 작성 전문가입니다.
 
@@ -164,6 +165,17 @@ export async function POST(request: Request) {
         console.error("[api/document] 저장 실패:", saveErr.message);
         return Response.json({ error: saveErr.message }, { status: 500 });
       }
+
+      // 변경 히스토리 기록 (실패해도 무시)
+      await logActivity({
+        scope: "doc",
+        action: "create",
+        entity: "doc",
+        title: finalTitle,
+        target_id: doc?.id,
+        nickname: body.nickname,
+      });
+
       return Response.json({ success: true, doc });
     }
 

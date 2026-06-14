@@ -11,6 +11,7 @@ import { buildDecisionContext } from "@/lib/decision-context";
 import { supabase } from "@/lib/supabase";
 import { createBackup } from "@/lib/doc-backup";
 import { MODEL } from "@/lib/models";
+import { logActivity } from "@/lib/activity-log";
 
 type ChatMsg = { role: "user" | "assistant"; content: string };
 
@@ -82,6 +83,18 @@ export async function POST(request: Request) {
         .select()
         .single();
       if (saveErr) return Response.json({ error: saveErr.message }, { status: 500 });
+
+      // 변경 히스토리 기록 (실패해도 무시)
+      await logActivity({
+        scope: "doc",
+        action: "update",
+        entity: "doc",
+        title: newTitle,
+        detail: "대화 기반 수정",
+        target_id: doc_id,
+        nickname,
+      });
+
       return Response.json({ success: true, doc: saved });
     }
 
