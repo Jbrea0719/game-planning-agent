@@ -33,6 +33,9 @@ function InstallIcon({ size = 16 }: { size?: number }) {
 }
 import ExtractedReviewCard, { type ExtractedItem } from "@/components/ExtractedReviewCard";
 import { useSpeechRecognition, applyVoiceCommands } from "@/hooks/useSpeechRecognition";
+import ImageIntentBar from "@/components/ImageIntentBar";
+import ImageAnnotator from "@/components/ImageAnnotator";
+import { buildImageIntentPrefix } from "@/lib/image-intent";
 
 // WireframeEditor·MockupGenerator는 DocumentView 안에서 호출 (📄 기획서 → 🎨 화면 설계)
 
@@ -122,6 +125,17 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   // 첨부 이미지 (전송 전 미리보기) + 업로드 상태
   const [attachedImage, setAttachedImage] = useState<{ dataUrl: string; mime: string; base64: string } | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
+  // 이미지 의도 태그 + 메모 + 영역표시 (Feature H)
+  const [imageIntentTags, setImageIntentTags] = useState<string[]>([]);
+  const [imageMemo, setImageMemo] = useState("");
+  const [imageHasAnnotation, setImageHasAnnotation] = useState(false);
+  const [showAnnotator, setShowAnnotator] = useState(false);
+  function clearAttachedImage() {
+    setAttachedImage(null);
+    setImageIntentTags([]);
+    setImageMemo("");
+    setImageHasAnnotation(false);
+  }
   // 답변 스트림 실패(네트워크 끊김·백그라운드 등) 상태 — 재시도 버튼·자동 재시도용
   const [streamFailed, setStreamFailed] = useState(false);
   const streamCancelledRef = useRef(false); // 사용자가 직접 '취소'한 경우 구분(자동 재시도 안 함)
@@ -786,6 +800,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
       const mime = head.slice(head.indexOf(":") + 1, head.indexOf(";"));
       setAttachedImage({ dataUrl, mime, base64 });
+      setImageHasAnnotation(false);  // 새 이미지 → 영역표시 초기화
     } catch (e) {
       console.warn("[image] 처리 실패:", e);
     } finally {
@@ -870,7 +885,11 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     const trimmed = input.trim();
     const img = attachedImage;  // 전송 시점 고정
     if ((!trimmed && !img) || isLoading || imageUploading) return;
-    const question = trimmed || "첨부한 이미지를 보고 분석·평가해줘.";
+    const baseQuestion = trimmed || "첨부한 이미지를 보고 분석·평가해줘.";
+    // 이미지 의도 태그·메모·영역표시 지침을 질문 앞에 붙임 (Feature H)
+    const question = img
+      ? buildImageIntentPrefix(imageIntentTags, imageMemo, imageHasAnnotation) + baseQuestion
+      : baseQuestion;
     const pairId = crypto.randomUUID();
 
     const visiblePairs = pairs;
@@ -887,7 +906,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       { role: "user" as const, content: question },
     ];
     setInput("");
-    setAttachedImage(null);  // 첨부 미리보기 즉시 비우기 (UX)
+    clearAttachedImage();  // 첨부 미리보기·의도 즉시 비우기 (UX)
     if (inputRef.current) { inputRef.current.style.height = "auto"; }
 
     // 첨부 이미지가 있으면 먼저 업로드 → image_id 확보 (표시·조던 전달용)
@@ -1563,12 +1582,28 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
             ) : attachedImage && (
               <div className="relative inline-block">
                 <img src={attachedImage.dataUrl} alt="첨부 미리보기" className="h-16 w-auto rounded-lg" style={{ border: `1px solid ${SILVER_FAINT}` }} />
-                <button onClick={() => setAttachedImage(null)}
+                <button onClick={clearAttachedImage}
                   className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-xs"
                   style={{ backgroundColor: "rgba(20,28,44,0.95)", border: `1px solid ${SILVER_FAINT}`, color: SILVER }}>✕</button>
               </div>
             )}
           </div>
+        )}
+        {/* 이미지 의도 태그 + 메모 + 영역표시 (Feature H) */}
+        {attachedImage && (
+          <ImageIntentBar
+            tags={imageIntentTags} setTags={setImageIntentTags}
+            memo={imageMemo} setMemo={setImageMemo}
+            hasAnnotation={imageHasAnnotation}
+            onAnnotate={() => setShowAnnotator(true)}
+          />
+        )}
+        {showAnnotator && attachedImage && (
+          <ImageAnnotator
+            src={attachedImage.dataUrl}
+            onCancel={() => setShowAnnotator(false)}
+            onDone={(dataUrl, mime, base64) => { setAttachedImage({ dataUrl, mime, base64 }); setImageHasAnnotation(true); setShowAnnotator(false); }}
+          />
         )}
         <div className="px-3 py-2.5 flex gap-2 items-end">
         {/* 숨김 파일 input + 첨부 버튼 */}

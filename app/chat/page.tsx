@@ -14,6 +14,9 @@ import DocGenPreview, { type DocGenPreviewData } from "@/components/DocGenPrevie
 import ExtractedReviewCard from "@/components/ExtractedReviewCard";
 import MobileChatPage from "@/components/MobileChatPage";
 import HistoryPanel from "@/components/HistoryPanel";
+import ImageIntentBar from "@/components/ImageIntentBar";
+import ImageAnnotator from "@/components/ImageAnnotator";
+import { buildImageIntentPrefix } from "@/lib/image-intent";
 import { useDeviceMode, DEVICE_FRAMES } from "@/hooks/useIsMobile";
 import { useCrossTabSync } from "@/hooks/useCrossTabSync";
 
@@ -292,6 +295,18 @@ function DesktopChatPage() {
   // 첨부 이미지 (전송 전 미리보기) + 업로드 상태
   const [attachedImage, setAttachedImage] = useState<{ dataUrl: string; mime: string; base64: string } | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
+  // 이미지 의도 태그 + 메모 + 영역표시 (Feature H)
+  const [imageIntentTags, setImageIntentTags] = useState<string[]>([]);
+  const [imageMemo, setImageMemo] = useState("");
+  const [imageHasAnnotation, setImageHasAnnotation] = useState(false);
+  const [showAnnotator, setShowAnnotator] = useState(false);
+  // 이미지 첨부 해제 시 의도 상태도 초기화
+  function clearAttachedImage() {
+    setAttachedImage(null);
+    setImageIntentTags([]);
+    setImageMemo("");
+    setImageHasAnnotation(false);
+  }
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   // 방별 생성 중 상태 — 여러 대화방에서 동시에 답변 생성(백그라운드) 가능
@@ -1055,6 +1070,7 @@ function DesktopChatPage() {
       const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
       const mime = head.slice(head.indexOf(":") + 1, head.indexOf(";"));
       setAttachedImage({ dataUrl, mime, base64 });
+      setImageHasAnnotation(false);  // 새 이미지 → 영역표시 초기화 (의도 태그·메모는 유지)
     } catch (e) {
       console.warn("[image] 처리 실패:", e);
     } finally {
@@ -1068,13 +1084,17 @@ function DesktopChatPage() {
     if ((!trimmed && !img) || isLoading || imageUploading) return;
     // 방 미선택(새 탭에서 아직 방을 안 고른 상태) — 빈 방으로 전송 방지, 목록을 열어 선택 유도
     if (!currentConvIdRef.current) { setShowConvList(true); alert("먼저 위쪽 💬 버튼에서 작업할 대화방을 선택하세요."); return; }
-    const question = trimmed || "첨부한 이미지를 보고 분석·평가해줘.";
+    const baseQuestion = trimmed || "첨부한 이미지를 보고 분석·평가해줘.";
+    // 이미지 첨부 시 의도 태그·메모·영역표시 지침을 질문 앞에 붙여 조던 시야를 좁힘 (Feature H)
+    const question = img
+      ? buildImageIntentPrefix(imageIntentTags, imageMemo, imageHasAnnotation) + baseQuestion
+      : baseQuestion;
     const pairId = crypto.randomUUID();
     const time = getTime();
 
     // 입력창·첨부 미리보기 즉시 비우기 (UX)
     setInput("");
-    setAttachedImage(null);
+    clearAttachedImage();
     if (inputRef.current) inputRef.current.style.height = "auto"; // 전송 후 입력창 높이 기본값 복원
     userScrolledUpRef.current = false; // 새 질문 시작 시 초기화
 
@@ -2384,6 +2404,19 @@ function DesktopChatPage() {
         );
       })()}
 
+      {/* ✏️ 이미지 영역 표시기 (Feature H) */}
+      {showAnnotator && attachedImage && (
+        <ImageAnnotator
+          src={attachedImage.dataUrl}
+          onCancel={() => setShowAnnotator(false)}
+          onDone={(dataUrl, mime, base64) => {
+            setAttachedImage({ dataUrl, mime, base64 });
+            setImageHasAnnotation(true);
+            setShowAnnotator(false);
+          }}
+        />
+      )}
+
       {/* 🕘 히스토리 팝업 — 변경 이력 (조던 기능 / 기획서) */}
       {showHistoryModal && (
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-[60] p-4" onClick={() => setShowHistoryModal(false)}>
@@ -3244,12 +3277,21 @@ function DesktopChatPage() {
             ) : attachedImage && (
               <div className="relative inline-block">
                 <img src={attachedImage.dataUrl} alt="첨부 미리보기" className="h-20 w-auto rounded-lg" style={{ border: `1px solid ${SILVER_FAINT}` }} />
-                <button onClick={() => setAttachedImage(null)}
+                <button onClick={clearAttachedImage}
                   className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-xs"
                   style={{ backgroundColor: "rgba(20,28,44,0.95)", border: `1px solid ${SILVER_FAINT}`, color: SILVER }}>✕</button>
               </div>
             )}
           </div>
+        )}
+        {/* 이미지 의도 태그 + 메모 + 영역표시 (Feature H) */}
+        {attachedImage && (
+          <ImageIntentBar
+            tags={imageIntentTags} setTags={setImageIntentTags}
+            memo={imageMemo} setMemo={setImageMemo}
+            hasAnnotation={imageHasAnnotation}
+            onAnnotate={() => setShowAnnotator(true)}
+          />
         )}
         <div className="px-4 py-3 flex gap-2 items-end">
           {/* 숨김 파일 input + 첨부 버튼 */}
