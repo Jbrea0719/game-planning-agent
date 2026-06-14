@@ -16,6 +16,7 @@ import MobileChatPage from "@/components/MobileChatPage";
 import HistoryPanel from "@/components/HistoryPanel";
 import ImageIntentBar from "@/components/ImageIntentBar";
 import ImageAnnotator from "@/components/ImageAnnotator";
+import SketchWireframeModal from "@/components/SketchWireframeModal";
 import { buildImageIntentPrefix } from "@/lib/image-intent";
 import { useDeviceMode, DEVICE_FRAMES } from "@/hooks/useIsMobile";
 import { useCrossTabSync } from "@/hooks/useCrossTabSync";
@@ -300,6 +301,7 @@ function DesktopChatPage() {
   const [imageMemo, setImageMemo] = useState("");
   const [imageHasAnnotation, setImageHasAnnotation] = useState(false);
   const [showAnnotator, setShowAnnotator] = useState(false);
+  const [showSketchModal, setShowSketchModal] = useState(false);  // 스케치→와이어프레임 (Feature L)
   // 이미지 첨부 해제 시 의도 상태도 초기화
   function clearAttachedImage() {
     setAttachedImage(null);
@@ -2417,6 +2419,16 @@ function DesktopChatPage() {
         />
       )}
 
+      {/* 📐 스케치 → 와이어프레임 (Feature L) */}
+      {showSketchModal && attachedImage && (
+        <SketchWireframeModal
+          imageBase64={attachedImage.base64}
+          mime={attachedImage.mime}
+          note={imageMemo}
+          onClose={() => setShowSketchModal(false)}
+        />
+      )}
+
       {/* 🕘 히스토리 팝업 — 변경 이력 (조던 기능 / 기획서) */}
       {showHistoryModal && (
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-[60] p-4" onClick={() => setShowHistoryModal(false)}>
@@ -3291,6 +3303,7 @@ function DesktopChatPage() {
             memo={imageMemo} setMemo={setImageMemo}
             hasAnnotation={imageHasAnnotation}
             onAnnotate={() => setShowAnnotator(true)}
+            onSketch={() => setShowSketchModal(true)}
           />
         )}
         <div className="px-4 py-3 flex gap-2 items-end">

@@ -35,6 +35,7 @@ import ExtractedReviewCard, { type ExtractedItem } from "@/components/ExtractedR
 import { useSpeechRecognition, applyVoiceCommands } from "@/hooks/useSpeechRecognition";
 import ImageIntentBar from "@/components/ImageIntentBar";
 import ImageAnnotator from "@/components/ImageAnnotator";
+import SketchWireframeModal from "@/components/SketchWireframeModal";
 import { buildImageIntentPrefix } from "@/lib/image-intent";
 
 // WireframeEditor·MockupGenerator는 DocumentView 안에서 호출 (📄 기획서 → 🎨 화면 설계)
@@ -130,6 +131,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   const [imageMemo, setImageMemo] = useState("");
   const [imageHasAnnotation, setImageHasAnnotation] = useState(false);
   const [showAnnotator, setShowAnnotator] = useState(false);
+  const [showSketchModal, setShowSketchModal] = useState(false);  // 스케치→와이어프레임 (Feature L)
   function clearAttachedImage() {
     setAttachedImage(null);
     setImageIntentTags([]);
@@ -1596,6 +1598,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
             memo={imageMemo} setMemo={setImageMemo}
             hasAnnotation={imageHasAnnotation}
             onAnnotate={() => setShowAnnotator(true)}
+            onSketch={() => setShowSketchModal(true)}
           />
         )}
         {showAnnotator && attachedImage && (
@@ -1603,6 +1606,14 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
             src={attachedImage.dataUrl}
             onCancel={() => setShowAnnotator(false)}
             onDone={(dataUrl, mime, base64) => { setAttachedImage({ dataUrl, mime, base64 }); setImageHasAnnotation(true); setShowAnnotator(false); }}
+          />
+        )}
+        {showSketchModal && attachedImage && (
+          <SketchWireframeModal
+            imageBase64={attachedImage.base64}
+            mime={attachedImage.mime}
+            note={imageMemo}
+            onClose={() => setShowSketchModal(false)}
           />
         )}
         <div className="px-3 py-2.5 flex gap-2 items-end">

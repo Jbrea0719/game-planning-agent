@@ -16,9 +16,10 @@ interface Props {
   setMemo: (m: string) => void;
   onAnnotate: () => void;
   hasAnnotation: boolean;
+  onSketch?: () => void;  // 스케치 → 와이어프레임 (Feature L)
 }
 
-export default function ImageIntentBar({ tags, setTags, memo, setMemo, onAnnotate, hasAnnotation }: Props) {
+export default function ImageIntentBar({ tags, setTags, memo, setMemo, onAnnotate, hasAnnotation, onSketch }: Props) {
   function toggle(key: string) {
     setTags(tags.includes(key) ? tags.filter(k => k !== key) : [...tags, key]);
   }
@@ -49,6 +50,13 @@ export default function ImageIntentBar({ tags, setTags, memo, setMemo, onAnnotat
           }}>
           {hasAnnotation ? "✏️ 표시됨" : "✏️ 영역 표시"}
         </button>
+        {onSketch && (
+          <button onClick={onSketch}
+            className="text-[10px] px-2 py-0.5 rounded-full flex-shrink-0"
+            style={{ backgroundColor: "rgba(150,120,255,0.14)", border: "1px solid rgba(150,120,255,0.5)", color: "rgba(195,180,255,1)" }}>
+            📐 와이어프레임화
+          </button>
+        )}
       </div>
       <input
         value={memo}
