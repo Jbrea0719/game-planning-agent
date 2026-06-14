@@ -14,6 +14,7 @@ import DocGenPreview, { type DocGenPreviewData } from "@/components/DocGenPrevie
 import ExtractedReviewCard from "@/components/ExtractedReviewCard";
 import MobileChatPage from "@/components/MobileChatPage";
 import { useDeviceMode, DEVICE_FRAMES } from "@/hooks/useIsMobile";
+import { useCrossTabSync } from "@/hooks/useCrossTabSync";
 
 // WireframeEditor·MockupGenerator는 DocumentView 안에서 호출 (📄 기획서 → 🎨 화면 설계 버튼)
 
@@ -377,6 +378,21 @@ function DesktopChatPage() {
   // categoryReloadKey 증가 → DecisionPanel이 카테고리 다시 fetch (기획서 쪽 변경과 실시간 동기화)
   const [categoryReloadKey, setCategoryReloadKey] = useState(0);
   const [generatingDoc, setGeneratingDoc] = useState(false);
+
+  // 탭 간 실시간 동기화 — 다른 탭의 변경을 받아 이 탭 갱신 (수신은 broadcast 안 함 → 루프 방지)
+  const broadcastSync = useCrossTabSync({
+    onDecisions: () => setDecisionReloadKey(k => k + 1),
+    onCategories: () => { setCategoryReloadKey(k => k + 1); setDocReloadKey(k => k + 1); },
+    onDocs: () => setDocReloadKey(k => k + 1),
+    onToggle: (key, value) => {
+      if (key === "citations") setShowCitations(value);
+      else if (key === "autoDetail") setAutoDetail(value);
+    },
+  });
+  // 로컬 변경 → 다른 탭에도 반영
+  const bumpDecisions = () => { setDecisionReloadKey(k => k + 1); broadcastSync({ kind: "decisions" }); };
+  const bumpCategories = () => { setCategoryReloadKey(k => k + 1); setDocReloadKey(k => k + 1); broadcastSync({ kind: "categories" }); };
+  const bumpDocs = () => { setDocReloadKey(k => k + 1); broadcastSync({ kind: "docs" }); };
   // 답변 피드백 상태 — pair_id별로 'accurate' | 'inaccurate' | undefined
   const [feedbacks, setFeedbacks] = useState<Record<string, "accurate" | "inaccurate">>({});
   // 부정확 사유 입력 모달 (열린 pair_id)
@@ -1088,7 +1104,7 @@ function DesktopChatPage() {
       if (extractedMatch) {
         const cnt = parseInt(extractedMatch[1], 10);
         if (cnt > 0) {
-          setDecisionReloadKey(k => k + 1);
+          bumpDecisions();
           setExtractedNotice(cnt);
           setTimeout(() => setExtractedNotice(null), 7000);
         }
@@ -1569,7 +1585,7 @@ function DesktopChatPage() {
       if (data.doc) {
         // 트래커 닫고 기획서 뷰 열기 + reloadKey 갱신
         setShowDecisionPanel(false);
-        setDocReloadKey(k => k + 1);
+        bumpDocs();
         setShowDocumentView(true);
       } else if (data.error) {
         alert(`생성 실패: ${data.error}`);
@@ -1760,8 +1776,8 @@ function DesktopChatPage() {
         projectId={DEFAULT_PROJECT_ID}
         nickname={sessionId?.replace(/^agent:/, "") ?? ""}
         reloadKey={docReloadKey}
-        onCategoriesChanged={() => setCategoryReloadKey(k => k + 1)}
-        onDecisionsChanged={() => setDecisionReloadKey(k => k + 1)}
+        onCategoriesChanged={() => bumpCategories()}
+        onDecisionsChanged={() => bumpDecisions()}
         onStartWriting={(subId, label) => startInterviewForCategory(subId, label)}
         onReviseViaChat={(docId, docTitle) => enterReviseViaChat(docId, docTitle)}
       />
@@ -1803,7 +1819,7 @@ function DesktopChatPage() {
           setDocCompletedNotice({ title: doc?.title ?? "새 기획서", version_no: doc?.version_no ?? 0 });
           setDocNewDot(true);
           localStorage.setItem("jordan_doc_new_dot", "true");
-          setDocReloadKey(k => k + 1);
+          bumpDocs();
         }}
       />
 
@@ -1817,7 +1833,7 @@ function DesktopChatPage() {
           setRevisePreview(null);
           setReviseTargetDocId(null);
           setReviseTargetTitle("");
-          setDocReloadKey(k => k + 1);
+          bumpDocs();
           setDocNewDot(true);
           localStorage.setItem("jordan_doc_new_dot", "true");
         }}
@@ -1881,7 +1897,7 @@ function DesktopChatPage() {
         <ExtractedReviewCard
           items={extractedItems}
           onClose={() => { setShowExtractedReview(false); setExtractedItems([]); }}
-          onChanged={() => setDecisionReloadKey(k => k + 1)}
+          onChanged={() => bumpDecisions()}
         />
       )}
 
@@ -2054,7 +2070,7 @@ function DesktopChatPage() {
                       <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>답변 문장에 [공식 인용 — N개 일치] 같은 신뢰도 라벨 표시</p>
                     </div>
                     <button
-                      onClick={() => setShowCitations(v => !v)}
+                      onClick={() => { const nv = !showCitations; setShowCitations(nv); broadcastSync({ kind: "toggle", key: "citations", value: nv }); }}
                       className="text-xs px-3 py-1.5 rounded-lg font-medium ml-2 flex-shrink-0"
                       style={{
                         backgroundColor: showCitations ? "rgba(100,220,160,0.25)" : SILVER_FAINT,
@@ -2072,7 +2088,7 @@ function DesktopChatPage() {
                       <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>답변 완료 시 [▼ 자세한 답변]을 자동으로 펼쳐요. (켜면 답변마다 비용↑ — 자세한 답변을 매번 추가 생성)</p>
                     </div>
                     <button
-                      onClick={() => setAutoDetail(v => !v)}
+                      onClick={() => { const nv = !autoDetail; setAutoDetail(nv); broadcastSync({ kind: "toggle", key: "autoDetail", value: nv }); }}
                       className="text-xs px-3 py-1.5 rounded-lg font-medium ml-2 flex-shrink-0"
                       style={{
                         backgroundColor: autoDetail ? "rgba(100,220,160,0.25)" : SILVER_FAINT,
@@ -3031,7 +3047,7 @@ function DesktopChatPage() {
         {/* 자세한 답변 기본 보기 토글 (⚙️ 설정과 연동) */}
         <div className="px-4 pt-2">
           <button
-            onClick={() => setAutoDetail(v => !v)}
+            onClick={() => { const nv = !autoDetail; setAutoDetail(nv); broadcastSync({ kind: "toggle", key: "autoDetail", value: nv }); }}
             title="켜면 답변마다 자세한 답변까지 자동으로 펼쳐요 (답변마다 비용↑)"
             className="text-xs px-2.5 py-1 rounded-full flex items-center gap-1.5"
             style={{

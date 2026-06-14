@@ -13,6 +13,7 @@ import DocumentView from "@/components/DocumentView";
 import DocPickerModal from "@/components/DocPickerModal";
 import DocRevisePreview, { type RevisePreview } from "@/components/DocRevisePreview";
 import DocGenPreview, { type DocGenPreviewData } from "@/components/DocGenPreview";
+import { useCrossTabSync } from "@/hooks/useCrossTabSync";
 import { REFERENCE_GAMES } from "@/lib/reference-games";
 
 // 안드로이드 크롬의 PWA 설치 이벤트 타입 (표준 DOM 타입에 없어 직접 선언)
@@ -194,6 +195,20 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   const [docReloadKey, setDocReloadKey] = useState(0);
   // 카테고리 변경 시 증가 → 바이블 패널 카테고리 실시간 동기화
   const [categoryReloadKey, setCategoryReloadKey] = useState(0);
+
+  // 탭 간 실시간 동기화 (수신은 broadcast 안 함 → 루프 방지)
+  const broadcastSync = useCrossTabSync({
+    onDecisions: () => setDecisionReloadKey(k => k + 1),
+    onCategories: () => { setCategoryReloadKey(k => k + 1); setDocReloadKey(k => k + 1); },
+    onDocs: () => setDocReloadKey(k => k + 1),
+    onToggle: (key, value) => {
+      if (key === "citations") setShowCitations(value);
+      else if (key === "autoDetail") setAutoDetail(value);
+    },
+  });
+  const bumpDecisions = () => { setDecisionReloadKey(k => k + 1); broadcastSync({ kind: "decisions" }); };
+  const bumpCategories = () => { setCategoryReloadKey(k => k + 1); setDocReloadKey(k => k + 1); broadcastSync({ kind: "categories" }); };
+  const bumpDocs = () => { setDocReloadKey(k => k + 1); broadcastSync({ kind: "docs" }); };
 
   // 기획서 신규 알림
   const [docNewDot, setDocNewDot] = useState(false);
@@ -894,7 +909,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       let clean = text;
       const extractedMatch = text.match(/__DECISIONS_EXTRACTED__(\d+)/);
       if (extractedMatch && parseInt(extractedMatch[1], 10) > 0) {
-        setDecisionReloadKey(k => k + 1);
+        bumpDecisions();
       }
       // 추출 데이터 파싱 → 검토 카드 (지금 보고 있는 방일 때만 모달)
       const dataMatch = text.match(/__DECISIONS_DATA__([\s\S]+?)__END__/);
@@ -1462,7 +1477,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         {/* 자세한 답변 기본 보기 토글 (⚙️ 설정과 연동) */}
         <div className="px-3 pt-2">
           <button
-            onClick={() => setAutoDetail(v => !v)}
+            onClick={() => { const nv = !autoDetail; setAutoDetail(nv); broadcastSync({ kind: "toggle", key: "autoDetail", value: nv }); }}
             className="text-[11px] px-2.5 py-1 rounded-full flex items-center gap-1.5"
             style={{
               backgroundColor: autoDetail ? "rgba(100,220,160,0.18)" : "rgba(255,255,255,0.05)",
@@ -1608,8 +1623,8 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         projectId={DEFAULT_PROJECT_ID}
         nickname={nickname}
         reloadKey={docReloadKey}
-        onCategoriesChanged={() => setCategoryReloadKey(k => k + 1)}
-        onDecisionsChanged={() => setDecisionReloadKey(k => k + 1)}
+        onCategoriesChanged={() => bumpCategories()}
+        onDecisionsChanged={() => bumpDecisions()}
         onStartWriting={(subId, label) => startInterviewForCategory(subId, label)}
         onReviseViaChat={(docId, docTitle) => enterReviseViaChat(docId, docTitle)}
       />
@@ -1652,7 +1667,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           setDocCompletedNotice({ title: doc?.title ?? "새 기획서" });
           setDocNewDot(true);
           localStorage.setItem("jordan_doc_new_dot", "true");
-          setDocReloadKey(k => k + 1);
+          bumpDocs();
         }}
       />
       <DocRevisePreview
@@ -1664,7 +1679,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           setRevisePreview(null);
           setReviseTargetDocId(null);
           setReviseTargetTitle("");
-          setDocReloadKey(k => k + 1);
+          bumpDocs();
           setDocNewDot(true);
           localStorage.setItem("jordan_doc_new_dot", "true");
         }}
@@ -1684,9 +1699,9 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         <MobileSettings
           isAdmin={isAdmin}
           showCitations={showCitations}
-          setShowCitations={setShowCitations}
+          setShowCitations={(v) => { setShowCitations(v); broadcastSync({ kind: "toggle", key: "citations", value: v }); }}
           autoDetail={autoDetail}
-          setAutoDetail={setAutoDetail}
+          setAutoDetail={(v) => { setAutoDetail(v); broadcastSync({ kind: "toggle", key: "autoDetail", value: v }); }}
           onClose={() => setShowSettings(false)}
         />
       )}
@@ -1701,7 +1716,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         <ExtractedReviewCard
           items={extractedItems}
           onClose={() => { setShowExtractedReview(false); setExtractedItems([]); }}
-          onChanged={() => setDecisionReloadKey(k => k + 1)}
+          onChanged={() => bumpDecisions()}
         />
       )}
 
