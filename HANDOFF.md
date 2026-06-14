@@ -6,6 +6,22 @@
 
 ---
 
+## 🆕 최근 세션 작업 (2026-06-15 밤) — 5대 기능 + 히스토리 팝업 (전부 master 푸시·배포)
+
+사용자 취침 중 전권 위임으로 자율 진행. 전부 빌드 통과 + master 푸시 완료.
+
+1. **🕘 히스토리 팝업화** — 설정 안 인라인 → 별도 팝업 모달(데스크톱 중앙/모바일 바텀시트). `showHistoryModal`/`showHistory`. (커밋 5d79fc0)
+2. **⚠️ C: 바이블 일관성 검사** — 답변 직후 Haiku로 누적 결정과 모순 검사 → 충돌 시 경고 모달. `lib/decision-consistency-checker.ts`, `api/agent/route.ts`가 `__BIBLE_CONFLICTS__` 신호 emit, 데스크톱·모바일 클라가 파싱. (a9b9dfd)
+3. **🖼️ H: 이미지 의도 태그 + 영역 표시** — 첨부 시 분석 관점 칩+메모(`buildImageIntentPrefix`로 질문 앞 주입) + canvas 영역표시(`ImageAnnotator`, 합성 burn-in). `lib/image-intent.ts`, `components/ImageIntentBar.tsx`, `ImageAnnotator.tsx`. (1d2eee9)
+4. **📐 L: 스케치→와이어프레임** — 손그림 첨부 → `api/sketch-to-wireframe`(Opus vision) → 정돈된 HTML 와이어프레임+비평. `SketchWireframeModal.tsx`, ImageIntentBar의 📐 버튼. (9e29488)
+5. **🗂️ I: AI 시안 버전 히스토리** — `MockupGenerator`에 버전 누적 + 칩으로 되돌리기/분기. (c8de96a)
+6. **🗂️ J: 레퍼런스 갤러리** — `api/reference-shots`(doc_images 재사용, doc_id="refshot", prompt=JSON메타, **마이그레이션 없음**), `ReferenceGallery.tsx`(카테고리 탭·업로드·"이 느낌으로"→첨부), 입력창 🗂️ 버튼. ※실제 게임 스크린샷은 저작권상 사용자가 업로드. (4036481)
+7. **가이드 모달 갱신** — 데스크톱·모바일 📖 가이드에 "최근 추가" 섹션. (e0eca01)
+
+**검증/남은 확인:** 빌드만 검증함(런타임 미검증 — API 키 호출 없이). 실제 배포본에서 ①일관성 검사 경고가 적절히 뜨는지(거짓경보 빈도) ②이미지 영역표시가 vision에 반영되는지 ③스케치→와이어프레임 품질 ④레퍼런스 업로드·"이 느낌으로" 동작 ⑤시안 버전 전환 — 눈으로 확인 권장. C의 일관성 검사는 매 답변마다 Haiku 1회 추가 호출(비용 소폭↑) — 과하면 "결정 추출됐을 때만" 조건으로 좁히면 됨.
+
+---
+
 ## 🆕 최근 세션 작업 (2026-06-15) — 병렬 탭 진짜 독립화 (master 푸시·배포)
 
 **문제:** 06-13 "병렬 탭 지원"을 넣었지만 여러 탭이 같은 저장소 값을 공유해 여전히 섞였음.
