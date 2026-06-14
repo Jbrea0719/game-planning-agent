@@ -62,6 +62,9 @@ export default function MockupGenerator({
   const [generating, setGenerating] = useState(false);
   const [mockupHtml, setMockupHtml] = useState("");
   const [mockupTitle, setMockupTitle] = useState("AI 시안");
+  // 버전 히스토리 (Feature I — 시안 왕복) : 생성·수정마다 버전 누적 → 이전 시안으로 되돌리기/분기
+  const [versions, setVersions] = useState<{ html: string; label: string }[]>([]);
+  const [verIdx, setVerIdx] = useState(0);
   const [presetId, setPresetId] = useState<string>("pc_landscape");  // 기본: PC 가로
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -102,6 +105,18 @@ export default function MockupGenerator({
         return;
       }
       setMockupHtml(data.html);
+      // 버전 누적 (Feature I) — 초안이면 새로 시작, 수정이면 현재 버전 뒤에 추가
+      if (refine) {
+        const label = refineInput.trim().slice(0, 16) || `수정 ${versions.length}`;
+        setVersions(prev => {
+          const next = [...prev, { html: data.html, label }];
+          setVerIdx(next.length - 1);
+          return next;
+        });
+      } else {
+        setVersions([{ html: data.html, label: "초안" }]);
+        setVerIdx(0);
+      }
       setRefineInput("");
       if (refine) setRefineMode(false);
     } catch (err) {
@@ -261,6 +276,18 @@ export default function MockupGenerator({
     setDescription("");
     setRefineInput("");
     setRefineMode(false);
+    setVersions([]);
+    setVerIdx(0);
+  }
+
+  // 버전 전환 (Feature I) — 이전/다른 버전 미리보기로 되돌아감. 이 상태에서 수정하면 분기 누적.
+  function switchVersion(i: number) {
+    const v = versions[i];
+    if (!v) return;
+    setVerIdx(i);
+    setMockupHtml(v.html);
+    setRefineMode(false);
+    setRefineInput("");
   }
 
   if (!open) return null;
@@ -382,6 +409,30 @@ export default function MockupGenerator({
             </>
           ) : (
             <>
+              {/* 버전 히스토리 (Feature I) — 왕복 중 이전 시안으로 되돌리기/분기 */}
+              {versions.length > 1 && (
+                <div className="pb-3" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+                  <p className="text-xs font-bold mb-2" style={{ color: SILVER }}>🗂️ 버전 ({versions.length}개)</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {versions.map((v, i) => (
+                      <button key={i} onClick={() => switchVersion(i)}
+                        title={v.label}
+                        className="text-[10px] px-2 py-1 rounded-lg max-w-[120px] truncate"
+                        style={{
+                          backgroundColor: i === verIdx ? "rgba(100,180,255,0.22)" : "rgba(255,255,255,0.04)",
+                          border: `1px solid ${i === verIdx ? "rgba(100,180,255,0.6)" : SILVER_FAINT}`,
+                          color: i === verIdx ? "rgba(180,210,255,1)" : SILVER_DIM,
+                        }}>
+                        {i === 0 ? "초안" : `${i}. ${v.label}`}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] mt-1.5" style={{ color: SILVER_DIM }}>
+                    이전 버전을 고른 뒤 수정하면 그 버전에서 새로 갈라져요(분기).
+                  </p>
+                </div>
+              )}
+
               <div>
                 <p className="text-xs font-bold mb-2" style={{ color: SILVER }}>📝 수정 요청</p>
                 <p className="text-[10px] mb-2" style={{ color: SILVER_DIM }}>
