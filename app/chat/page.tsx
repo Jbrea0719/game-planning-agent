@@ -523,24 +523,25 @@ function DesktopChatPage() {
         agent_context: c.agent_context,
       })));
       // 복구: 방에 미배정된(숨겨진) 기존 메시지를 가장 오래된 방으로 흡수
-      let recoveredInto: string | null = null;
       if (convs.length > 0) {
         const oldest = [...convs].sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""))[0];
         try {
-          const ar = await fetch("/api/conversations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sid, adopt_into: oldest.id }) });
-          const ad = await ar.json();
-          if (ad.adopted > 0) recoveredInto = oldest.id;
+          await fetch("/api/conversations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sid, adopt_into: oldest.id }) });
         } catch { /* 무시 */ }
       }
-      // 방 선택 우선순위: URL(?conv=) > 마지막 방 > 복구 방 > 첫 방
-      // URL 우선이라 탭마다 독립 — 새로고침해도 그 탭의 방 유지 (병렬 작업 핵심)
+      // 방 선택 우선순위: URL(?conv=) > 이 탭의 sessionStorage > (없으면 방 목록 표시)
+      // sessionStorage는 '탭마다 독립'(새로고침해도 유지, 탭 닫으면 소멸)이라 여러 탭이 서로 다른
+      // 방을 열어둬도 섞이지 않음. 예전엔 모든 탭이 공유하는 localStorage를 폴백으로 써서 '새 탭이
+      // 다른 탭 방으로 튀던' 문제가 있었음 → 공유 폴백 제거.
       const urlConv = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("conv") : null;
-      const lastUsed = localStorage.getItem(`jordan_current_conv:${sid}`);
+      const tabConv = typeof window !== "undefined" ? sessionStorage.getItem("jordan_tab_conv") : null;
       const target = (urlConv && convs.find(c => c.id === urlConv)) ? urlConv
-        : (lastUsed && convs.find(c => c.id === lastUsed)) ? lastUsed
-        : (recoveredInto ?? convs[0]?.id ?? null);
+        : (tabConv && convs.find(c => c.id === tabConv)) ? tabConv
+        : null;
       if (target) { await loadConversation(target, sid); return; }
-      throw new Error("대화방 셋업 불가 — 폴백");
+      // 자동 입장할 방이 없음(새 탭) → 방 목록을 띄워 사용자가 직접 선택 (병렬 작업 충돌 방지)
+      setShowConvList(true);
+      return;
     } catch (err) {
       // 대화방 테이블 미생성/오류 시 → 기존 방식(전체 메시지)으로 폴백해 앱이 정상 동작하게 보장
       console.error("[대화방] 부트스트랩 — 기존 방식 폴백:", err);
@@ -563,7 +564,8 @@ function DesktopChatPage() {
     if (!s) return;
     setCurrentConvId(convId);
     currentConvIdRef.current = convId;
-    localStorage.setItem(`jordan_current_conv:${s}`, convId);
+    // 현재 방을 '이 탭'에만 기억 — sessionStorage는 탭마다 독립(새로고침해도 유지, 탭 닫으면 소멸)
+    if (typeof window !== "undefined") sessionStorage.setItem("jordan_tab_conv", convId);
     // URL(?conv=)·탭 제목에 방 고정 — 탭별 독립, 새로고침해도 이 방 유지
     if (typeof window !== "undefined") {
       const roomTitle = conversations.find(c => c.id === convId)?.title ?? "대화";
@@ -586,15 +588,17 @@ function DesktopChatPage() {
       setAgentContext(room.agent_context);
       localStorage.setItem(`jordan_agent_context:${convId}`, room.agent_context);
     } else {
-      setAgentContext(localStorage.getItem(`jordan_agent_context:${convId}`) ?? localStorage.getItem(`jordan_agent_context:${s}`) ?? "");
+      setAgentContext(localStorage.getItem(`jordan_agent_context:${convId}`) ?? "");
     }
     // 맥락선(anchor): DB값 있으면 우선
+    // DB값 우선, 없으면 '이 방 전용' localStorage만 사용. 세션 공용 키(:${s}) 폴백 제거 —
+    // 다른 방의 맥락선이 새어 들어와 '해제된 듯' 보이던 문제 차단.
     const apair = room?.context_anchor_pair_id != null
       ? room.context_anchor_pair_id
-      : (localStorage.getItem(`jordan_context_anchor_pair:${convId}`) ?? localStorage.getItem(`jordan_context_anchor_pair:${s}`));
+      : localStorage.getItem(`jordan_context_anchor_pair:${convId}`);
     const atime = room?.context_anchor_pair_id != null
       ? (room.context_anchor_time ?? null)
-      : (localStorage.getItem(`jordan_context_anchor_time:${convId}`) ?? localStorage.getItem(`jordan_context_anchor_time:${s}`));
+      : localStorage.getItem(`jordan_context_anchor_time:${convId}`);
     setContextAnchorPairId(apair);
     setContextAnchorTimestamp(atime);
     // anchor를 룸 키 localStorage로 미러링/이관 (DB값이든 세션 레거시든 다음부턴 룸 키로 일관)
@@ -1058,6 +1062,8 @@ function DesktopChatPage() {
     const trimmed = input.trim();
     const img = attachedImage;  // 전송 시점 고정
     if ((!trimmed && !img) || isLoading || imageUploading) return;
+    // 방 미선택(새 탭에서 아직 방을 안 고른 상태) — 빈 방으로 전송 방지, 목록을 열어 선택 유도
+    if (!currentConvIdRef.current) { setShowConvList(true); alert("먼저 위쪽 💬 버튼에서 작업할 대화방을 선택하세요."); return; }
     const question = trimmed || "첨부한 이미지를 보고 분석·평가해줘.";
     const pairId = crypto.randomUUID();
     const time = getTime();
@@ -2789,14 +2795,24 @@ function DesktopChatPage() {
 
           {/* 빈 상태 */}
           {activePairs.length === 0 && !streamingPair && (
-            <div className="text-center mt-20">
-              <div className="w-16 h-16 rounded-full mx-auto overflow-hidden mb-4" style={{ border: `1px solid ${SILVER_DIM}` }}><img src="/avatar.jpg" alt="조던" className="w-full h-full object-cover" /></div>
-              <p className="text-sm font-medium" style={{ color: SILVER }}>조던</p>
-              <p className="text-xs mt-1" style={{ color: SILVER_DIM }}>AFK Arena · 세븐나이츠 · 서머너즈워 · 니케 · 에픽세븐 · 원신 — 무엇이든 물어보세요</p>
-              <p className="text-xs mt-3 px-4 py-2 rounded-full inline-block" style={{ backgroundColor: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: "#34d399" }}>
-                ✨ 다양한 수집형 게임 경험으로 너와 함께해
-              </p>
-            </div>
+            !currentConvId ? (
+              // 방 미선택(새 탭) — 병렬 작업 충돌 방지를 위해 방을 먼저 고르도록 안내
+              <div className="text-center mt-20">
+                <div className="text-3xl mb-3">💬</div>
+                <p className="text-sm font-medium" style={{ color: SILVER }}>작업할 대화방을 선택하세요</p>
+                <p className="text-xs mt-1" style={{ color: SILVER_DIM }}>탭마다 다른 방을 열어 병렬로 작업할 수 있어요</p>
+                <button onClick={() => setShowConvList(true)} className="text-xs mt-4 px-4 py-2 rounded-lg font-medium" style={{ backgroundColor: "rgba(100,180,255,0.15)", border: "1px solid rgba(100,180,255,0.45)", color: "rgba(180,210,255,1)" }}>💬 대화방 목록 열기</button>
+              </div>
+            ) : (
+              <div className="text-center mt-20">
+                <div className="w-16 h-16 rounded-full mx-auto overflow-hidden mb-4" style={{ border: `1px solid ${SILVER_DIM}` }}><img src="/avatar.jpg" alt="조던" className="w-full h-full object-cover" /></div>
+                <p className="text-sm font-medium" style={{ color: SILVER }}>조던</p>
+                <p className="text-xs mt-1" style={{ color: SILVER_DIM }}>AFK Arena · 세븐나이츠 · 서머너즈워 · 니케 · 에픽세븐 · 원신 — 무엇이든 물어보세요</p>
+                <p className="text-xs mt-3 px-4 py-2 rounded-full inline-block" style={{ backgroundColor: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: "#34d399" }}>
+                  ✨ 다양한 수집형 게임 경험으로 너와 함께해
+                </p>
+              </div>
+            )
           )}
 
           {/* 활성 대화 쌍 */}
