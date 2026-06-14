@@ -243,6 +243,9 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   // 자동 추출 검토 카드
   const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
   const [showExtractedReview, setShowExtractedReview] = useState(false);
+  // 바이블 일관성 검사 충돌 (Feature C)
+  type BibleConflict = { existing: string; newClaim: string; reason: string; severity: "high" | "low" };
+  const [bibleConflicts, setBibleConflicts] = useState<BibleConflict[] | null>(null);
 
   // 조던 인터뷰
   const [interviewLoading, setInterviewLoading] = useState(false);
@@ -956,6 +959,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           if (idx !== -1) display = display.slice(idx + "__JORDAN_ANSWER_START__".length).trimStart();
           display = display.replace(/\n__JORDAN_CRITIC_START__[\s\S]*?__JORDAN_CRITIC_END__$/, "");
           display = display.replace(/__DECISIONS_(EXTRACTED|HELD)__\d+/g, "");
+          display = display.replace(/__BIBLE_CONFLICTS__[\s\S]+?__END__/, "");
           display = display.replace("__TRUNCATED__", "");
           setStreaming({ user: userText, assistant: display, userImageId: imageId });
         }
@@ -973,10 +977,19 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           if (items.length > 0) { setExtractedItems(items); setShowExtractedReview(true); }
         } catch { /* 무시 */ }
       }
+      // 바이블 일관성 충돌 (Feature C)
+      const conflictMatch = text.match(/__BIBLE_CONFLICTS__([\s\S]+?)__END__/);
+      if (conflictMatch && genConvId === currentConvIdRef.current) {
+        try {
+          const conflicts = JSON.parse(conflictMatch[1]) as BibleConflict[];
+          if (Array.isArray(conflicts) && conflicts.length > 0) setBibleConflicts(conflicts);
+        } catch { /* 무시 */ }
+      }
       const startIdx = clean.indexOf("__JORDAN_ANSWER_START__");
       if (startIdx !== -1) clean = clean.slice(startIdx + "__JORDAN_ANSWER_START__".length).trimStart();
       clean = clean.replace(/\n__JORDAN_CRITIC_START__[\s\S]*?__JORDAN_CRITIC_END__/, "");
       clean = clean.replace(/__DECISIONS_DATA__[\s\S]+?__END__/, "");
+      clean = clean.replace(/__BIBLE_CONFLICTS__[\s\S]+?__END__/, "");
       clean = clean.replace(/__DECISIONS_(EXTRACTED|HELD)__\d+/g, "");
       clean = clean.replace("__TRUNCATED__", "").trimEnd();
 
@@ -1778,6 +1791,33 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
             </div>
             <div className="flex-1 overflow-y-auto px-4 pt-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
               <HistoryPanel />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 바이블 일관성 충돌 경고 (Feature C) */}
+      {bibleConflicts !== null && bibleConflicts.length > 0 && (
+        <div className="fixed inset-0 z-[70] flex items-end bg-black/50" onClick={() => setBibleConflicts(null)}>
+          <div
+            className="w-full max-h-[80dvh] flex flex-col rounded-t-2xl"
+            style={{ backgroundColor: "#1a1410", border: "1px solid rgba(255,180,90,0.5)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: "1px solid rgba(255,180,90,0.25)" }}>
+              <p className="text-sm font-bold flex items-center gap-2" style={{ color: "rgba(255,210,150,1)" }}>⚠️ 기존 결정과 충돌 가능 {bibleConflicts.length}건</p>
+              <button onClick={() => setBibleConflicts(null)} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: "rgba(255,200,100,0.15)", color: "rgba(255,210,150,0.9)" }}>닫기</button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 pt-3 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-3">
+              <p className="text-[11px]" style={{ color: "rgba(255,210,150,0.7)" }}>방금 답변이 누적된 결정과 어긋날 수 있어요. 의도한 변경이면 무시하세요.</p>
+              {bibleConflicts.map((c, i) => (
+                <div key={i} className="rounded-lg px-3 py-2.5" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${c.severity === "high" ? "rgba(255,140,90,0.5)" : "rgba(255,200,100,0.3)"}` }}>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ backgroundColor: c.severity === "high" ? "rgba(255,120,80,0.25)" : "rgba(255,200,100,0.18)", color: c.severity === "high" ? "rgba(255,180,150,1)" : "rgba(255,220,150,1)" }}>{c.severity === "high" ? "직접 모순" : "느슨한 충돌"}</span>
+                  <p className="text-[11px] mb-1 mt-1.5" style={{ color: SILVER_DIM }}>📌 기존: <span style={{ color: SILVER }}>{c.existing}</span></p>
+                  <p className="text-[11px] mb-1" style={{ color: SILVER_DIM }}>🆕 이번: <span style={{ color: SILVER }}>{c.newClaim}</span></p>
+                  {c.reason && <p className="text-[10px] mt-1" style={{ color: "rgba(255,200,150,0.75)" }}>↳ {c.reason}</p>}
+                </div>
+              ))}
             </div>
           </div>
         </div>

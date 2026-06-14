@@ -370,6 +370,9 @@ function DesktopChatPage() {
   const [showExtractedReview, setShowExtractedReview] = useState(false);
   // 보류된 결정 알림 (조던이 반대·우려)
   const [heldNotice, setHeldNotice] = useState<number | null>(null);
+  // 바이블 일관성 검사 — 새 답변이 기존 결정과 모순될 때 경고 (Feature C)
+  type BibleConflict = { existing: string; newClaim: string; reason: string; severity: "high" | "low" };
+  const [bibleConflicts, setBibleConflicts] = useState<BibleConflict[] | null>(null);
   // 기획서 뷰
   const [showDocumentView, setShowDocumentView] = useState(false);
   const [showDocMenu, setShowDocMenu] = useState(false);  // 헤더 '📄 기획서 ▾' 드롭다운
@@ -1199,6 +1202,15 @@ function DesktopChatPage() {
           setTimeout(() => setHeldNotice(null), 7000);  // 7초 표시 (좀 더 길게)
         }
         cleanText = cleanText.replace(/__DECISIONS_HELD__\d+/, "");
+      }
+      // 바이블 일관성 충돌 마커 감지 (Feature C) — 기존 결정과 모순 시 경고 배너
+      const conflictMatch = assistantText.match(/__BIBLE_CONFLICTS__([\s\S]+?)__END__/);
+      if (conflictMatch) {
+        try {
+          const conflicts = JSON.parse(conflictMatch[1]) as BibleConflict[];
+          if (Array.isArray(conflicts) && conflicts.length > 0) setBibleConflicts(conflicts);
+        } catch { /* 무시 */ }
+        cleanText = cleanText.replace(/__BIBLE_CONFLICTS__[\s\S]+?__END__/, "");
       }
       // 진행 상태 텍스트 제거: __JORDAN_ANSWER_START__ 이후만 답변으로 사용
       const answerStartIdx = cleanText.indexOf("__JORDAN_ANSWER_START__");
@@ -2045,6 +2057,45 @@ function DesktopChatPage() {
           >
             확인
           </button>
+        </div>
+      )}
+
+      {/* 바이블 일관성 충돌 경고 (Feature C) — 새 답변이 기존 결정과 모순될 때 */}
+      {bibleConflicts !== null && bibleConflicts.length > 0 && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70] p-4" onClick={() => setBibleConflicts(null)}>
+          <div
+            className="rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col shadow-2xl"
+            style={{ backgroundColor: "#1a1410", border: "1px solid rgba(255,180,90,0.5)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-3.5 flex-shrink-0" style={{ borderBottom: "1px solid rgba(255,180,90,0.25)" }}>
+              <p className="text-sm font-bold flex items-center gap-2" style={{ color: "rgba(255,210,150,1)" }}>
+                <span>⚠️</span> 기존 결정과 충돌 가능 {bibleConflicts.length}건
+              </p>
+              <button onClick={() => setBibleConflicts(null)} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: "rgba(255,200,100,0.15)", color: "rgba(255,210,150,0.9)" }}>닫기</button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+              <p className="text-[11px]" style={{ color: "rgba(255,210,150,0.7)" }}>
+                방금 답변이 기획 바이블에 누적된 결정과 어긋날 수 있어요. 의도한 변경이면 무시하고, 아니면 방향을 다시 확인하세요.
+              </p>
+              {bibleConflicts.map((c, i) => (
+                <div key={i} className="rounded-lg px-3 py-2.5" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${c.severity === "high" ? "rgba(255,140,90,0.5)" : "rgba(255,200,100,0.3)"}` }}>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ backgroundColor: c.severity === "high" ? "rgba(255,120,80,0.25)" : "rgba(255,200,100,0.18)", color: c.severity === "high" ? "rgba(255,180,150,1)" : "rgba(255,220,150,1)" }}>
+                      {c.severity === "high" ? "직접 모순" : "느슨한 충돌"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] mb-1" style={{ color: SILVER_DIM }}>📌 기존: <span style={{ color: SILVER }}>{c.existing}</span></p>
+                  <p className="text-[11px] mb-1" style={{ color: SILVER_DIM }}>🆕 이번 답변: <span style={{ color: SILVER }}>{c.newClaim}</span></p>
+                  {c.reason && <p className="text-[10px] mt-1" style={{ color: "rgba(255,200,150,0.75)" }}>↳ {c.reason}</p>}
+                </div>
+              ))}
+            </div>
+            <div className="px-5 py-3 flex-shrink-0 flex justify-end gap-2" style={{ borderTop: "1px solid rgba(255,180,90,0.2)" }}>
+              <button onClick={() => { setBibleConflicts(null); setShowDecisionPanel(true); }} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: "rgba(100,180,255,0.15)", border: "1px solid rgba(100,180,255,0.4)", color: "rgba(180,210,255,1)" }}>바이블 확인 →</button>
+              <button onClick={() => setBibleConflicts(null)} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: "rgba(255,200,100,0.18)", border: "1px solid rgba(255,200,100,0.4)", color: "rgba(255,220,150,1)" }}>의도한 변경임</button>
+            </div>
+          </div>
         </div>
       )}
 

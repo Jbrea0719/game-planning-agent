@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { classifyQuestion, REGISTERED_GAMES, type RouteDecision } from "../router/route";
 import { ensureGameDomains, type DiscoveredDomain } from "@/lib/domain-discovery";
 import { extractAndSaveDecisions } from "@/lib/decision-extractor";
+import { checkBibleConsistency } from "@/lib/decision-consistency-checker";
 import { buildDecisionContext } from "@/lib/decision-context";
 import { buildFeedbackContext } from "@/lib/feedback-context";
 import { fetchLoungeAll, buildLoungeContext } from "@/lib/naver-lounge";
@@ -1622,6 +1623,21 @@ export async function POST(request: Request) {
             }
           } catch (err) {
             console.error("[agent] 결정사항 자동 추출 실패:", err);
+          }
+
+          // ─── 바이블 일관성 검사 (Feature C) ──────────────────────
+          // 새 답변이 누적된 결정사항과 모순되는지 Haiku로 검사 → 충돌 시 클라이언트 경고
+          try {
+            const conflicts = await checkBibleConsistency({
+              userQuery: userMessage.content,
+              jordanAnswer: assistantText,
+              anchorTime: context_anchor_time ?? null,
+            });
+            if (conflicts.length > 0) {
+              encode(`__BIBLE_CONFLICTS__${JSON.stringify(conflicts)}__END__`);
+            }
+          } catch (err) {
+            console.error("[agent] 일관성 검사 실패:", err);
           }
         } catch (err) {
           encode(`오류가 발생했어요: ${String(err)}`);
