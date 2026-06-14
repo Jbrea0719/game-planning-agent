@@ -2299,6 +2299,14 @@ function MobileGuide({ onClose }: { onClose: () => void }) {
             <p>출처 표시 토글, 참고 게임 라이브러리, 게임 도메인 큐레이션(관리자), 답변 모델 정보 확인.</p>
           </section>
           <section>
+            <p className="font-bold mb-1.5" style={{ color: "rgba(180,210,255,1)" }}>🆕 최근 추가 (2026-06-15)</p>
+            <p><b>🕘 히스토리 팝업</b> — 설정의 “히스토리 열기”로 변경 이력을 별도 창에서.</p>
+            <p className="mt-1"><b>⚠️ 일관성 검사</b> — 답변이 기존 결정과 모순되면 경고창이 떠요.</p>
+            <p className="mt-1"><b>🖼️ 의도 태그·영역 표시</b> — 이미지 첨부 시 분석 관점·메모 + ✏️로 동그라미 표시.</p>
+            <p className="mt-1"><b>📐 스케치→와이어프레임</b> — 손그림 촬영 후 “📐 와이어프레임화”로 정돈된 시안+비평.</p>
+            <p className="mt-1"><b>🗂️ 레퍼런스 갤러리</b> — 입력창 🗂️. 참고 화면을 모아 “이 느낌으로” 첨부.</p>
+          </section>
+          <section>
             <p className="font-bold mb-1.5" style={{ color: "rgba(150,255,200,1)" }}>💡 팁</p>
             <p>모바일과 PC는 같은 데이터를 공유해요. 둘 다 같은 닉네임으로 입장하면 대화·바이블·기획서가 자동 동기화됩니다.</p>
           </section>

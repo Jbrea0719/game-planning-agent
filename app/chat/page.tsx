@@ -2402,6 +2402,19 @@ function DesktopChatPage() {
                   </div>
                 </section>
 
+                {/* 🆕 최근 추가 기능 (2026-06-15) */}
+                <section>
+                  <p className="text-sm font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🆕 최근 추가 (2026-06-15)</p>
+                  <div className="px-3 py-2.5 rounded-lg flex flex-col gap-2 text-[11px]" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}`, color: SILVER }}>
+                    <p><b style={{ color: SILVER }}>🕘 히스토리 팝업</b> — 설정의 “🕘 히스토리 열기” 버튼으로 변경 이력(조던기능/기획서)을 별도 창에서 봅니다.</p>
+                    <p><b style={{ color: SILVER }}>⚠️ 바이블 일관성 검사</b> — 답변이 누적된 결정과 모순되면 자동으로 경고창이 떠요. “의도한 변경”이면 닫으면 됩니다.</p>
+                    <p><b style={{ color: SILVER }}>🖼️ 이미지 의도 태그·영역 표시</b> — 이미지 첨부 시 분석 관점(레이아웃·색감 등) 선택 + 메모, ✏️로 이미지에 동그라미·선 표시.</p>
+                    <p><b style={{ color: SILVER }}>📐 스케치→와이어프레임</b> — 손그림 스케치를 첨부하고 “📐 와이어프레임화”를 누르면 정돈된 시안 + 비평으로 변환.</p>
+                    <p><b style={{ color: SILVER }}>🗂️ 레퍼런스 갤러리</b> — 입력창 🗂️ 버튼. 참고 게임 화면을 종류별로 모아두고 “이 느낌으로” 선택해 첨부.</p>
+                    <p><b style={{ color: SILVER }}>🗂️ 시안 버전 히스토리</b> — AI 시안 생성(🎨 화면 설계)에서 수정마다 버전이 쌓여 이전 시안으로 되돌리기·분기 가능.</p>
+                  </div>
+                </section>
+
               </div>
             </div>
           </div>
