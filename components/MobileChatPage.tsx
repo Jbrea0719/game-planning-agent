@@ -182,7 +182,14 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   const [reviseGenLoading, setReviseGenLoading] = useState(false);
   const [docGenPreview, setDocGenPreview] = useState<DocGenPreviewData | null>(null);  // 기획서 작성 미리보기
   // 대화방 (병렬 작업)
-  const [conversations, setConversations] = useState<{ id: string; title: string }[]>([]);
+  // DB가 상태(맥락선·참고기획서)의 단일 소스 — 목록에 함께 실어와 룸 전환 시 복원
+  const [conversations, setConversations] = useState<{
+    id: string; title: string;
+    context_anchor_pair_id?: string | null;
+    context_anchor_time?: string | null;
+    reference_doc_ids?: string[] | null;
+    agent_context?: string | null;
+  }[]>([]);
   const [currentConvId, setCurrentConvId] = useState<string | null>(null);
   const [showConvList, setShowConvList] = useState(false);
   const [renamingConvId, setRenamingConvId] = useState<string | null>(null);
@@ -507,13 +514,26 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     try {
       const res = await fetch(`/api/conversations?session_id=${encodeURIComponent(sessionId)}`);
       const data = await res.json();
-      let convs: { id: string; title: string; created_at?: string }[] = data.conversations ?? [];
+      let convs: {
+        id: string; title: string; created_at?: string;
+        context_anchor_pair_id?: string | null;
+        context_anchor_time?: string | null;
+        reference_doc_ids?: string[] | null;
+        agent_context?: string | null;
+      }[] = data.conversations ?? [];
       if (convs.length === 0) {
         const cr = await fetch("/api/conversations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId, title: "기본 대화", adopt_orphans: true }) });
         const cd = await cr.json();
         if (cd.conversation) convs = [cd.conversation];
       }
-      setConversations(convs.map(c => ({ id: c.id, title: c.title })));
+      // 상태 컬럼도 함께 보관(마이그레이션 전이면 undefined) — loadConversation에서 DB 우선 복원에 사용
+      setConversations(convs.map(c => ({
+        id: c.id, title: c.title,
+        context_anchor_pair_id: c.context_anchor_pair_id,
+        context_anchor_time: c.context_anchor_time,
+        reference_doc_ids: c.reference_doc_ids,
+        agent_context: c.agent_context,
+      })));
       // 복구: 미배정(숨겨진) 기존 메시지를 가장 오래된 방으로 흡수
       let recoveredInto: string | null = null;
       if (convs.length > 0) {
@@ -565,21 +585,32 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       const data = await res.json();
       setPairs(data.messages?.length ? parsePairs(data.messages) : []);
     } catch { setPairs([]); }
-    // 맥락선 복원 — 룸 키 우선, 없으면 세션 키로 폴백 (룸 기능 이전에 저장된 anchor 보존)
-    const apair = localStorage.getItem(`jordan_context_anchor_pair:${convId}`) ?? localStorage.getItem(`jordan_context_anchor_pair:${sessionId}`);
-    const atime = localStorage.getItem(`jordan_context_anchor_time:${convId}`) ?? localStorage.getItem(`jordan_context_anchor_time:${sessionId}`);
+    // 맥락선 복원 — DB(서버) 우선, 없으면 localStorage(룸 키 → 세션 키 폴백). DB값은 localStorage에도 미러링
+    const room = conversations.find(c => c.id === convId);
+    const apair = room?.context_anchor_pair_id != null
+      ? room.context_anchor_pair_id
+      : (localStorage.getItem(`jordan_context_anchor_pair:${convId}`) ?? localStorage.getItem(`jordan_context_anchor_pair:${sessionId}`));
+    const atime = room?.context_anchor_pair_id != null
+      ? (room.context_anchor_time ?? null)
+      : (localStorage.getItem(`jordan_context_anchor_time:${convId}`) ?? localStorage.getItem(`jordan_context_anchor_time:${sessionId}`));
     setContextAnchorPairId(apair);
     setContextAnchorTimestamp(atime);
-    // 세션 키에만 있던 레거시 anchor를 룸 키로 이관 (다음부턴 룸 키로 일관 저장)
+    // anchor를 룸 키 localStorage로 미러링/이관 (DB값이든 세션 레거시든 다음부턴 룸 키로 일관)
     if (apair && !localStorage.getItem(`jordan_context_anchor_pair:${convId}`)) {
       localStorage.setItem(`jordan_context_anchor_pair:${convId}`, apair);
       if (atime) localStorage.setItem(`jordan_context_anchor_time:${convId}`, atime);
     }
-    // 참고 기획서 복원 (방별)
-    try {
-      const rd = localStorage.getItem(`jordan_ref_docs:${convId}`);
-      setRefDocIds(rd ? (JSON.parse(rd) as string[]) : []);
-    } catch { setRefDocIds([]); }
+    // 참고 기획서 복원: DB값 있으면 우선, 없으면 localStorage
+    if (Array.isArray(room?.reference_doc_ids)) {
+      setRefDocIds(room.reference_doc_ids);
+      if (room.reference_doc_ids.length > 0) localStorage.setItem(`jordan_ref_docs:${convId}`, JSON.stringify(room.reference_doc_ids));
+      else localStorage.removeItem(`jordan_ref_docs:${convId}`);
+    } else {
+      try {
+        const rd = localStorage.getItem(`jordan_ref_docs:${convId}`);
+        setRefDocIds(rd ? (JSON.parse(rd) as string[]) : []);
+      } catch { setRefDocIds([]); }
+    }
     // 이 방에 진행 중인 백그라운드 생성이 있으면 라이브 스트림 복원
     const g = genStateRef.current.get(convId);
     if (g) {
@@ -675,6 +706,13 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     setContextAnchorTimestamp(timestamp);
     localStorage.setItem(`jordan_context_anchor_pair:${roomKey}`, pairId);
     localStorage.setItem(`jordan_context_anchor_time:${roomKey}`, timestamp);
+    // DB에도 저장(서버 단일 소스) — 실제 방 id일 때만, fire-and-forget
+    if (currentConvIdRef.current) {
+      void fetch("/api/conversations", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: currentConvIdRef.current, context_anchor_pair_id: pairId, context_anchor_time: timestamp }),
+      }).catch(() => {});
+    }
   }
   function clearContextAnchor() {
     const roomKey = currentConvIdRef.current ?? sessionId;
@@ -683,6 +721,13 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     setContextAnchorTimestamp(null);
     localStorage.removeItem(`jordan_context_anchor_pair:${roomKey}`);
     localStorage.removeItem(`jordan_context_anchor_time:${roomKey}`);
+    // DB에서도 해제 — 실제 방 id일 때만, fire-and-forget
+    if (currentConvIdRef.current) {
+      void fetch("/api/conversations", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: currentConvIdRef.current, context_anchor_pair_id: null, context_anchor_time: null }),
+      }).catch(() => {});
+    }
   }
 
   // 이미지 다운스케일 (긴 변 최대 maxEdge px) → data URL 반환. 토큰·용량·전송시간 절감
@@ -750,6 +795,13 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     const key = `jordan_ref_docs:${currentConvId ?? sessionId}`;
     if (ids.length > 0) localStorage.setItem(key, JSON.stringify(ids));
     else localStorage.removeItem(key);
+    // DB에도 저장(서버 단일 소스) — 실제 방 id일 때만, fire-and-forget
+    if (currentConvIdRef.current) {
+      void fetch("/api/conversations", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: currentConvIdRef.current, reference_doc_ids: ids }),
+      }).catch(() => {});
+    }
   }
 
   // 맥락선 범위 대화 → {role,content}[] (수정 근거)

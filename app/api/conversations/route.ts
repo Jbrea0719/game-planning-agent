@@ -11,6 +11,23 @@ export async function GET(request: Request) {
   const sessionId = searchParams.get("session_id");
   if (!sessionId) return Response.json({ error: "session_id 필요" }, { status: 400 });
 
+  // 1차: 새 상태 컬럼까지 포함해 조회 (마이그레이션 018 이후)
+  const withState = await supabase
+    .from("conversations")
+    .select("id, title, created_at, updated_at, context_anchor_pair_id, context_anchor_time, reference_doc_ids, agent_context")
+    .eq("session_id", sessionId)
+    .order("updated_at", { ascending: false });
+
+  if (!withState.error) {
+    return Response.json({ conversations: withState.data ?? [] });
+  }
+
+  // 컬럼이 아직 없는 경우(마이그레이션 전) → 기존 컬럼만으로 폴백해 목록이 깨지지 않게
+  const msg = withState.error.message ?? "";
+  const isMissingColumn = /context_anchor|reference_doc_ids|agent_context/.test(msg);
+  if (!isMissingColumn) {
+    return Response.json({ error: msg }, { status: 500 });
+  }
   const { data, error } = await supabase
     .from("conversations")
     .select("id, title, created_at, updated_at")
@@ -61,13 +78,46 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const { id, title } = (await request.json()) as { id: string; title: string };
+  const body = (await request.json()) as {
+    id: string;
+    title?: string;
+    context_anchor_pair_id?: string | null;
+    context_anchor_time?: string | null;
+    reference_doc_ids?: string[] | null;
+    agent_context?: string | null;
+  };
+  const { id } = body;
   if (!id) return Response.json({ error: "id 필요" }, { status: 400 });
-  const { error } = await supabase
-    .from("conversations")
-    .update({ title: (title ?? "").trim() || "새 대화", updated_at: new Date().toISOString() })
-    .eq("id", id);
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+
+  // 항상 존재하는(마이그레이션 전에도 안전한) 필드만 따로 모음 — 폴백용
+  const baseUpdate: Record<string, unknown> = {};
+  // 상태 컬럼(마이그레이션 018 이후에만 존재) — 본문에 있을 때만 부분 갱신
+  const stateUpdate: Record<string, unknown> = {};
+
+  if ("title" in body) {
+    baseUpdate.title = (body.title ?? "").trim() || "새 대화";
+    baseUpdate.updated_at = new Date().toISOString();  // 이름 변경 시 활동 시각 갱신(기존 동작 유지)
+  }
+  if ("context_anchor_pair_id" in body) stateUpdate.context_anchor_pair_id = body.context_anchor_pair_id;
+  if ("context_anchor_time" in body) stateUpdate.context_anchor_time = body.context_anchor_time;
+  if ("reference_doc_ids" in body) stateUpdate.reference_doc_ids = body.reference_doc_ids;  // 배열 → jsonb 그대로
+  if ("agent_context" in body) stateUpdate.agent_context = body.agent_context;
+
+  const fullUpdate = { ...baseUpdate, ...stateUpdate };
+  if (Object.keys(fullUpdate).length === 0) return Response.json({ success: true });
+
+  // 1차: 상태 컬럼 포함 갱신
+  const first = await supabase.from("conversations").update(fullUpdate).eq("id", id);
+  if (!first.error) return Response.json({ success: true });
+
+  // 상태 컬럼이 없어서 실패한 경우 → 항상 존재하는 필드만으로 재시도(없으면 그냥 ok). 선택적 컬럼 때문에 500 내지 않음
+  const msg = first.error.message ?? "";
+  const isMissingColumn = /context_anchor|reference_doc_ids|agent_context/.test(msg);
+  if (!isMissingColumn) return Response.json({ error: msg }, { status: 500 });
+
+  if (Object.keys(baseUpdate).length === 0) return Response.json({ success: true });
+  const retry = await supabase.from("conversations").update(baseUpdate).eq("id", id);
+  if (retry.error) return Response.json({ error: retry.error.message }, { status: 500 });
   return Response.json({ success: true });
 }
 
