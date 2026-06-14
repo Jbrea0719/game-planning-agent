@@ -17,18 +17,20 @@
 import { readFileSync, readdirSync } from "node:fs";
 
 // .env.local 로드 (Next 규약 — node 단독 실행 시 자동 로드 안 되므로 직접 파싱)
-function loadEnvLocal() {
+function loadEnvFile(path) {
   try {
-    const txt = readFileSync(".env.local", "utf8");
+    const txt = readFileSync(path, "utf8");
     for (const line of txt.split(/\r?\n/)) {
       const m = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*)\s*$/);
       if (m && process.env[m[1]] === undefined) {
         process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
       }
     }
-  } catch { /* .env.local 없으면 무시 */ }
+  } catch { /* 파일 없으면 무시 */ }
 }
-loadEnvLocal();
+// 토큰 전용 파일(.env.migration.local) 우선, 그다음 .env.local (둘 다 깃 제외)
+loadEnvFile(".env.migration.local");
+loadEnvFile(".env.local");
 
 const token = process.env.SUPABASE_ACCESS_TOKEN;
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
