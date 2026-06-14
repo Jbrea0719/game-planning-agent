@@ -508,9 +508,12 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           if (ad.adopted > 0) recoveredInto = oldest.id;
         } catch { /* 무시 */ }
       }
-      // 마지막에 보던 방을 최우선 복원 (복구는 백그라운드로만)
+      // 방 선택 우선순위: URL(?conv=) > 마지막 방 > 복구 방 > 첫 방 (탭별 독립)
+      const urlConv = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("conv") : null;
       const lastUsed = localStorage.getItem(`jordan_current_conv:${sessionId}`);
-      const target = (lastUsed && convs.find(c => c.id === lastUsed)) ? lastUsed : (recoveredInto ?? convs[0]?.id ?? null);
+      const target = (urlConv && convs.find(c => c.id === urlConv)) ? urlConv
+        : (lastUsed && convs.find(c => c.id === lastUsed)) ? lastUsed
+        : (recoveredInto ?? convs[0]?.id ?? null);
       if (target) { await loadConversation(target); return; }
       throw new Error("대화방 셋업 불가 — 폴백");
     } catch (err) {
@@ -531,6 +534,14 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     setCurrentConvId(convId);
     currentConvIdRef.current = convId;
     localStorage.setItem(`jordan_current_conv:${sessionId}`, convId);
+    // URL(?conv=)·탭 제목에 방 고정 — 탭별 독립, 새로고침해도 이 방 유지
+    if (typeof window !== "undefined") {
+      const roomTitle = conversations.find(c => c.id === convId)?.title ?? "대화";
+      const u = new URL(window.location.href);
+      u.searchParams.set("conv", convId);
+      window.history.replaceState(null, "", u.toString());
+      document.title = `조던 — ${roomTitle}`;
+    }
     setShowConvList(false);
     setPairs([]);
     try {
