@@ -17,6 +17,7 @@ import HistoryPanel from "@/components/HistoryPanel";
 import ImageIntentBar from "@/components/ImageIntentBar";
 import ImageAnnotator from "@/components/ImageAnnotator";
 import SketchWireframeModal from "@/components/SketchWireframeModal";
+import ReferenceGallery from "@/components/ReferenceGallery";
 import { buildImageIntentPrefix } from "@/lib/image-intent";
 import { useDeviceMode, DEVICE_FRAMES } from "@/hooks/useIsMobile";
 import { useCrossTabSync } from "@/hooks/useCrossTabSync";
@@ -302,6 +303,7 @@ function DesktopChatPage() {
   const [imageHasAnnotation, setImageHasAnnotation] = useState(false);
   const [showAnnotator, setShowAnnotator] = useState(false);
   const [showSketchModal, setShowSketchModal] = useState(false);  // 스케치→와이어프레임 (Feature L)
+  const [showRefGallery, setShowRefGallery] = useState(false);  // 레퍼런스 갤러리 (Feature J)
   // 이미지 첨부 해제 시 의도 상태도 초기화
   function clearAttachedImage() {
     setAttachedImage(null);
@@ -2419,6 +2421,17 @@ function DesktopChatPage() {
         />
       )}
 
+      {/* 🗂️ 레퍼런스 갤러리 (Feature J) */}
+      <ReferenceGallery
+        open={showRefGallery}
+        onClose={() => setShowRefGallery(false)}
+        onPick={(img, label) => {
+          setAttachedImage(img);
+          setImageHasAnnotation(false);
+          setImageMemo(`레퍼런스 참고: ${label}`);
+        }}
+      />
+
       {/* 📐 스케치 → 와이어프레임 (Feature L) */}
       {showSketchModal && attachedImage && (
         <SketchWireframeModal
@@ -3318,6 +3331,16 @@ function DesktopChatPage() {
             style={{ backgroundColor: "rgba(255,255,255,0.07)", border: `1px solid ${SILVER_FAINT}`, color: SILVER }}
           >
             📎
+          </button>
+          {/* 레퍼런스 갤러리 (Feature J) */}
+          <button
+            onClick={() => setShowRefGallery(true)}
+            disabled={isLoading}
+            title="레퍼런스 갤러리 — 참고 게임 화면 모음에서 '이 느낌으로' 첨부"
+            className="w-11 h-11 rounded-xl flex items-center justify-center text-base flex-shrink-0 disabled:opacity-40"
+            style={{ backgroundColor: "rgba(255,255,255,0.07)", border: `1px solid ${SILVER_FAINT}`, color: SILVER }}
+          >
+            🗂️
           </button>
           <textarea
             ref={inputRef}

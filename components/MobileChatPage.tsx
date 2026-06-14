@@ -36,6 +36,7 @@ import { useSpeechRecognition, applyVoiceCommands } from "@/hooks/useSpeechRecog
 import ImageIntentBar from "@/components/ImageIntentBar";
 import ImageAnnotator from "@/components/ImageAnnotator";
 import SketchWireframeModal from "@/components/SketchWireframeModal";
+import ReferenceGallery from "@/components/ReferenceGallery";
 import { buildImageIntentPrefix } from "@/lib/image-intent";
 
 // WireframeEditor·MockupGenerator는 DocumentView 안에서 호출 (📄 기획서 → 🎨 화면 설계)
@@ -132,6 +133,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   const [imageHasAnnotation, setImageHasAnnotation] = useState(false);
   const [showAnnotator, setShowAnnotator] = useState(false);
   const [showSketchModal, setShowSketchModal] = useState(false);  // 스케치→와이어프레임 (Feature L)
+  const [showRefGallery, setShowRefGallery] = useState(false);  // 레퍼런스 갤러리 (Feature J)
   function clearAttachedImage() {
     setAttachedImage(null);
     setImageIntentTags([]);
@@ -1629,6 +1631,16 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         >
           📎
         </button>
+        {/* 레퍼런스 갤러리 (Feature J) */}
+        <button
+          onClick={() => setShowRefGallery(true)}
+          disabled={isLoading}
+          title="레퍼런스 갤러리"
+          className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 disabled:opacity-40"
+          style={{ backgroundColor: "rgba(255,255,255,0.07)", border: `1px solid ${SILVER_FAINT}`, color: SILVER }}
+        >
+          🗂️
+        </button>
         <textarea
           ref={inputRef}
           value={input}
@@ -1868,6 +1880,17 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           </div>
         </div>
       )}
+
+      {/* 🗂️ 레퍼런스 갤러리 (Feature J) */}
+      <ReferenceGallery
+        open={showRefGallery}
+        onClose={() => setShowRefGallery(false)}
+        onPick={(img, label) => {
+          setAttachedImage(img);
+          setImageHasAnnotation(false);
+          setImageMemo(`레퍼런스 참고: ${label}`);
+        }}
+      />
 
       {/* 가이드 모달 */}
       {showGuide && <MobileGuide onClose={() => setShowGuide(false)} />}
