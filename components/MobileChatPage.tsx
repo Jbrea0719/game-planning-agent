@@ -138,6 +138,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   const [showDocs, setShowDocs] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);  // 🕘 히스토리 — 별도 팝업
   // ── PWA 홈 화면 설치 (안드로이드 크롬 beforeinstallprompt 활용) ──
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(false); // 이미 앱으로 설치돼 실행 중인지
@@ -1756,7 +1757,30 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           autoDetail={autoDetail}
           setAutoDetail={(v) => { setAutoDetail(v); broadcastSync({ kind: "toggle", key: "autoDetail", value: v }); }}
           onClose={() => setShowSettings(false)}
+          onOpenHistory={() => { setShowSettings(false); setShowHistory(true); }}
         />
+      )}
+
+      {/* 🕘 히스토리 모달 (바텀시트) */}
+      {showHistory && (
+        <div className="fixed inset-0 z-[60] flex items-end" onClick={() => setShowHistory(false)}>
+          <div
+            className="w-full max-h-[85dvh] flex flex-col rounded-t-2xl"
+            style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+              <div>
+                <p className="text-sm font-bold flex items-center gap-2" style={{ color: SILVER }}>🕘 히스토리</p>
+                <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>추가·수정·삭제 기록</p>
+              </div>
+              <button onClick={() => setShowHistory(false)} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 pt-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+              <HistoryPanel />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 가이드 모달 */}
@@ -1902,7 +1926,7 @@ function MenuBtn({ icon, label, subtitle, onClick }: {
 
 // ── 모바일 설정 모달 ──────────────────────────────────────────────
 function MobileSettings({
-  isAdmin, showCitations, setShowCitations, autoDetail, setAutoDetail, onClose,
+  isAdmin, showCitations, setShowCitations, autoDetail, setAutoDetail, onClose, onOpenHistory,
 }: {
   isAdmin: boolean;
   showCitations: boolean;
@@ -1910,6 +1934,7 @@ function MobileSettings({
   autoDetail: boolean;
   setAutoDetail: (v: boolean) => void;
   onClose: () => void;
+  onOpenHistory: () => void;
 }) {
   const [showGameModal, setShowGameModal] = useState(false);
   return (
@@ -1968,11 +1993,17 @@ function MobileSettings({
             </div>
           </section>
 
-          {/* 🕘 히스토리 — 변경 이력 (조던 기능 / 기획서) */}
+          {/* 🕘 히스토리 — 변경 이력 (별도 팝업으로 열기) */}
           <section>
             <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🕘 히스토리</p>
             <p className="text-[10px] mb-2" style={{ color: SILVER_DIM }}>결정사항·카테고리·기획서의 추가·수정·삭제 기록</p>
-            <HistoryPanel />
+            <button
+              onClick={onOpenHistory}
+              className="text-xs px-3 py-2.5 rounded-lg font-medium w-full"
+              style={{ backgroundColor: "rgba(100,180,255,0.12)", border: "1px solid rgba(100,180,255,0.4)", color: "rgba(180,210,255,1)" }}
+            >
+              🕘 히스토리 열기
+            </button>
           </section>
 
           {/* 참고 게임 — 데스크톱과 동일(공용 REFERENCE_GAMES). 탭하면 라이브러리 모달 */}
