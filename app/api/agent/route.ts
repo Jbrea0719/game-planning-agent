@@ -957,10 +957,9 @@ ${userQuery}`;
     return { analysis: textContent || "검색 완료 (분석 텍스트 없음)", route };
   } catch (err) {
     const status = (err as { status?: number })?.status;
-    const errMsg = (err as { error?: { error?: { message?: string } }; message?: string })?.error?.error?.message
-      ?? (err as { message?: string })?.message ?? String(err);
-    console.error("[analyzeWithWebSearch] 오류:", err);
-    onProgress?.(`  ❌ 웹 검색 실패${status ? `(HTTP ${status})` : ""} — ${String(errMsg).slice(0, 300)}\n`);
+    // 원인 진단은 서버 로그로만 — 사용자에겐 영어 원문 대신 깔끔한 안내
+    console.error("[analyzeWithWebSearch] 오류:", status, String(err).slice(0, 500));
+    onProgress?.(`  ❌ 웹 검색 실패${status ? `(HTTP ${status})` : ""} — 기억 기반으로 답변해요\n`);
     return {
       analysis: `[검색 상태] 웹 검색이 일시적으로 실패했어요${status ? ` (HTTP ${status})` : ""}. 신뢰 사이트로 재확인을 못 했으니, 게임별 구체 사실은 단정하지 말고 "확인 필요"로 명시하고 답하세요.`,
       route,
