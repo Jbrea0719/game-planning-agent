@@ -614,6 +614,13 @@ const KOREAN_GAME_TRUSTED_DOMAINS = [
   "bbs.ruliweb.com",
 ];
 
+// Anthropic 웹검색 크롤러가 접근 차단된 도메인 — allowed_domains에 넣으면 요청 전체가 HTTP 400으로 거부됨.
+// (네이버 일부 서브도메인이 크롤러를 막음) → allowedDomains 구성 시 반드시 제외.
+const CRAWLER_BLOCKED_DOMAINS = new Set([
+  "game.naver.com",
+  "blog.naver.com",
+]);
+
 // 질문 + 맥락 카드에서 매칭되는 게임 찾기 (정적 매칭 — 라우터 보조용)
 function findMatchingGame(userQuery: string, contextCard: string): { game: typeof GAME_COMMUNITIES[string]; gameKey: string } | null {
   const haystack = `${contextCard} ${userQuery}`.toLowerCase();
@@ -744,10 +751,11 @@ async function analyzeWithWebSearch(
   }
 
   // 한국 게임 일반 신뢰 도메인 + 게임별 발견 도메인 통합
+  // ※ 크롤러 차단 도메인은 반드시 제외 — 하나라도 포함되면 웹검색 요청 전체가 HTTP 400으로 거부됨
   const allowedDomains = Array.from(new Set([
     ...gameDomains,
     ...KOREAN_GAME_TRUSTED_DOMAINS,
-  ].filter(d => d && d.length > 0)));
+  ].filter(d => d && d.length > 0 && !CRAWLER_BLOCKED_DOMAINS.has(d))));
 
   if (gameDomains.length > 0) {
     onProgress?.(`\n🌐 **웹 검색 시작** — 게임 전용 ${gameDomains.length}개 + 한국 게임 신뢰 ${KOREAN_GAME_TRUSTED_DOMAINS.length}개 사이트 대상\n\n`);
