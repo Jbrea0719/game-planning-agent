@@ -94,16 +94,33 @@ export async function DELETE(request: Request) {
     if (!id) return Response.json({ error: "id 필수" }, { status: 400 });
 
     // 본인 또는 관리자만 삭제
-    const { data: row } = await supabase.from("doc_comments").select("nickname").eq("id", id).maybeSingle();
-    const owner = (row?.nickname as string | null) ?? null;
+    const { data: row } = await supabase.from("doc_comments").select("nickname, doc_family_id").eq("id", id).maybeSingle();
+    if (!row) return Response.json({ ok: true });  // 이미 없음
+    const owner = (row.nickname as string | null) ?? null;
     if (nickname !== ADMIN && owner !== nickname) {
       return Response.json({ error: "본인 댓글만 삭제할 수 있어요" }, { status: 403 });
     }
 
-    // 최상위 댓글이면 답글까지 함께 삭제
-    const { error } = await supabase.from("doc_comments").delete().or(`id.eq.${id},parent_id.eq.${id}`);
+    // 하위 답글 '전체'(서브트리)를 함께 삭제 — 깊은 체인에서 고아 댓글 방지
+    const fam = row.doc_family_id as string | null;
+    const ids: string[] = [id];
+    if (fam) {
+      const { data: all } = await supabase.from("doc_comments").select("id, parent_id").eq("doc_family_id", fam);
+      const childMap = new Map<string, string[]>();
+      for (const c of (all ?? []) as { id: string; parent_id: string | null }[]) {
+        const p = c.parent_id ?? "__root__";
+        if (!childMap.has(p)) childMap.set(p, []);
+        childMap.get(p)!.push(c.id);
+      }
+      const stack = [id];
+      while (stack.length) {
+        const cur = stack.pop()!;
+        for (const ch of childMap.get(cur) ?? []) { ids.push(ch); stack.push(ch); }
+      }
+    }
+    const { error } = await supabase.from("doc_comments").delete().in("id", ids);
     if (error) return Response.json({ error: error.message }, { status: 500 });
-    return Response.json({ ok: true });
+    return Response.json({ ok: true, deleted: ids.length });
   } catch (err) {
     return Response.json({ error: String(err) }, { status: 500 });
   }

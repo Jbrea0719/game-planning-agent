@@ -66,20 +66,25 @@ export default function DocComments({ docFamilyId, nickname, scrollToCommentId }
 
   useEffect(() => { void load(); }, [load]);
 
-  async function post(parentId: string | null, text: string) {
+  // 성공 시 true, 실패 시 false 반환 — 에디터가 false면 입력을 비우지 않고 보존(재시도 가능)
+  async function post(parentId: string | null, text: string): Promise<boolean> {
     const c = text.trim();
-    if (!c || posting) return;
+    if (!c || posting) return false;
     setPosting(true);
     try {
       const res = await fetch("/api/design-docs/comments", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ doc_family_id: docFamilyId, parent_id: parentId, content: c, nickname }),
       });
-      const data = await res.json();
-      if (data.error) { alert(`등록 실패: ${data.error}\n(테이블이 없으면 마이그레이션 021을 적용하세요)`); return; }
+      const data = await res.json().catch(() => ({ error: `서버 응답 오류(${res.status})` }));
+      if (!res.ok || data.error) { alert(`등록 실패: ${data.error ?? res.status}\n(내용은 그대로 있으니 다시 시도하세요)`); return false; }
       if (parentId) setReplyingTo(null);
       await load();
-    } catch (e) { alert(`등록 실패: ${String(e)}`); } finally { setPosting(false); }
+      return true;
+    } catch (e) {
+      alert(`등록 실패: ${String(e)}\n(내용은 그대로 있으니 다시 시도하세요)`);
+      return false;
+    } finally { setPosting(false); }
   }
 
   async function remove(id: string) {

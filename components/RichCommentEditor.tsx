@@ -13,7 +13,7 @@ const SILVER_FAINT = "rgba(192,200,216,0.15)";
 const BLUE = "rgba(180,210,255,1)";
 
 interface Props {
-  onSubmit: (html: string) => void;
+  onSubmit: (html: string) => void | boolean | Promise<void | boolean>;  // false 반환 시 입력 유지(실패)
   placeholder?: string;
   submitLabel?: string;
   posting?: boolean;
@@ -25,6 +25,7 @@ export default function RichCommentEditor({ onSubmit, placeholder, submitLabel =
   const ref = useRef<HTMLDivElement>(null);
   const [empty, setEmpty] = useState(true);
   const [showColors, setShowColors] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   // 현재 선택 영역을 style 적용한 span으로 감싸기
   function wrap(style: Partial<CSSStyleDeclaration>) {
@@ -49,16 +50,21 @@ export default function RichCommentEditor({ onSubmit, placeholder, submitLabel =
     setEmpty((el.textContent ?? "").trim().length === 0);
   }
 
-  function submit() {
+  async function submit() {
     const el = ref.current;
-    if (!el) return;
-    const html = sanitizeCommentHtml(el.innerHTML);
+    if (!el || busy) return;
     // 태그 빼고 실제 글자가 있는지 확인
     const text = el.textContent ?? "";
     if (!text.trim()) return;
-    onSubmit(html);
-    el.innerHTML = "";
-    setEmpty(true);
+    const html = sanitizeCommentHtml(el.innerHTML);
+    setBusy(true);
+    try {
+      const ok = await onSubmit(html);
+      // 성공(true 또는 반환값 없음)일 때만 비움 — 실패(false)면 입력 내용 보존해 재시도 가능
+      if (ok !== false) { el.innerHTML = ""; setEmpty(true); }
+    } finally {
+      setBusy(false);
+    }
   }
 
   const btn = "text-[11px] px-2 py-1 rounded";
@@ -112,10 +118,10 @@ export default function RichCommentEditor({ onSubmit, placeholder, submitLabel =
 
       <div className="flex justify-end gap-2 mt-1.5">
         {onCancel && <button type="button" onClick={onCancel} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>취소</button>}
-        <button type="button" onClick={submit} disabled={posting || empty}
+        <button type="button" onClick={submit} disabled={posting || busy || empty}
           className="text-xs px-4 py-1.5 rounded-lg font-bold disabled:opacity-40"
           style={{ backgroundColor: "rgba(100,180,255,0.2)", border: "1px solid rgba(100,180,255,0.5)", color: BLUE }}>
-          {posting ? "등록 중…" : submitLabel}
+          {posting || busy ? "등록 중…" : submitLabel}
         </button>
       </div>
     </div>
