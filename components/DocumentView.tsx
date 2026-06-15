@@ -1022,6 +1022,14 @@ export default function DocumentView({
                     }
                     return <code className={className}>{children}</code>;
                   },
+                  // 표 — 좁은 화면에서 칸 뭉개짐 방지(가로 스크롤 + 내용 폭)
+                  table: ({ children, ...props }) => (
+                    <div style={{ overflowX: "auto", margin: "0.6rem 0", border: "1px solid rgba(192,200,216,0.18)", borderRadius: 8 }}>
+                      <table {...props} style={{ borderCollapse: "collapse", width: "auto", fontSize: "13px", lineHeight: 1.5 }}>{children}</table>
+                    </div>
+                  ),
+                  th: ({ children, ...props }) => <th {...props} style={{ border: "1px solid rgba(192,200,216,0.22)", padding: "6px 10px", textAlign: "left", whiteSpace: "nowrap", backgroundColor: "rgba(255,255,255,0.05)", fontWeight: 700 }}>{children}</th>,
+                  td: ({ children, ...props }) => <td {...props} style={{ border: "1px solid rgba(192,200,216,0.15)", padding: "6px 10px", verticalAlign: "top", minWidth: 56 }}>{children}</td>,
                 }}
               >{currentDoc.content_markdown}</ReactMarkdown>
             </article>

@@ -59,10 +59,21 @@ type Pair = {
   detail_failed?: boolean; // 자세히 불러오기 실패 → 재시도 버튼 표시용
 };
 
+// 표 — 좁은 모바일 화면에서 칸이 뭉개지지 않게 가로 스크롤 + 내용 폭 기준
+const mdComponents = {
+  table: ({ children, ...props }: { children?: ReactNode }) => (
+    <div style={{ overflowX: "auto", margin: "0.6rem 0", WebkitOverflowScrolling: "touch", border: "1px solid rgba(192,200,216,0.18)", borderRadius: 8 }}>
+      <table {...props} style={{ borderCollapse: "collapse", width: "auto", fontSize: "13px", lineHeight: 1.5 }}>{children}</table>
+    </div>
+  ),
+  th: ({ children, ...props }: { children?: ReactNode }) => <th {...props} style={{ border: "1px solid rgba(192,200,216,0.22)", padding: "6px 10px", textAlign: "left", whiteSpace: "nowrap", backgroundColor: "rgba(255,255,255,0.05)", fontWeight: 700 }}>{children}</th>,
+  td: ({ children, ...props }: { children?: ReactNode }) => <td {...props} style={{ border: "1px solid rgba(192,200,216,0.15)", padding: "6px 10px", verticalAlign: "top", minWidth: 56 }}>{children}</td>,
+};
+
 // 마크다운 렌더는 비용이 큼(매번 파싱). 내용(text)이 바뀔 때만 다시 그리도록 메모이즈.
 // → 입력창 타이핑으로 부모가 리렌더돼도, 쌓인 메시지 마크다운은 재파싱하지 않음 (타이핑 끊김 해결).
 const MemoMarkdown = memo(function MemoMarkdown({ text }: { text: string }) {
-  return <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{text}</ReactMarkdown>;
+  return <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]} components={mdComponents}>{text}</ReactMarkdown>;
 });
 
 export default function MobileChatPage({ simulateKeyboard = false }: { simulateKeyboard?: boolean }) {
@@ -1590,7 +1601,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                   <div className="px-3 py-2 rounded-2xl rounded-tl-sm text-sm prose prose-sm max-w-none"
                     style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}>
                     {streaming.assistant
-                      ? <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{streaming.assistant}</ReactMarkdown>
+                      ? <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]} components={mdComponents}>{streaming.assistant}</ReactMarkdown>
                       : streamFailed
                         ? <span style={{ color: "rgba(255,180,180,0.95)" }}>⚠️ 연결이 끊겼어요. 잠시 후 자동으로 다시 시도하거나, 위 <b>↻ 재시도</b>를 눌러주세요.</span>
                         : <span style={{ color: SILVER_DIM }} className="animate-pulse">···</span>}

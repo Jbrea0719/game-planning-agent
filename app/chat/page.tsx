@@ -184,7 +184,14 @@ const citationComponents = {
   h2: ({ children, ...props }: MdProps) => <h2 {...props}>{processChildrenForCitations(children)}</h2>,
   h3: ({ children, ...props }: MdProps) => <h3 {...props}>{processChildrenForCitations(children)}</h3>,
   h4: ({ children, ...props }: MdProps) => <h4 {...props}>{processChildrenForCitations(children)}</h4>,
-  td: ({ children, ...props }: MdProps) => <td {...props}>{processChildrenForCitations(children)}</td>,
+  // 표 — 좁은 화면에서 칸이 뭉개지지 않게 가로 스크롤 래퍼 + 내용 폭 기준
+  table: ({ children, ...props }: MdProps) => (
+    <div style={{ overflowX: "auto", margin: "0.6rem 0", WebkitOverflowScrolling: "touch", border: "1px solid rgba(192,200,216,0.18)", borderRadius: 8 }}>
+      <table {...props} style={{ borderCollapse: "collapse", width: "auto", fontSize: "13px", lineHeight: 1.5 }}>{children}</table>
+    </div>
+  ),
+  th: ({ children, ...props }: MdProps) => <th {...props} style={{ border: "1px solid rgba(192,200,216,0.22)", padding: "6px 10px", textAlign: "left", whiteSpace: "nowrap", backgroundColor: "rgba(255,255,255,0.05)", fontWeight: 700 }}>{processChildrenForCitations(children)}</th>,
+  td: ({ children, ...props }: MdProps) => <td {...props} style={{ border: "1px solid rgba(192,200,216,0.15)", padding: "6px 10px", verticalAlign: "top", minWidth: 56 }}>{processChildrenForCitations(children)}</td>,
   blockquote: ({ children, ...props }: MdProps) => <blockquote {...props}>{processChildrenForCitations(children)}</blockquote>,
 };
 
