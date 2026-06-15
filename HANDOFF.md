@@ -6,6 +6,16 @@
 
 ---
 
+## 🆕 최근 세션 작업 (2026-06-15, 추가분) — 절대 규칙 + 작성하기 신규방 + 환각 방지
+
+1. **⚖️ 절대 규칙(게임 헌법)** — 바이블보다 상위 불변 규칙(가로형/턴제/다IP콜라보 등). `absolute_rules` 테이블(마이그 020, **적용 완료**), `api/absolute-rules`, `lib/absolute-rules-context.ts`. **주입 위치:** 답변(agent route, 시스템 프롬프트 최상단) + 기획서 generate/revise/revise-from-chat + mockup/generate + sketch-to-wireframe. UI: 기획 바이블 패널(`DecisionPanel`) 최상단 `⚖️ 절대 규칙` 섹션(`AbsoluteRulesSection.tsx`), 데스크톱·모바일 공용. (커밋 71a3520)
+2. **기획서 '작성하기' → 신규 대화방에서 시작** — 현재 방에 안 섞이게 새 방(제목 `✍️ 항목명`) 생성·전환 후 인터뷰. `startInterviewForCategory`(page.tsx·MobileChatPage). 인터뷰 메시지에 누락됐던 conversation_id도 저장. (d3ea7bc)
+3. **환각 방지 — 존재·시스템 단정 금지 규칙** — 기존 정확성 규칙이 날짜·수치 중심이라 "없는 시스템(예: 세븐나이츠 초월강화)"을 지어내는 걸 못 막던 문제. baseSystemPrompt에 [존재·시스템 단정 금지]+[진짜 가치=기획 판단] 블록, 자가검증 6번 추가. (1add42b)
+
+**남은 후속(필요 시):** 절대규칙·환각방지 모두 "그래도 새면" 2단계 보강 여지 — 절대규칙은 위반 감지 경고, 환각은 검색단계가 '부재'를 명시 보고. 사용자가 며칠 써본 뒤 판단.
+
+---
+
 ## 🆕 최근 세션 작업 (2026-06-15 밤) — 5대 기능 + 히스토리 팝업 (전부 master 푸시·배포)
 
 사용자 취침 중 전권 위임으로 자율 진행. 전부 빌드 통과 + master 푸시 완료.
