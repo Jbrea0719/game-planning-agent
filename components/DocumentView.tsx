@@ -174,11 +174,14 @@ export default function DocumentView({
       .catch(err => console.error("[doc-view] 카테고리 로드 실패:", err));
   }, []);
 
-  // 사이드바 접힘 상태 복원
+  // 사이드바 접힘 상태 복원 — 저장된 선호 우선, 없으면 좁은 화면(모바일)에선 기본 접힘
+  // (리스트가 본문과 나란히 떠서 댓글·본문이 눌리는 문제 방지)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const saved = localStorage.getItem("jordan_doc_sidebar_collapsed");
     if (saved === "true") setSidebarCollapsed(true);
+    else if (saved === "false") setSidebarCollapsed(false);
+    else if (window.innerWidth < 768) setSidebarCollapsed(true);  // 좁은 화면 기본 접힘
   }, []);
   function setSidebar(next: boolean) {
     setSidebarCollapsed(next);
