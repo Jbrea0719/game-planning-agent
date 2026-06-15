@@ -98,7 +98,16 @@ export default function DocComments({ docFamilyId, nickname, scrollToCommentId }
   const canDelete = (c: Comment) => nickname === ADMIN || (c.nickname && c.nickname === nickname);
 
   const tops = comments.filter(c => !c.parent_id);
-  const repliesOf = (id: string) => comments.filter(c => c.parent_id === id);
+
+  // 댓글에 댓글(무한 체인)을 위해 트리를 평면 펼침 — 깊이(depth)와 함께 순서대로
+  const MAX_DEPTH = 99;  // 이 깊이 이상은 답글 불가
+  const ordered: { c: Comment; depth: number }[] = [];
+  (function build(parentId: string | null, depth: number) {
+    for (const c of comments.filter(x => (x.parent_id ?? null) === parentId)) {
+      ordered.push({ c, depth });
+      if (depth < MAX_DEPTH + 1) build(c.id, depth + 1);
+    }
+  })(null, 0);
 
   // 댓글 본문 렌더 — 옛 평문은 줄바꿈 보존 텍스트, 리치텍스트는 새니타이즈 HTML
   function renderContent(content: string) {
@@ -134,61 +143,56 @@ export default function DocComments({ docFamilyId, nickname, scrollToCommentId }
       ) : tops.length === 0 ? (
         <p className="text-xs" style={{ color: SILVER_DIM }}>아직 의견이 없어요. 첫 의견을 남겨보세요.</p>
       ) : (
-        <div className="space-y-4">
-          {tops.map(c => (
-            <div key={c.id} id={`doccomment-${c.id}`} className="flex gap-2 rounded-lg transition-colors" style={{ backgroundColor: flashId === c.id ? "rgba(100,180,255,0.12)" : "transparent", padding: flashId === c.id ? 6 : 0 }}>
-              <Avatar name={c.nickname} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[12px] font-bold" style={{ color: SILVER }}>{c.nickname ?? "익명"}</span>
-                  <span className="text-[10px]" style={{ color: SILVER_DIM }}>{timeAgo(c.created_at)}</span>
-                </div>
-                {renderContent(c.content)}
-                <div className="flex items-center gap-3 mt-1">
-                  <button onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)}
-                    className="text-[11px]" style={{ color: SILVER_DIM }}>답글</button>
-                  {canDelete(c) && (
-                    <button onClick={() => remove(c.id)} className="text-[11px]" style={{ color: "rgba(255,150,150,0.7)" }}>삭제</button>
+        <div className="space-y-3">
+          {ordered.map(({ c, depth }) => {
+            const canReply = depth < MAX_DEPTH;  // 깊이 99까지 답글 가능
+            return (
+              <div
+                key={c.id}
+                id={`doccomment-${c.id}`}
+                className="flex gap-2 rounded-lg transition-colors"
+                style={{
+                  marginLeft: Math.min(depth, 6) * 14,  // 들여쓰기는 6단계까지만 누적(깊어도 안 깨지게)
+                  borderLeft: depth > 0 ? `2px solid ${SILVER_FAINT}` : undefined,
+                  paddingLeft: depth > 0 ? 8 : flashId === c.id ? 6 : 0,
+                  paddingTop: flashId === c.id ? 6 : 0,
+                  paddingBottom: flashId === c.id ? 6 : 0,
+                  paddingRight: flashId === c.id ? 6 : 0,
+                  backgroundColor: flashId === c.id ? "rgba(100,180,255,0.12)" : "transparent",
+                }}
+              >
+                <Avatar name={c.nickname} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-bold" style={{ color: SILVER }}>{c.nickname ?? "익명"}</span>
+                    <span className="text-[10px]" style={{ color: SILVER_DIM }}>{timeAgo(c.created_at)}</span>
+                    {depth > 0 && <span className="text-[9px]" style={{ color: SILVER_DIM }}>↳ 답글</span>}
+                  </div>
+                  {renderContent(c.content)}
+                  <div className="flex items-center gap-3 mt-1">
+                    {canReply && (
+                      <button onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)} className="text-[11px]" style={{ color: SILVER_DIM }}>답글</button>
+                    )}
+                    {canDelete(c) && (
+                      <button onClick={() => remove(c.id)} className="text-[11px]" style={{ color: "rgba(255,150,150,0.7)" }}>삭제</button>
+                    )}
+                  </div>
+                  {replyingTo === c.id && canReply && (
+                    <div className="mt-2">
+                      <RichCommentEditor
+                        onSubmit={(html) => post(c.id, html)}
+                        onCancel={() => setReplyingTo(null)}
+                        placeholder={`${c.nickname ?? "익명"}님에게 답글…`}
+                        submitLabel="등록"
+                        posting={posting}
+                        compact
+                      />
+                    </div>
                   )}
                 </div>
-
-                {/* 답글 입력 */}
-                {replyingTo === c.id && (
-                  <div className="mt-2">
-                    <RichCommentEditor
-                      onSubmit={(html) => post(c.id, html)}
-                      onCancel={() => setReplyingTo(null)}
-                      placeholder={`${c.nickname ?? "익명"}님에게 답글…`}
-                      submitLabel="등록"
-                      posting={posting}
-                      compact
-                    />
-                  </div>
-                )}
-
-                {/* 답글 목록 */}
-                {repliesOf(c.id).length > 0 && (
-                  <div className="mt-3 space-y-3 pl-3" style={{ borderLeft: `2px solid ${SILVER_FAINT}` }}>
-                    {repliesOf(c.id).map(r => (
-                      <div key={r.id} id={`doccomment-${r.id}`} className="flex gap-2 rounded-lg transition-colors" style={{ backgroundColor: flashId === r.id ? "rgba(100,180,255,0.12)" : "transparent", padding: flashId === r.id ? 6 : 0 }}>
-                        <Avatar name={r.nickname} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[12px] font-bold" style={{ color: SILVER }}>{r.nickname ?? "익명"}</span>
-                            <span className="text-[10px]" style={{ color: SILVER_DIM }}>{timeAgo(r.created_at)}</span>
-                          </div>
-                          {renderContent(r.content)}
-                          {canDelete(r) && (
-                            <button onClick={() => remove(r.id)} className="text-[11px] mt-1" style={{ color: "rgba(255,150,150,0.7)" }}>삭제</button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
