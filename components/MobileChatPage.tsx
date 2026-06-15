@@ -2324,6 +2324,7 @@ function MobileGuide({ onClose }: { onClose: () => void }) {
           <section>
             <p className="font-bold mb-1.5" style={{ color: "rgba(180,210,255,1)" }}>🆕 최근 추가 (2026-06-15)</p>
             <p><b style={{ color: "rgba(255,205,120,1)" }}>⚖️ 절대 규칙</b> — 📚 바이블 맨 위. 가로형·턴제 등 불변 규칙 등록 → 모든 답변·기획서가 준수.</p>
+            <p className="mt-1"><b>💬 기획서 댓글</b> — 📄 기획서 맨 아래에서 의견·답글(유튜브식).</p>
             <p className="mt-1"><b>🕘 히스토리 팝업</b> — 설정의 “히스토리 열기”로 변경 이력을 별도 창에서.</p>
             <p className="mt-1"><b>⚠️ 일관성 검사</b> — 답변이 기존 결정과 모순되면 경고창이 떠요.</p>
             <p className="mt-1"><b>🖼️ 의도 태그·영역 표시</b> — 이미지 첨부 시 분석 관점·메모 + ✏️로 동그라미 표시.</p>

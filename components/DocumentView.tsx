@@ -19,6 +19,7 @@ import {
 } from "@/lib/doc-export";
 import { MermaidDiagram, DocImage } from "./DocImages";
 import { stripJordanImages, type DocImageItem } from "@/lib/doc-images";
+import DocComments from "./DocComments";
 
 const SILVER = "#c0c8d8";
 const SILVER_DIM = "rgba(192,200,216,0.5)";
@@ -35,6 +36,7 @@ export interface DocMeta {
   category_area_code: string | null;
   category_sub_id: string | null;
   sort_order?: number | null;   // 같은 카테고리 그룹 내 수동 정렬 순서(드래그앤드롭)
+  doc_family_id?: string | null;  // 버전 묶음 안정 키 (댓글 등 버전 무관 데이터의 기준)
 }
 
 export interface CategorySubItem {
@@ -986,6 +988,12 @@ export default function DocumentView({
                 }}
               >{currentDoc.content_markdown}</ReactMarkdown>
             </article>
+          )}
+          {/* 💬 기획서 댓글 (유튜브식: 의견 + 답글) — 보기 모드에서만 */}
+          {currentDoc && !editing && (
+            <div className="max-w-3xl mx-auto">
+              <DocComments docFamilyId={currentDoc.doc_family_id ?? currentDoc.id} nickname={nickname} />
+            </div>
           )}
           {currentDoc && editing && (
             <textarea

@@ -2430,6 +2430,7 @@ function DesktopChatPage() {
                   <p className="text-sm font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🆕 최근 추가 (2026-06-15)</p>
                   <div className="px-3 py-2.5 rounded-lg flex flex-col gap-2 text-[11px]" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}`, color: SILVER }}>
                     <p><b style={{ color: "rgba(255,205,120,1)" }}>⚖️ 절대 규칙(게임 헌법)</b> — 📚 기획 바이블 패널 맨 위. 가로형·턴제 같은 불변 규칙을 등록하면 모든 답변·기획서·시안이 반드시 준수해요(바이블보다 상위).</p>
+                    <p><b style={{ color: SILVER }}>💬 기획서 댓글</b> — 📄 기획서 맨 아래에서 의견을 남기고 서로 답글을 달 수 있어요(유튜브식). 팀이 늘면 기획서별로 토론하기 좋아요.</p>
                     <p><b style={{ color: SILVER }}>🕘 히스토리 팝업</b> — 설정의 “🕘 히스토리 열기” 버튼으로 변경 이력(조던기능/기획서)을 별도 창에서 봅니다.</p>
                     <p><b style={{ color: SILVER }}>⚠️ 바이블 일관성 검사</b> — 답변이 누적된 결정과 모순되면 자동으로 경고창이 떠요. “의도한 변경”이면 닫으면 됩니다.</p>
                     <p><b style={{ color: SILVER }}>🖼️ 이미지 의도 태그·영역 표시</b> — 이미지 첨부 시 분석 관점(레이아웃·색감 등) 선택 + 메모, ✏️로 이미지에 동그라미·선 표시.</p>
