@@ -305,7 +305,12 @@ export default function CategoryManager({
 
   // 카테고리별 기획서 묶기
   const docsForSub = (subId: string) => docs.filter(d => d.category_sub_id === subId);
-  const mainDirectDocs = (mainId: string) => docs.filter(d => d.category_main_id === mainId && !d.category_sub_id);
+  // 중(area) 직속 기획서 — 소는 없지만 중에는 속한 기획서
+  const areaDirectDocs = (mainId: string, areaCode: string) =>
+    docs.filter(d => d.category_main_id === mainId && d.category_area_code === areaCode && !d.category_sub_id);
+  // 대 직속 기획서 — 중·소 모두 없는 기획서만 (중 직속은 위에서 따로 표시하므로 제외)
+  const mainDirectDocs = (mainId: string) =>
+    docs.filter(d => d.category_main_id === mainId && !d.category_sub_id && !d.category_area_code);
   const uncategorizedDocs = docs.filter(d => !d.category_main_id);
 
   // 기획서 한 줄 렌더
@@ -549,6 +554,12 @@ export default function CategoryManager({
                           )}
                           </div>
                         ))}
+                        {/* 이 중(area)에 직접 붙은 기획서 — 소 없이 중 직속 */}
+                        {a.code && areaDirectDocs(m.id, a.code).length > 0 && (
+                          <div className="flex flex-col gap-0.5">
+                            {areaDirectDocs(m.id, a.code).map(docRow)}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
