@@ -969,10 +969,27 @@ function DesktopChatPage() {
   }
 
   // 특정 소분류 기획서 작성 시작 — 기획서 리스트의 '작성하기' 버튼에서 호출
+  // '작성하기'는 현재 대화방이 아니라 **신규 대화방**을 만들어 거기서 진행 (주제 분리)
   async function startInterviewForCategory(subCategoryId: string, label: string) {
     if (interviewLoading || !sessionId) return;
     setInterviewLoading(true);
     try {
+      // 1. 신규 대화방 생성 — 작성하기는 항상 새 방에서 시작
+      let newConvId: string | null = null;
+      try {
+        const cr = await fetch("/api/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: sessionId, title: `✍️ ${label}` }),
+        });
+        const cd = await cr.json();
+        if (cd.conversation?.id) {
+          newConvId = cd.conversation.id;
+          setConversations(prev => [cd.conversation, ...prev]);
+        }
+      } catch { /* 방 생성 실패 시 현재 방에서 진행(폴백) */ }
+
+      // 2. 인터뷰 질문 생성
       const res = await fetch("/api/jordan-interview/next-question", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -987,21 +1004,27 @@ function DesktopChatPage() {
         return;
       }
 
+      // 3. 신규 방으로 전환 (pairs 비움 + URL/탭 고정). DB 저장은 전환 후에 해야 중복 안 됨.
+      if (newConvId) await loadConversation(newConvId);
+      const convId = newConvId ?? currentConvIdRef.current;
+
       const pairId = crypto.randomUUID();
       const userMsg = `✍️ "${label}" 기획서 작성 시작`;
       const interviewQuestion = `**✍️ 기획서 작성 — \`${data.category_hint ?? label}\`**\n\n이 항목을 채우기 위해 하나씩 정해볼게요.\n\n${data.question}\n\n_답변을 쌓아가면 이 내용으로 기획서를 작성해드려요._`;
 
+      // 4. DB 저장 — 신규 방 id로 (재진입 시 그 방에 표시)
       await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: [
-            { session_id: sessionId, pair_id: pairId, role: "user", content: userMsg, universes: "게임기획" },
-            { session_id: sessionId, pair_id: pairId, role: "assistant", content: interviewQuestion, universes: "게임기획" },
+            { session_id: sessionId, pair_id: pairId, role: "user", content: userMsg, universes: "게임기획", conversation_id: convId },
+            { session_id: sessionId, pair_id: pairId, role: "assistant", content: interviewQuestion, universes: "게임기획", conversation_id: convId },
           ],
         }),
       }).catch(() => {});
 
+      // 5. 화면에 주입 (전환된 빈 방에 추가)
       const injectTime = getTime();
       setPairs(prev => [...prev, {
         pair_id: pairId,
