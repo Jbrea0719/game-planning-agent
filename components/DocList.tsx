@@ -94,7 +94,7 @@ type FilterMode = "all" | "filled" | "empty";
 
 // ── 트리 노드 타입 ──────────────────────────────────────────────────
 type Leaf = { id: string; label: string; docs: DocMeta[] };
-type AreaNode = { code: string; label: string; subs: Leaf[] };
+type AreaNode = { code: string; label: string; subs: Leaf[]; directDocs: DocMeta[] };
 type MainNode = { id: string | null; label: string; icon: string; areas: AreaNode[]; subs: Leaf[]; directDocs: DocMeta[] };
 
 export default function DocList({
@@ -209,12 +209,14 @@ export default function DocList({
   // ── 1. 카테고리 전체로 빈 트리 생성 ───────────────────────────────
   const mains: MainNode[] = [];
   const subLeafById = new Map<string, Leaf>();
+  const areaByKey = new Map<string, AreaNode>();  // `${mainId}::${areaCode}` → 중(area) 노드
 
   for (const m of categories) {
     const main: MainNode = { id: m.id, label: m.name_ko, icon: m.icon ?? "📁", areas: [], subs: [], directDocs: [] };
     if (m.areas && m.areas.length > 0) {
       for (const a of m.areas) {
-        const area: AreaNode = { code: a.code, label: a.name, subs: [] };
+        const area: AreaNode = { code: a.code, label: a.name, subs: [], directDocs: [] };
+        areaByKey.set(`${m.id}::${a.code}`, area);
         for (const s of a.sub_categories) {
           const leaf: Leaf = { id: s.id, label: s.name_ko, docs: [] };
           subLeafById.set(s.id, leaf);
@@ -240,10 +242,14 @@ export default function DocList({
   const uncategorized: DocMeta[] = [];
   const mainById = new Map(mains.map(m => [m.id, m]));
   for (const d of versions) {
+    const areaKey = d.category_main_id && d.category_area_code ? `${d.category_main_id}::${d.category_area_code}` : null;
     if (d.category_sub_id && subLeafById.has(d.category_sub_id)) {
       subLeafById.get(d.category_sub_id)!.docs.push(d);
+    } else if (areaKey && areaByKey.has(areaKey)) {
+      // 소 없이 중(area)까지 지정된 기획서 → 중 직속으로
+      areaByKey.get(areaKey)!.directDocs.push(d);
     } else if (d.category_main_id && mainById.has(d.category_main_id)) {
-      // 소 없이 대분류만 지정된 기획서 → 대분류 직속으로
+      // 소·중 없이 대분류만 지정된 기획서 → 대분류 직속으로
       mainById.get(d.category_main_id)!.directDocs.push(d);
     } else {
       uncategorized.push(d);
@@ -258,10 +264,10 @@ export default function DocList({
   function mainDocCount(m: MainNode): number {
     return m.directDocs.length
       + m.subs.reduce((s, l) => s + l.docs.length, 0)
-      + m.areas.reduce((s, a) => s + a.subs.reduce((ss, l) => ss + l.docs.length, 0), 0);
+      + m.areas.reduce((s, a) => s + areaDocCount(a), 0);
   }
   function areaDocCount(a: AreaNode): number {
-    return a.subs.reduce((s, l) => s + l.docs.length, 0);
+    return a.directDocs.length + a.subs.reduce((s, l) => s + l.docs.length, 0);
   }
   function emptyLeafCount(leaves: Leaf[]): number {
     return leaves.filter(l => l.docs.length === 0).length;
@@ -286,7 +292,7 @@ export default function DocList({
   };
   const showUncategorized = filter !== "empty"; // '분류 안 됨'(소분류 지정 필요) 기획서는 '빈 항목' 필터에선 숨김
 
-  const areaVisible = (a: AreaNode) => a.subs.some(passes);
+  const areaVisible = (a: AreaNode) => a.subs.some(passes) || (filter !== "empty" && a.directDocs.length > 0);
   const mainVisible = (m: MainNode) => m.areas.some(areaVisible) || m.subs.some(passes) || (filter !== "empty" && m.directDocs.length > 0);
 
   // ── 통합 DnD (순서변경 + 카테고리 이동) ───────────────────────────────
@@ -308,7 +314,7 @@ export default function DocList({
   for (const m of mains) {
     regDocs(m.directDocs);
     for (const s of m.subs) regDocs(s.docs);
-    for (const a of m.areas) for (const s of a.subs) regDocs(s.docs);
+    for (const a of m.areas) { regDocs(a.directDocs); for (const s of a.subs) regDocs(s.docs); }
   }
   regDocs(uncategorized);
   // 기획서 id → 현재 소속 카테고리 (도착지가 다른 그룹이면 '이동'으로 판단)
@@ -316,7 +322,10 @@ export default function DocList({
   for (const m of mains) {
     for (const d of m.directDocs) docCategoryByDoc.set(d.id, { mainId: m.id, areaCode: null, subId: null });
     for (const s of m.subs) for (const d of s.docs) docCategoryByDoc.set(d.id, { mainId: m.id, areaCode: null, subId: s.id });
-    for (const a of m.areas) for (const s of a.subs) for (const d of s.docs) docCategoryByDoc.set(d.id, { mainId: m.id, areaCode: a.code, subId: s.id });
+    for (const a of m.areas) {
+      for (const d of a.directDocs) docCategoryByDoc.set(d.id, { mainId: m.id, areaCode: a.code, subId: null });
+      for (const s of a.subs) for (const d of s.docs) docCategoryByDoc.set(d.id, { mainId: m.id, areaCode: a.code, subId: s.id });
+    }
   }
   // 소 id → 같은 부모의 정렬된 소 id 배열
   const subGroupBySub = new Map<string, string[]>();
@@ -356,10 +365,13 @@ export default function DocList({
     // 1) 카테고리로 드롭 → 이동
     if (overId.startsWith("D:")) {
       if (!docIdSet.has(activeId)) return;
-      const parts = overId.split(":"); // D:sub:<id> | D:main:<id>
+      const parts = overId.split(":"); // D:sub:<id> | D:main:<id> | D:area:<mainId>:<areaCode>
       if (parts[1] === "sub") {
         const info = subInfoById.get(parts[2]);
         if (info) void moveDoc(activeId, info.mainId, info.areaCode, parts[2]);
+      } else if (parts[1] === "area") {
+        // 중(area) 직속으로 이동 — 소는 null
+        void moveDoc(activeId, parts[2] === "__none__" ? null : parts[2], parts[3] ?? null, null);
       } else if (parts[1] === "main") {
         void moveDoc(activeId, parts[2] === "__none__" ? null : parts[2], null, null);
       }
@@ -606,6 +618,7 @@ export default function DocList({
               const areaOpen = isOpen(areaKey);
               return (
                 <div key={areaKey} className="ml-2">
+                  <CatDroppable id={`D:area:${mainKey}:${area.code}`}>
                   <button
                     onClick={() => tog(areaKey)}
                     className="w-full text-left px-2 py-1.5 rounded flex items-center justify-between font-semibold transition-colors hover:bg-white/5"
@@ -622,8 +635,15 @@ export default function DocList({
                       </span>
                     </span>
                   </button>
+                  </CatDroppable>
                   {areaOpen && (
                     <div className="mt-1 ml-2 flex flex-col gap-1">
+                      {/* 중(area) 직속 기획서 — 소 없이 중에 바로 붙은 기획서 */}
+                      {filter !== "empty" && area.directDocs.length > 0 && (
+                        <div className="flex flex-col gap-0.5 pl-2">
+                          <SortableZone items={groupSort(area.directDocs)} getId={(d) => d.id} renderItem={(d, h) => renderDocRow(d, h)} onReorder={persistReorder} enabled />
+                        </div>
+                      )}
                       {renderSubGroup(area.subs, areaKey)}
                     </div>
                   )}
