@@ -324,9 +324,11 @@ export default function DocumentView({
       const data = await res.json();
       const list = (data.docs ?? []) as DocMeta[];
       setVersions(list);
-      // 최신 버전 자동 선택
+      // 자동 선택 — 마지막으로 보던 기획서가 목록에 있으면 그걸, 없으면 최신 1번
       if (list.length > 0 && !currentDoc) {
-        await loadDoc(list[0].id);
+        const saved = typeof window !== "undefined" ? sessionStorage.getItem("jordan_last_doc") : null;
+        const target = saved && list.find(d => d.id === saved) ? saved : list[0].id;
+        await loadDoc(target);
       }
     } catch (err) {
       console.error("[doc-view] 버전 로드 실패:", err);
@@ -344,6 +346,7 @@ export default function DocumentView({
       if (data.doc) {
         setCurrentDoc(data.doc as DocFull);
         markViewed(id);   // 본 것으로 기록 (레드닷 해제)
+        if (typeof window !== "undefined") sessionStorage.setItem("jordan_last_doc", id);  // 새로고침 시 이 문서로 복원
       }
     } catch (err) {
       console.error("[doc-view] 단건 로드 실패:", err);

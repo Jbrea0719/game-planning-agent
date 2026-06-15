@@ -699,6 +699,20 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
+  // ── 마지막으로 보던 화면 유지 (새로고침 시 채팅으로 안 튕기게) ──
+  const savedViewRef = useRef<string | null>(typeof window !== "undefined" ? sessionStorage.getItem("jordan_view") : null);
+  useEffect(() => {
+    const v = savedViewRef.current;
+    if (v === "doc") setShowDocs(true);
+    else if (v === "bible") setShowBible(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const view = showDocs ? "doc" : showBible ? "bible" : "chat";
+    sessionStorage.setItem("jordan_view", view);
+  }, [showDocs, showBible]);
+
   // 자동 스크롤 — 사용자가 위로 올렸으면 멈춤(유지)
   useEffect(() => {
     if (userScrolledUpRef.current) return;

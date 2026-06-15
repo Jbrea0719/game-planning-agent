@@ -516,6 +516,22 @@ function DesktopChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
+  // ── 마지막으로 보던 화면 유지 (새로고침 시 채팅으로 안 튕기게) ──
+  // 탭별 독립(sessionStorage). render 시점에 한 번 읽어둬 동기화 effect가 덮어쓰기 전에 보존.
+  const savedViewRef = useRef<string | null>(typeof window !== "undefined" ? sessionStorage.getItem("jordan_view") : null);
+  useEffect(() => {
+    const v = savedViewRef.current;
+    if (v === "doc") setShowDocumentView(true);
+    else if (v === "bible") setShowDecisionPanel(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // 화면 전환 시 현재 화면을 이 탭에 기록 (기획서 > 바이블 > 채팅 우선순위)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const view = showDocumentView ? "doc" : showDecisionPanel ? "bible" : "chat";
+    sessionStorage.setItem("jordan_view", view);
+  }, [showDocumentView, showDecisionPanel]);
+
   // 대화방 부트스트랩 — 목록 로드, 없으면 기본 방 생성(기존 메시지 흡수), 마지막 방 열기
   async function bootstrapConversations(sid: string) {
     try {
