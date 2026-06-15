@@ -23,6 +23,7 @@ export default function DocGenPreview({
   preview,
   projectId,
   nickname,
+  targetDocId,
   onClose,
   onSaved,
 }: {
@@ -30,6 +31,7 @@ export default function DocGenPreview({
   preview: DocGenPreviewData | null;
   projectId: string;
   nickname?: string;
+  targetDocId?: string | null;  // 작성하기로 시작한 방이면 이 planned 기획서를 채움(in-place)
   onClose: () => void;
   onSaved: (doc: { title?: string; version_no?: number } | null) => void;
 }) {
@@ -61,6 +63,7 @@ export default function DocGenPreview({
           category_area_code: preview.category.area_code,
           category_sub_id: preview.category.sub_id,
           messages_count: preview.messages_count,
+          target_doc_id: targetDocId ?? null,
         }),
       });
       const data = await res.json();

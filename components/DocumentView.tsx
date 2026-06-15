@@ -78,6 +78,7 @@ export default function DocumentView({
   onCategoriesChanged,
   onDecisionsChanged,
   onStartWriting,
+  onStartWritingDoc,
   onReviseViaChat,
   openTarget,
 }: {
@@ -88,7 +89,8 @@ export default function DocumentView({
   reloadKey?: number;  // 외부에서 새 기획서 생성 시 갱신용
   onCategoriesChanged?: () => void;  // 카테고리 변경 시 부모에 알림 (바이블 패널 실시간 동기화용)
   onDecisionsChanged?: () => void;   // 결정사항 변경 시 부모에 알림 (AI 재분류 적용 후 바이블 새로고침용)
-  onStartWriting?: (subCategoryId: string, label: string) => void;  // 빈 소분류 '작성하기' → 채팅으로 이동해 조던 인터뷰 시작
+  onStartWriting?: (subCategoryId: string, label: string) => void;  // 빈 (진짜)소분류 '작성하기' → 그 소에 새 기획서 작성
+  onStartWritingDoc?: (docId: string, title: string) => void;  // planned 기획서 '작성하기' → 인터뷰 결과가 이 기획서를 채움
   onReviseViaChat?: (docId: string, docTitle: string) => void;  // '대화를 통한 수정' → 채팅으로 이동해 이 기획서를 수정 대상으로 지정
   openTarget?: { docId: string | null; commentId: string | null } | null;  // 알림 바로가기 — 이 기획서를 열고 댓글로 스크롤
 }) {
@@ -977,10 +979,16 @@ export default function DocumentView({
                   setCatSuggestMsg("");
                 }}
                 onStartWriting={(subId, label) => {
-                  // 기획서 뷰를 닫고 채팅으로 돌아가, 부모(채팅)가 조던 인터뷰를 시작하게 위임
+                  // 빈 (진짜)소분류 → 그 소에 새 기획서 작성. 뷰 닫고 부모에 위임
                   setShowDocList(false);
                   onClose();
                   onStartWriting?.(subId, label);
+                }}
+                onStartWritingDoc={(docId, title) => {
+                  // planned 기획서 → 인터뷰가 이 기획서를 채움. 뷰 닫고 부모에 위임
+                  setShowDocList(false);
+                  onClose();
+                  onStartWritingDoc?.(docId, title);
                 }}
                 onLoadDoc={(id) => { void loadDoc(id); setShowDocList(false); }}
                 onOpenCategoryManager={() => setShowCatManager(true)}

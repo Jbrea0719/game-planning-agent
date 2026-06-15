@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   // 1차: 새 상태 컬럼까지 포함해 조회 (마이그레이션 018 이후)
   const withState = await supabase
     .from("conversations")
-    .select("id, title, created_at, updated_at, context_anchor_pair_id, context_anchor_time, reference_doc_ids, agent_context")
+    .select("id, title, created_at, updated_at, context_anchor_pair_id, context_anchor_time, reference_doc_ids, agent_context, writing_doc_id")
     .eq("session_id", sessionId)
     .order("updated_at", { ascending: false });
 
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 
   // 컬럼이 아직 없는 경우(마이그레이션 전) → 기존 컬럼만으로 폴백해 목록이 깨지지 않게
   const msg = withState.error.message ?? "";
-  const isMissingColumn = /context_anchor|reference_doc_ids|agent_context/.test(msg);
+  const isMissingColumn = /context_anchor|reference_doc_ids|agent_context|writing_doc_id/.test(msg);
   if (!isMissingColumn) {
     return Response.json({ error: msg }, { status: 500 });
   }
@@ -85,6 +85,7 @@ export async function PATCH(request: Request) {
     context_anchor_time?: string | null;
     reference_doc_ids?: string[] | null;
     agent_context?: string | null;
+    writing_doc_id?: string | null;
   };
   const { id } = body;
   if (!id) return Response.json({ error: "id 필요" }, { status: 400 });
@@ -102,6 +103,7 @@ export async function PATCH(request: Request) {
   if ("context_anchor_time" in body) stateUpdate.context_anchor_time = body.context_anchor_time;
   if ("reference_doc_ids" in body) stateUpdate.reference_doc_ids = body.reference_doc_ids;  // 배열 → jsonb 그대로
   if ("agent_context" in body) stateUpdate.agent_context = body.agent_context;
+  if ("writing_doc_id" in body) stateUpdate.writing_doc_id = body.writing_doc_id;  // 이 방이 채울 planned 기획서 id
 
   const fullUpdate = { ...baseUpdate, ...stateUpdate };
   if (Object.keys(fullUpdate).length === 0) return Response.json({ success: true });
@@ -112,7 +114,7 @@ export async function PATCH(request: Request) {
 
   // 상태 컬럼이 없어서 실패한 경우 → 항상 존재하는 필드만으로 재시도(없으면 그냥 ok). 선택적 컬럼 때문에 500 내지 않음
   const msg = first.error.message ?? "";
-  const isMissingColumn = /context_anchor|reference_doc_ids|agent_context/.test(msg);
+  const isMissingColumn = /context_anchor|reference_doc_ids|agent_context|writing_doc_id/.test(msg);
   if (!isMissingColumn) return Response.json({ error: msg }, { status: 500 });
 
   if (Object.keys(baseUpdate).length === 0) return Response.json({ success: true });

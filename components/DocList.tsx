@@ -112,6 +112,7 @@ export default function DocList({
   startRename,
   startCategorize,
   onStartWriting,
+  onStartWritingDoc,
   onLoadDoc,
   onOpenCategoryManager,
   onClose,
@@ -130,7 +131,8 @@ export default function DocList({
   cancelRename: () => void;
   startRename: (docId: string, title: string) => void;
   startCategorize: (doc: DocMeta) => void;
-  onStartWriting?: (subCategoryId: string, label: string) => void;   // 빈 소분류 '작성하기' → 조던 인터뷰 시작
+  onStartWriting?: (subCategoryId: string, label: string) => void;   // 빈 (진짜)소분류 '작성하기' → 그 소에 새 기획서 작성
+  onStartWritingDoc?: (docId: string, title: string) => void;        // planned 기획서 '작성하기' → 조던 인터뷰가 이 기획서를 채움
   onLoadDoc: (id: string) => void;
   onOpenCategoryManager: () => void;
   onClose: () => void;
@@ -256,11 +258,14 @@ export default function DocList({
     }
   }
 
-  // ── 3. 진척도 계산 (소분류 leaf 기준) ─────────────────────────────
+  // ── 3. 진척도 계산 (기획서 단위) ─────────────────────────────
+  // planned(작성 예정, 빈 소에서 전환된 기획서)는 '미완성'으로 — 분모엔 포함, 분자(완성)엔 제외.
+  const isWritten = (d: DocMeta) => d.status !== "planned";
+  const writtenN = (docs: DocMeta[]) => docs.filter(isWritten).length;
   function mainLeaves(m: MainNode): Leaf[] {
     return [...m.subs, ...m.areas.flatMap(a => a.subs)];
   }
-  // 기획서 단위 진척 — 완성(작성된 기획서 수) / 총(작성된 기획서 + 빈 소분류 슬롯)
+  // 전체 기획서 수 (작성됨 + 작성예정 모두)
   function mainDocCount(m: MainNode): number {
     return m.directDocs.length
       + m.subs.reduce((s, l) => s + l.docs.length, 0)
@@ -269,16 +274,28 @@ export default function DocList({
   function areaDocCount(a: AreaNode): number {
     return a.directDocs.length + a.subs.reduce((s, l) => s + l.docs.length, 0);
   }
+  // 완성(작성된) 기획서 수만 — planned 제외
+  function mainWrittenCount(m: MainNode): number {
+    return writtenN(m.directDocs)
+      + m.subs.reduce((s, l) => s + writtenN(l.docs), 0)
+      + m.areas.reduce((s, a) => s + areaWrittenCount(a), 0);
+  }
+  function areaWrittenCount(a: AreaNode): number {
+    return writtenN(a.directDocs) + a.subs.reduce((s, l) => s + writtenN(l.docs), 0);
+  }
   function emptyLeafCount(leaves: Leaf[]): number {
     return leaves.filter(l => l.docs.length === 0).length;
   }
-  const overallDone = mains.reduce((s, m) => s + mainDocCount(m), 0);
-  const overallTotal = overallDone + emptyLeafCount(mains.flatMap(mainLeaves));
+  const overallDone = mains.reduce((s, m) => s + mainWrittenCount(m), 0);
+  const overallTotal = mains.reduce((s, m) => s + mainDocCount(m), 0) + emptyLeafCount(mains.flatMap(mainLeaves));
   const overallPct = overallTotal > 0 ? Math.round((overallDone / overallTotal) * 100) : 0;
 
   // ── 4. 필터 ────────────────────────────────────────────────────────
   const passes = (leaf: Leaf) =>
     filter === "all" ? true : filter === "filled" ? leaf.docs.length > 0 : leaf.docs.length === 0;
+  // 필터별 표시할 기획서 — '완성'은 작성된 것만, '빈 항목'은 planned(작성예정)만
+  const visibleDocs = (docs: DocMeta[]) =>
+    filter === "all" ? docs : filter === "filled" ? docs.filter(isWritten) : docs.filter(d => !isWritten(d));
   // 전체 탭: 부모 expandedCats로 펼침 제어 / 필터 탭: 기본 펼침이되 collapsedInFilter로 개별 접기 허용
   const isOpen = (key: string) => filter === "all" ? expandedCats.has(key) : !collapsedInFilter.has(key);
   // +/- 토글 — 탭에 따라 알맞은 상태를 갱신 (필터 탭에서도 버튼이 동작하도록)
@@ -292,8 +309,8 @@ export default function DocList({
   };
   const showUncategorized = filter !== "empty"; // '분류 안 됨'(소분류 지정 필요) 기획서는 '빈 항목' 필터에선 숨김
 
-  const areaVisible = (a: AreaNode) => a.subs.some(passes) || (filter !== "empty" && a.directDocs.length > 0);
-  const mainVisible = (m: MainNode) => m.areas.some(areaVisible) || m.subs.some(passes) || (filter !== "empty" && m.directDocs.length > 0);
+  const areaVisible = (a: AreaNode) => a.subs.some(passes) || visibleDocs(a.directDocs).length > 0;
+  const mainVisible = (m: MainNode) => m.areas.some(areaVisible) || m.subs.some(passes) || visibleDocs(m.directDocs).length > 0;
 
   // ── 통합 DnD (순서변경 + 카테고리 이동) ───────────────────────────────
   const dndSensors = useSensors(
@@ -436,6 +453,41 @@ export default function DocList({
             style={{ backgroundColor: "rgba(0,0,0,0.5)", border: "1px solid rgba(100,180,255,0.6)", color: "#e0e8f0" }}
             autoFocus
           />
+        </div>
+      );
+    }
+    // ── 작성 예정(planned) 기획서: 열기 대신 '✍️ 작성하기' 행 (빈 소에서 전환된 기획서) ──
+    if (d.status === "planned") {
+      return (
+        <div key={d.id} className="flex items-center gap-1">
+          {grip(handle)}
+          <span
+            className="flex-1 min-w-0 px-2 py-1.5 rounded flex items-center justify-between gap-1"
+            style={{ backgroundColor: EMPTY_BG, border: `1px solid ${EMPTY_BORDER}`, color: EMPTY_TEXT, fontSize: "11.5px" }}
+          >
+            <span className="flex items-center gap-1 min-w-0">
+              <span style={{ flexShrink: 0, fontSize: "8px" }}>▸</span>
+              <span className="truncate font-medium" title={d.title}>{d.title}</span>
+            </span>
+            <button
+              onClick={() => onStartWritingDoc?.(d.id, d.title)}
+              title={`"${d.title}" 기획서 작성 — 조던이 질문을 시작해요`}
+              className="text-[10px] px-2 py-0.5 rounded flex-shrink-0 font-bold whitespace-nowrap hover:brightness-110"
+              style={{ backgroundColor: "rgba(255,170,80,0.9)", color: "#3a1d00" }}
+            >✍️ 작성하기</button>
+          </span>
+          <button
+            onClick={() => startRename(d.id, d.title)}
+            title="이름 변경"
+            className="text-xs px-1 py-1 rounded hover:bg-white/10 flex-shrink-0"
+            style={{ color: SILVER_DIM }}
+          >✏️</button>
+          <button
+            onClick={() => startCategorize(d)}
+            title="카테고리 분류 — 다른 카테고리로 이동"
+            className="text-xs px-1 py-1 rounded hover:bg-white/10 flex-shrink-0"
+            style={{ color: SILVER_DIM }}
+          >📂</button>
         </div>
       );
     }
@@ -589,7 +641,7 @@ export default function DocList({
               <span className="truncate" title={main.label}>{main.label}</span>
             </span>
             <span className="flex items-center gap-1.5 flex-shrink-0">
-              {progressBadge(mainDocCount(main), mainDocCount(main) + emptyLeafCount(mainLeaves(main)))}
+              {progressBadge(mainWrittenCount(main), mainDocCount(main) + emptyLeafCount(mainLeaves(main)))}
               <span className="inline-flex items-center justify-center w-4 h-4 rounded text-sm leading-none" style={{ color: SILVER_DIM }}>
                 {mainOpen ? "−" : "+"}
               </span>
@@ -601,9 +653,9 @@ export default function DocList({
         {mainOpen && (
           <div className="mt-1 flex flex-col gap-1">
             {/* 대분류 직속 기획서 (소 없이 대분류에 바로 붙은 기획서) */}
-            {filter !== "empty" && main.directDocs.length > 0 && (
+            {visibleDocs(main.directDocs).length > 0 && (
               <div className="flex flex-col gap-0.5 pl-2">
-                <SortableZone items={groupSort(main.directDocs)} getId={(d) => d.id} renderItem={(d, h) => renderDocRow(d, h)} onReorder={persistReorder} enabled />
+                <SortableZone items={groupSort(visibleDocs(main.directDocs))} getId={(d) => d.id} renderItem={(d, h) => renderDocRow(d, h)} onReorder={persistReorder} enabled />
               </div>
             )}
             {/* 대 직속 소분류 (영역 없는 대카테고리) — 드래그 정렬 */}
@@ -629,7 +681,7 @@ export default function DocList({
                       <span className="truncate" title={area.label}>{area.label}</span>
                     </span>
                     <span className="flex items-center gap-1.5 flex-shrink-0">
-                      {progressBadge(areaDocCount(area), areaDocCount(area) + emptyLeafCount(area.subs))}
+                      {progressBadge(areaWrittenCount(area), areaDocCount(area) + emptyLeafCount(area.subs))}
                       <span className="inline-flex items-center justify-center w-4 h-4 rounded text-sm leading-none" style={{ color: SILVER_DIM }}>
                         {areaOpen ? "−" : "+"}
                       </span>
@@ -639,9 +691,9 @@ export default function DocList({
                   {areaOpen && (
                     <div className="mt-1 ml-2 flex flex-col gap-1">
                       {/* 중(area) 직속 기획서 — 소 없이 중에 바로 붙은 기획서 */}
-                      {filter !== "empty" && area.directDocs.length > 0 && (
+                      {visibleDocs(area.directDocs).length > 0 && (
                         <div className="flex flex-col gap-0.5 pl-2">
-                          <SortableZone items={groupSort(area.directDocs)} getId={(d) => d.id} renderItem={(d, h) => renderDocRow(d, h)} onReorder={persistReorder} enabled />
+                          <SortableZone items={groupSort(visibleDocs(area.directDocs))} getId={(d) => d.id} renderItem={(d, h) => renderDocRow(d, h)} onReorder={persistReorder} enabled />
                         </div>
                       )}
                       {renderSubGroup(area.subs, areaKey)}

@@ -221,6 +221,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     context_anchor_time?: string | null;
     reference_doc_ids?: string[] | null;
     agent_context?: string | null;
+    writing_doc_id?: string | null;
   }[]>([]);
   const [currentConvId, setCurrentConvId] = useState<string | null>(null);
   const [showConvList, setShowConvList] = useState(false);
@@ -328,7 +329,8 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
 
   // 특정 소분류 기획서 작성 시작 — 기획서 리스트의 '작성하기' 버튼에서 호출
   // '작성하기'는 현재 대화방이 아니라 **신규 대화방**을 만들어 거기서 진행 (주제 분리)
-  async function startInterviewForCategory(subCategoryId: string, label: string) {
+  async function beginInterviewRoom(opts: { label: string; targetSubCategoryId?: string; writingDocId?: string }) {
+    const { label } = opts;
     if (interviewLoading) return;
     setInterviewLoading(true);
     try {
@@ -343,7 +345,15 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         const cd = await cr.json();
         if (cd.conversation?.id) {
           newConvId = cd.conversation.id;
-          setConversations(prev => [cd.conversation, ...prev]);
+          // 이 방이 채울 planned 기획서 id 기억(있을 때만)
+          setConversations(prev => [{ ...cd.conversation, writing_doc_id: opts.writingDocId ?? null }, ...prev]);
+          if (opts.writingDocId) {
+            fetch("/api/conversations", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: newConvId, writing_doc_id: opts.writingDocId }),
+            }).catch(() => {});
+          }
         }
       } catch { /* 방 생성 실패 시 현재 방에서 진행(폴백) */ }
 
@@ -351,7 +361,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       const res = await fetch("/api/jordan-interview/next-question", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project_id: DEFAULT_PROJECT_ID, target_sub_category_id: subCategoryId }),
+        body: JSON.stringify({ project_id: DEFAULT_PROJECT_ID, ...(opts.targetSubCategoryId ? { target_sub_category_id: opts.targetSubCategoryId } : {}) }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) { alert(`기획서 작성 질문 생성 실패: ${data.error ?? "오류"}`); return; }
@@ -392,6 +402,12 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       setInterviewLoading(false);
     }
   }
+  // 빈 (진짜)소 '작성하기' → 그 소에 새 기획서 작성
+  const startInterviewForCategory = (subCategoryId: string, label: string) =>
+    beginInterviewRoom({ label, targetSubCategoryId: subCategoryId });
+  // planned 기획서 '작성하기' → 인터뷰 결과가 이 기획서를 채움
+  const startInterviewForDoc = (docId: string, title: string) =>
+    beginInterviewRoom({ label: title, writingDocId: docId });
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const userScrolledUpRef = useRef(false);  // 스트리밍 중 사용자가 위로 올렸는지
@@ -581,6 +597,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         context_anchor_time?: string | null;
         reference_doc_ids?: string[] | null;
         agent_context?: string | null;
+        writing_doc_id?: string | null;
       }[] = data.conversations ?? [];
       if (convs.length === 0) {
         const cr = await fetch("/api/conversations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId, title: "기본 대화", adopt_orphans: true }) });
@@ -594,6 +611,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         context_anchor_time: c.context_anchor_time,
         reference_doc_ids: c.reference_doc_ids,
         agent_context: c.agent_context,
+        writing_doc_id: c.writing_doc_id,
       })));
       // 복구: 미배정(숨겨진) 기존 메시지를 가장 오래된 방으로 흡수
       let recoveredInto: string | null = null;
@@ -1812,6 +1830,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         onCategoriesChanged={() => bumpCategories()}
         onDecisionsChanged={() => bumpDecisions()}
         onStartWriting={(subId, label) => startInterviewForCategory(subId, label)}
+        onStartWritingDoc={(docId, title) => startInterviewForDoc(docId, title)}
         onReviseViaChat={(docId, docTitle) => enterReviseViaChat(docId, docTitle)}
         openTarget={docOpenTarget}
       />
@@ -1878,6 +1897,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         preview={docGenPreview}
         projectId={DEFAULT_PROJECT_ID}
         nickname={nickname}
+        targetDocId={conversations.find(c => c.id === currentConvId)?.writing_doc_id ?? null}
         onClose={() => setDocGenPreview(null)}
         onSaved={(doc) => {
           setDocGenPreview(null);
@@ -1885,6 +1905,13 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           setDocNewDot(true);
           localStorage.setItem("jordan_doc_new_dot", "true");
           bumpDocs();
+          // 작성하기 방의 planned 칸을 채웠으면 그 방의 writing_doc_id 비움
+          const cid = currentConvId;
+          const filledDocId = conversations.find(c => c.id === cid)?.writing_doc_id;
+          if (cid && filledDocId) {
+            setConversations(prev => prev.map(c => c.id === cid ? { ...c, writing_doc_id: null } : c));
+            fetch("/api/conversations", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: cid, writing_doc_id: null }) }).catch(() => {});
+          }
         }}
       />
       <DocRevisePreview

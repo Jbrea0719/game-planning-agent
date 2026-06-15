@@ -135,6 +135,7 @@ export async function POST(request: Request) {
       category_area_code?: string | null;
       category_sub_id?: string | null;
       messages_count?: number;
+      target_doc_id?: string | null;  // 있으면 새 INSERT 대신 이 planned 기획서를 채움(in-place UPDATE)
     };
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -145,6 +146,39 @@ export async function POST(request: Request) {
       if (!body.project_id || !body.content_markdown?.trim()) {
         return Response.json({ error: "저장할 내용이 없어요" }, { status: 400 });
       }
+
+      // ── 칸 채우기(fill) 모드: 작성하기로 시작한 방이면 그 planned 기획서를 in-place로 채움 ──
+      // 카테고리는 placeholder가 이미 놓인 위치(대/중)를 유지 — 새로 분류하지 않음.
+      if (body.target_doc_id) {
+        const { data: target } = await supabase
+          .from("design_docs")
+          .select("id, status")
+          .eq("id", body.target_doc_id)
+          .maybeSingle();
+        if (target) {
+          const { data: filled, error: fillErr } = await supabase
+            .from("design_docs")
+            .update({
+              title: finalTitle,
+              content_markdown: body.content_markdown,
+              status: "draft",  // planned → draft (작성 완료)
+              decision_snapshot: { source: "chat_selection", messages_count: body.messages_count ?? 0, generated_at: new Date().toISOString() },
+              created_by_nickname: body.nickname ?? null,
+              changes_summary: `작성 예정 항목을 대화 ${body.messages_count ?? 0}개로 작성`,
+            })
+            .eq("id", body.target_doc_id)
+            .select()
+            .single();
+          if (fillErr) {
+            console.error("[api/document] 칸 채우기 실패:", fillErr.message);
+            return Response.json({ error: fillErr.message }, { status: 500 });
+          }
+          await logActivity({ scope: "doc", action: "update", entity: "doc", title: finalTitle, target_id: body.target_doc_id, nickname: body.nickname });
+          return Response.json({ success: true, doc: filled, filled: true });
+        }
+        // target이 사라진 경우(삭제 등) → 아래 일반 INSERT로 폴백
+      }
+
       const { data: doc, error: saveErr } = await supabase
         .from("design_docs")
         .insert({
