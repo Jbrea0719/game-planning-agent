@@ -331,11 +331,13 @@ export default function DocumentView({
       const data = await res.json();
       const list = (data.docs ?? []) as DocMeta[];
       setVersions(list);
-      // 자동 선택 — 마지막으로 보던 기획서가 목록에 있으면 그걸, 없으면 최신 1번
+      // 자동 선택 — 마지막으로 보던 기획서가 있으면 그걸, 없으면 최신 1번.
+      // 단, 작성예정(planned, 내용 없음) 기획서는 자동 선택 대상에서 제외(빈 화면 방지).
       if (list.length > 0 && !currentDoc) {
+        const written = list.filter(d => d.status !== "planned");
         const saved = typeof window !== "undefined" ? sessionStorage.getItem("jordan_last_doc") : null;
-        const target = saved && list.find(d => d.id === saved) ? saved : list[0].id;
-        await loadDoc(target);
+        const target = saved && written.find(d => d.id === saved) ? saved : written[0]?.id;
+        if (target) await loadDoc(target);
       }
     } catch (err) {
       console.error("[doc-view] 버전 로드 실패:", err);
@@ -1018,7 +1020,14 @@ export default function DocumentView({
               </p>
             </div>
           )}
-          {currentDoc && !editing && (
+          {/* 기획서 미선택(또는 작성예정 빈 기획서) — 왼쪽 목록에서 골라달라는 안내 */}
+          {!loading && versions.length > 0 && (!currentDoc || currentDoc.status === "planned") && (
+            <div className="max-w-2xl mx-auto mt-12 text-center">
+              <p className="text-base font-bold mb-2" style={{ color: SILVER }}>📄 기획서를 선택해주세요</p>
+              <p className="text-sm" style={{ color: SILVER_DIM }}>왼쪽 목록에서 볼 기획서를 선택하면 여기에 내용이 표시돼요.</p>
+            </div>
+          )}
+          {currentDoc && currentDoc.status !== "planned" && !editing && (
             <article className="prose prose-sm max-w-3xl mx-auto" style={{ color: "#e0e8f0" }}>
               <ReactMarkdown
                 remarkPlugins={[[remarkGfm, { singleTilde: false }]]}
@@ -1042,8 +1051,8 @@ export default function DocumentView({
               >{currentDoc.content_markdown}</ReactMarkdown>
             </article>
           )}
-          {/* 💬 기획서 댓글 (유튜브식: 의견 + 답글) — 보기 모드에서만 */}
-          {currentDoc && !editing && (
+          {/* 💬 기획서 댓글 (유튜브식: 의견 + 답글) — 보기 모드에서만, 작성된 기획서에만 */}
+          {currentDoc && currentDoc.status !== "planned" && !editing && (
             <div className="max-w-3xl mx-auto">
               <DocComments docFamilyId={currentDoc.doc_family_id ?? currentDoc.id} nickname={nickname} scrollToCommentId={scrollCommentId} />
             </div>
