@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import AbsoluteRulesSection from "@/components/AbsoluteRulesSection";
 
 const SILVER = "#c0c8d8";
 const SILVER_DIM = "rgba(192,200,216,0.5)";
@@ -410,6 +411,8 @@ export default function DecisionPanel({
 
       {/* 결정사항 트리 */}
       <div className="flex-1 overflow-y-auto px-3 py-3" style={{ scrollbarWidth: "thin", scrollbarColor: `${SILVER_DIM} transparent` }}>
+        {/* ⚖️ 절대 규칙 — 바이블보다 상위, 항상 최상단 노출 */}
+        <AbsoluteRulesSection nickname={nickname} />
         {tab === "context" && !contextAnchorTimestamp && (
           <p className="text-xs text-center mt-6 leading-relaxed" style={{ color: SILVER_DIM }}>
             📌 맥락선이 설정되어 있지 않아요.<br />

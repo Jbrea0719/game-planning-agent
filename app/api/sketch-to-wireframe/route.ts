@@ -7,6 +7,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { MODEL } from "@/lib/models";
+import { buildAbsoluteRulesContext } from "@/lib/absolute-rules-context";
 
 const SYSTEM_PROMPT = `당신은 영웅수집형 모바일 게임 UI/UX 전문가입니다.
 사용자가 손으로 그린 화면 스케치(사진)를 줍니다. 두 가지를 만드세요.
@@ -41,10 +42,11 @@ export async function POST(request: Request) {
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+    const absoluteRules = await buildAbsoluteRulesContext();
     const res = await client.messages.create({
       model: MODEL.FINAL_ANSWER,  // Opus — vision + 시안 품질
       max_tokens: 7000,
-      system: SYSTEM_PROMPT,
+      system: (absoluteRules ? absoluteRules + "\n\n" : "") + SYSTEM_PROMPT,
       messages: [
         {
           role: "user",

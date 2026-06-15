@@ -5,6 +5,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { MODEL } from "@/lib/models";
+import { buildAbsoluteRulesContext } from "@/lib/absolute-rules-context";
 
 const SYSTEM_PROMPT = `당신은 영웅수집형 모바일 게임 UI 시안 전문가입니다.
 
@@ -50,10 +51,11 @@ export async function POST(request: Request) {
       ? `[기존 시안]\n${refineFrom}\n\n[수정 요청]\n${description.trim()}\n\n위 시안을 수정 요청대로 갱신해서 전체 HTML을 반환하세요.`
       : `다음 화면을 만들어주세요:\n\n${description.trim()}`;
 
+    const absoluteRules = await buildAbsoluteRulesContext();
     const res = await client.messages.create({
       model: MODEL.FINAL_ANSWER,  // Opus 4.7 (시안 품질 중요)
       max_tokens: 6000,
-      system: SYSTEM_PROMPT,
+      system: (absoluteRules ? absoluteRules + "\n\n" : "") + SYSTEM_PROMPT,
       messages: [{ role: "user", content: userContent }],
     });
 

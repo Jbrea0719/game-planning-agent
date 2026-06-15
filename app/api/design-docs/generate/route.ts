@@ -10,6 +10,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "@/lib/supabase";
 import { MODEL } from "@/lib/models";
+import { buildAbsoluteRulesContext } from "@/lib/absolute-rules-context";
 import { suggestDocumentCategory } from "@/lib/document-categorizer";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -221,8 +222,9 @@ async function generateMarkdown(
   categoryContext: string
 ): Promise<string> {
   const today = new Date().toISOString().split("T")[0];
+  const absoluteRules = await buildAbsoluteRulesContext();
 
-  const systemPrompt = `당신은 영웅수집형 모바일 게임의 시니어 디렉터예요.
+  const systemPrompt = `${absoluteRules ? absoluteRules + "\n\n" : ""}당신은 영웅수집형 모바일 게임의 시니어 디렉터예요.
 주어진 결정사항 데이터를 바탕으로 **정식 게임 기획서를 마크다운으로 작성**합니다.
 
 [작성 원칙]

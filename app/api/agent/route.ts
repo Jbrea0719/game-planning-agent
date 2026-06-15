@@ -7,6 +7,7 @@ import { extractAndSaveDecisions } from "@/lib/decision-extractor";
 import { checkBibleConsistency } from "@/lib/decision-consistency-checker";
 import { buildDecisionContext } from "@/lib/decision-context";
 import { buildFeedbackContext } from "@/lib/feedback-context";
+import { buildAbsoluteRulesContext } from "@/lib/absolute-rules-context";
 import { fetchLoungeAll, buildLoungeContext } from "@/lib/naver-lounge";
 import { buildWebtoonContext } from "@/lib/webtoon-context";
 import { MODEL } from "@/lib/models";
@@ -1189,6 +1190,9 @@ async function runMultiAgentPipeline(
   const { analysis: analysisResult, route } = await analyzeWithWebSearch(userQuery, contextCard, priorMessages, onChunk);
   onChunk(`\n---\n\n`);
 
+  // ── 절대 규칙(게임 헌법) — 바이블보다 상위, 시스템 프롬프트 최상단 주입
+  const absoluteRulesContext = await buildAbsoluteRulesContext();
+
   // ── 누적 결정사항 컨텍스트 조회 (대화 일관성 유지)
   // anchor 설정돼 있으면 그 시점 이후 결정만 컨텍스트로 포함
   const decisionContext = await buildDecisionContext(undefined, 200, contextAnchorTime);
@@ -1266,7 +1270,7 @@ async function runMultiAgentPipeline(
   const todayWeekday = ["일","월","화","수","목","금","토"][today.getDay()];
 
   // 공통 시스템 프롬프트 앞부분 (검색 결과 활용 지시 포함)
-  const baseSystemPrompt = `당신의 이름은 조던(Jordan)이에요. 영웅수집형 모바일 게임 기획 전문가 AI예요.
+  const baseSystemPrompt = `${absoluteRulesContext ? absoluteRulesContext + "\n\n" : ""}당신의 이름은 조던(Jordan)이에요. 영웅수집형 모바일 게임 기획 전문가 AI예요.
 10년 이상 현장에서 게임을 만들어온 베테랑 디렉터의 시선으로 답변해요.
 직설적이고 실무 중심으로, "이 구조는 이래서 망합니다"처럼 솔직하게 말해줘요.
 

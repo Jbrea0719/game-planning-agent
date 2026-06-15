@@ -8,6 +8,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { buildDecisionContext } from "@/lib/decision-context";
+import { buildAbsoluteRulesContext } from "@/lib/absolute-rules-context";
 import { supabase } from "@/lib/supabase";
 import { createBackup } from "@/lib/doc-backup";
 import { MODEL } from "@/lib/models";
@@ -131,10 +132,11 @@ export async function POST(request: Request) {
       `위 대화에서 논의·결정된 내용을 원본 기획서에 반영(추가·변경·삭제)해서 전체 마크다운을 반환하세요. 변경 표시 마커는 넣지 마세요.`;
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const absoluteRules = await buildAbsoluteRulesContext();
     const stream = client.messages.stream({
       model: MODEL.DOC_WRITING,  // Opus — 기획서 수정 최고 품질
       max_tokens: 60000,  // 한국어 ~3만 자까지 허용 (스트리밍이라 타임아웃 안전)
-      system: REVISE_FROM_CHAT_SYSTEM,
+      system: (absoluteRules ? absoluteRules + "\n\n" : "") + REVISE_FROM_CHAT_SYSTEM,
       messages: [{ role: "user", content: userContent }],
     });
     const res = await stream.finalMessage();

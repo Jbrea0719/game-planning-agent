@@ -10,6 +10,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { buildDecisionContext } from "@/lib/decision-context";
+import { buildAbsoluteRulesContext } from "@/lib/absolute-rules-context";
 import { supabase } from "@/lib/supabase";
 import { createBackup } from "@/lib/doc-backup";
 import { MODEL } from "@/lib/models";
@@ -87,10 +88,11 @@ export async function POST(request: Request) {
         : "") +
       `위 원본 기획서를 사용자 수정 요청대로 갱신해서 전체 마크다운을 반환하세요.`;
 
+    const absoluteRules = await buildAbsoluteRulesContext();
     const stream = client.messages.stream({
       model: MODEL.DOC_WRITING,  // Opus 4.7 — 기획서 수정 최고 품질
       max_tokens: 60000,  // 한국어 ~3만 자까지 허용 (스트리밍이라 타임아웃 안전)
-      system: REVISE_SYSTEM_PROMPT,
+      system: (absoluteRules ? absoluteRules + "\n\n" : "") + REVISE_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userContent }],
     });
     const res = await stream.finalMessage();
