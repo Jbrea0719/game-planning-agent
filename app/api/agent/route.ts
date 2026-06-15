@@ -866,13 +866,15 @@ ${userQuery}`;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         res = await client.messages.create({
-          model: "claude-sonnet-4-5",
+          // 현재 지원 모델 + 현재 웹검색 도구 버전. 옛 조합(sonnet-4-5 + web_search_20250305)은
+          // 신형 도구가 레거시 모델을 지원하지 않아 HTTP 400으로 거부됨 → 둘 다 현행으로 상향.
+          model: "claude-sonnet-4-6",
           max_tokens: 6000,  // 검색 7회 + 정리 텍스트 여유분 확보
           // Prompt Caching 적용 — 시스템 프롬프트가 ~2,500토큰으로 큰 편이라 캐시 효과 큼
           system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
           tools: [
             {
-              type: "web_search_20250305",
+              type: "web_search_20260209",
               name: "web_search",
               max_uses: 7,  // 사실+반응 복합 질문 대비 7회
               allowed_domains: allowedDomains,
