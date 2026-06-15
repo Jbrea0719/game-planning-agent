@@ -126,6 +126,7 @@ export async function POST(request: Request) {
       project_id?: string;
       nickname?: string;
       reference_doc_ids?: string[];  // 참고 기획서 id 목록 — 작성 시 연계·교차 검증
+      direction?: string;  // 사용자가 지정한 작성 방향(예: "초보 소환만 한정해서 작성")
       // 저장(apply) 모드 — 미리보기에서 확정한 내용을 저장만 (재생성 없음)
       apply?: boolean;
       content_markdown?: string;
@@ -180,7 +181,7 @@ export async function POST(request: Request) {
     }
 
     // ── 미리보기(preview) 모드: 생성만, 저장 안 함 ──
-    const { messages, project_id, nickname, reference_doc_ids } = body;
+    const { messages, project_id, nickname, reference_doc_ids, direction } = body;
     if (!messages || messages.length === 0) {
       return Response.json({ error: "대화 내용이 없습니다" }, { status: 400 });
     }
@@ -223,12 +224,18 @@ export async function POST(request: Request) {
       }
     }
 
-    const sections: string[] = [
-      `=== 1. 본문 대화 (이번 기획서의 중심 데이터 — 맥락 전체) ===\n${conversationText}`,
-    ];
+    const dir = direction?.trim();
+    const sections: string[] = [];
+    // 작성 방향 지시 — 있으면 최우선. 선택 대화가 방대해도 이 방향에 맞는 내용만 추리도록.
+    if (dir) {
+      sections.push(`=== 0. 작성 방향 지시 (사용자 지정 — 최우선) ===\n${dir}\n\n※ 선택된 대화에 여러 주제가 섞여 있어도, 위 방향에 해당하는 내용만 골라 그 주제로 좁혀서 기획서를 작성하세요. 방향 밖의 다른 주제는 기획서에 포함하지 마세요(필요하면 "이번 범위 밖" 정도로만 짧게 언급).`);
+    }
+    sections.push(`=== 1. 본문 대화 (근거 데이터${dir ? " — 이 중 위 '작성 방향'에 맞는 부분만 사용" : " — 맥락 전체"}) ===\n${conversationText}`);
     if (bibleText) sections.push(`=== 2. 기획 바이블 (전체 누적 기준 — 반드시 교차 검증) ===\n${bibleText}`);
     if (referenceText) sections.push(`=== 3. 참고 기획서 (사용자 선택 — 연계·충돌 점검) ===\n${referenceText}`);
-    const userContent = `아래 입력을 토대로 게임 기획서를 작성해주세요. 본문 대화 전체와 기획 바이블${referenceText ? "·참고 기획서" : ""}를 빠짐없이 반영하세요.\n\n${sections.join("\n\n")}`;
+    const userContent = dir
+      ? `아래 입력을 토대로 게임 기획서를 작성해주세요. **'0. 작성 방향 지시'를 최우선으로** 따르고, 본문 대화 중 그 방향에 해당하는 내용만 기획 바이블${referenceText ? "·참고 기획서" : ""}와 교차 검증해 작성하세요.\n\n${sections.join("\n\n")}`
+      : `아래 입력을 토대로 게임 기획서를 작성해주세요. 본문 대화 전체와 기획 바이블${referenceText ? "·참고 기획서" : ""}를 빠짐없이 반영하세요.\n\n${sections.join("\n\n")}`;
 
     // 생성: 스트리밍으로 받아 max_tokens 상향(긴 기획서 지원, 비스트리밍 타임아웃 회피)
     const stream = client.messages.stream({

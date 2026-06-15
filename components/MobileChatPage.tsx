@@ -251,6 +251,9 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   // 기획서 작성 — 대화 선택 모드
   const [selectMode, setSelectMode] = useState(false);
   const [selectedPairIds, setSelectedPairIds] = useState<Set<string>>(new Set());
+  // 기획서 작성 방향 지시 입력
+  const [showDocDirection, setShowDocDirection] = useState(false);
+  const [docDirection, setDocDirection] = useState("");
   const [docBackgroundGenerating, setDocBackgroundGenerating] = useState(false);
   const [docCompletedNotice, setDocCompletedNotice] = useState<{ title: string } | null>(null);
   const docGenAbortRef = useRef<AbortController | null>(null);
@@ -1175,7 +1178,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     setSelectedPairIds(new Set());
   }
 
-  async function generateDocument() {
+  async function generateDocument(direction: string = "") {
     const selectedMsgs = pairs
       .filter(p => selectedPairIds.has(p.pair_id))
       .flatMap(p => [
@@ -1184,6 +1187,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       ]);
     if (selectedMsgs.length === 0) return;
 
+    setShowDocDirection(false);
     setSelectMode(false);
     setSelectedPairIds(new Set());
     setDocBackgroundGenerating(true);
@@ -1199,6 +1203,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           project_id: DEFAULT_PROJECT_ID,
           nickname,
           reference_doc_ids: refDocIds,  // 참고 기획서 — 작성 시 연계·교차 검증
+          direction,  // 사용자가 지정한 작성 방향(빈 문자열이면 전체 반영)
         }),
         signal: controller.signal,
       });
@@ -1267,7 +1272,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
             <b style={{ color: "rgba(180,210,255,1)" }}>{selectedPairIds.size}개</b> 선택됨
           </span>
           <button
-            onClick={generateDocument}
+            onClick={() => { if (selectedPairIds.size > 0) { setDocDirection(""); setShowDocDirection(true); } }}
             disabled={selectedPairIds.size === 0}
             className="text-xs px-3 py-1.5 rounded-lg font-bold disabled:opacity-40"
             style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
@@ -1818,6 +1823,36 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       />
       {/* 대화 기반 수정 — 색상 diff 미리보기 + 적용 */}
       {/* 기획서 작성 — 저장 전 미리보기 (제목 수정·카테고리·요약) */}
+      {/* 기획서 작성 방향 지시 입력 (바텀시트) */}
+      {showDocDirection && (
+        <div className="fixed inset-0 z-[70] flex items-end bg-black/60" onClick={() => setShowDocDirection(false)}>
+          <div className="w-full rounded-t-2xl flex flex-col" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }} onClick={(e) => e.stopPropagation()}>
+            <div className="px-4 py-3 flex items-center justify-between flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+              <div>
+                <p className="text-sm font-bold" style={{ color: SILVER }}>✍️ 기획서 작성 방향</p>
+                <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>선택한 <b style={{ color: "rgba(180,210,255,1)" }}>{selectedPairIds.size}개</b> 대화를 어떤 방향으로 (선택)</p>
+              </div>
+              <button onClick={() => setShowDocDirection(false)} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>
+            </div>
+            <div className="px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+              <textarea
+                value={docDirection}
+                onChange={(e) => setDocDirection(e.target.value)}
+                placeholder={'예) "초보 소환"만 한정해서 작성해줘\n(비우면 선택한 대화 전체 반영)'}
+                rows={4}
+                autoFocus
+                className="w-full px-3 py-2.5 rounded-lg text-[13px] outline-none resize-none"
+                style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0", lineHeight: 1.6 }}
+              />
+              <div className="flex gap-2 justify-end mt-3">
+                <button onClick={() => generateDocument("")} className="text-xs px-3 py-2 rounded-lg font-medium" style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}>전체 반영</button>
+                <button onClick={() => generateDocument(docDirection)} className="text-xs px-4 py-2 rounded-lg font-bold" style={{ backgroundColor: SILVER, color: "#0a0e1a" }}>{docDirection.trim() ? "이 방향으로 작성" : "작성 시작"}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <DocGenPreview
         open={!!docGenPreview}
         preview={docGenPreview}

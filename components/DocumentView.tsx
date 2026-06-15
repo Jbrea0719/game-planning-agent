@@ -356,6 +356,21 @@ export default function DocumentView({
   // 마운트·열림·reloadKey 변경 시 갱신
   useEffect(() => { if (open) void loadVersions(); }, [open, loadVersions]);
 
+  // 기획서 스크롤 위치 복원 — 새로고침/문서 전환 시 마지막 위치로 (댓글 확인 등)
+  // 본문·이미지 로드로 높이가 바뀌므로 몇 차례 시도. 사용자가 직접 스크롤하면 멈춤.
+  useEffect(() => {
+    if (!currentDoc || typeof window === "undefined") return;
+    const saved = sessionStorage.getItem(`jordan_doc_scroll:${currentDoc.id}`);
+    const y = saved ? parseInt(saved, 10) : 0;
+    if (!y) return;
+    let cancelled = false;
+    const onUser = () => { cancelled = true; };
+    bodyRef.current?.addEventListener("wheel", onUser, { passive: true, once: true });
+    bodyRef.current?.addEventListener("touchstart", onUser, { passive: true, once: true });
+    const timers = [60, 250, 600].map(d => setTimeout(() => { if (!cancelled && bodyRef.current) bodyRef.current.scrollTop = y; }, d));
+    return () => { timers.forEach(clearTimeout); };
+  }, [currentDoc?.id]);
+
   // 최초 1회만: 저장된 펼침 상태가 없을 때, 문서 있는 카테고리(대/중/소)를 기본 펼침
   // (저장된 상태가 있으면 사용자가 마지막에 둔 +/- 그대로 유지)
   useEffect(() => {
@@ -963,7 +978,12 @@ export default function DocumentView({
         )}
 
         {/* 중앙 본문 */}
-        <div ref={bodyRef} className="flex-1 overflow-y-auto px-6 py-6" style={{ scrollbarWidth: "thin" }}>
+        <div
+          ref={bodyRef}
+          onScroll={() => { if (currentDoc && bodyRef.current && typeof window !== "undefined") sessionStorage.setItem(`jordan_doc_scroll:${currentDoc.id}`, String(bodyRef.current.scrollTop)); }}
+          className="flex-1 overflow-y-auto px-6 py-6"
+          style={{ scrollbarWidth: "thin" }}
+        >
           {loading && !currentDoc && (
             <p className="text-sm" style={{ color: SILVER_DIM }}>로딩 중...</p>
           )}

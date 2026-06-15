@@ -396,6 +396,9 @@ function DesktopChatPage() {
   const [showDocumentView, setShowDocumentView] = useState(false);
   const [showDocMenu, setShowDocMenu] = useState(false);  // 헤더 '📄 기획서 ▾' 드롭다운
   const [docGenPreview, setDocGenPreview] = useState<DocGenPreviewData | null>(null);  // 기획서 작성 미리보기
+  // 기획서 작성 방향 지시 입력 (선택 대화 → 작성 시작 시 뜨는 입력창)
+  const [showDocDirection, setShowDocDirection] = useState(false);
+  const [docDirection, setDocDirection] = useState("");
   // 참고 기획서(다중) — 답변 시 교차 참고·충돌 점검. 방별 유지(localStorage)
   const [refDocIds, setRefDocIds] = useState<string[]>([]);
   const [showRefPicker, setShowRefPicker] = useState(false);
@@ -1519,7 +1522,7 @@ function DesktopChatPage() {
 
   // 백그라운드 기획서 생성 — 모달 없음, 헤더 버튼 상태로 진행 표시
   // 완료 시: design_docs에 자동 저장 + 알림 토스트 + 📄 기획서 버튼 레드닷
-  async function generateDocument() {
+  async function generateDocument(direction: string = "") {
     const selectedMsgs = activePairs
       .filter((p) => selectedPairIds.has(p.pair_id))
       .flatMap((p) => [
@@ -1528,7 +1531,8 @@ function DesktopChatPage() {
       ]);
     if (selectedMsgs.length === 0) return;
 
-    // 선택 모드 즉시 종료, 백그라운드 진행 표시 시작
+    // 방향 입력창 닫고, 선택 모드 즉시 종료, 백그라운드 진행 표시 시작
+    setShowDocDirection(false);
     setSelectMode(false);
     setSelectedPairIds(new Set());
     setDocBackgroundGenerating(true);
@@ -1546,6 +1550,7 @@ function DesktopChatPage() {
           project_id: DEFAULT_PROJECT_ID,
           nickname: sessionId?.replace(/^agent:/, "") ?? null,
           reference_doc_ids: refDocIds,  // 참고 기획서 — 작성 시 연계·교차 검증
+          direction,  // 사용자가 지정한 작성 방향(빈 문자열이면 전체 반영)
         }),
         signal: controller.signal,
       });
@@ -1963,6 +1968,48 @@ function DesktopChatPage() {
           }
         }}
       />
+      {/* 기획서 작성 방향 지시 입력 — 선택 대화 → '작성 시작' 시 표시 */}
+      {showDocDirection && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[70] p-4" onClick={() => setShowDocDirection(false)}>
+          <div
+            className="rounded-2xl w-full max-w-lg shadow-2xl flex flex-col"
+            style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+              <div>
+                <p className="text-sm font-bold" style={{ color: SILVER }}>✍️ 기획서 작성 방향</p>
+                <p className="text-[11px] mt-0.5" style={{ color: SILVER_DIM }}>선택한 <b style={{ color: "rgba(180,210,255,1)" }}>{selectedPairIds.size}개</b> 대화를 어떤 방향으로 정리할지 (선택 입력)</p>
+              </div>
+              <button onClick={() => setShowDocDirection(false)} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>
+            </div>
+            <div className="px-5 py-4">
+              <textarea
+                value={docDirection}
+                onChange={(e) => setDocDirection(e.target.value)}
+                placeholder={'예) 일반·초보·픽업·이벤트 소환 대화 중 "초보 소환"만 한정해서 작성해줘\n예) 밸런스 수치 위주로, BM 얘기는 빼고 정리해줘\n\n(비워두면 선택한 대화 전체를 반영합니다)'}
+                rows={5}
+                autoFocus
+                className="w-full px-3 py-2.5 rounded-lg text-[13px] outline-none resize-none"
+                style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0", lineHeight: 1.6 }}
+              />
+              <div className="flex gap-2 justify-end mt-3">
+                <button
+                  onClick={() => generateDocument("")}
+                  className="text-xs px-3 py-2 rounded-lg font-medium"
+                  style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}
+                >전체 반영</button>
+                <button
+                  onClick={() => generateDocument(docDirection)}
+                  className="text-xs px-4 py-2 rounded-lg font-bold"
+                  style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
+                >{docDirection.trim() ? "이 방향으로 작성" : "작성 시작"}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 기획서 작성 — 저장 전 미리보기 (제목 수정·카테고리·요약) */}
       <DocGenPreview
         open={!!docGenPreview}
@@ -2746,7 +2793,7 @@ function DesktopChatPage() {
                 <b style={{ color: "rgba(180,210,255,1)" }}>{selectedPairIds.size}개</b> 선택됨
               </span>
               <button
-                onClick={generateDocument}
+                onClick={() => { if (selectedPairIds.size > 0) { setDocDirection(""); setShowDocDirection(true); } }}
                 disabled={selectedPairIds.size === 0}
                 className="text-sm px-4 py-2 rounded-lg font-bold disabled:opacity-40 whitespace-nowrap"
                 style={{ backgroundColor: SILVER, color: "#0a0e1a", boxShadow: "0 2px 8px rgba(192,200,216,0.3)" }}
