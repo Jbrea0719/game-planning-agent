@@ -309,8 +309,9 @@ export default function DocList({
   };
   const showUncategorized = filter !== "empty"; // '분류 안 됨'(소분류 지정 필요) 기획서는 '빈 항목' 필터에선 숨김
 
-  const areaVisible = (a: AreaNode) => a.subs.some(passes) || visibleDocs(a.directDocs).length > 0;
-  const mainVisible = (m: MainNode) => m.areas.some(areaVisible) || m.subs.some(passes) || visibleDocs(m.directDocs).length > 0;
+  // '전체' 필터에선 빈 중(소·기획서 없는 중)도 보이게 — 드롭 대상/구조 확인용
+  const areaVisible = (a: AreaNode) => filter === "all" || a.subs.some(passes) || visibleDocs(a.directDocs).length > 0;
+  const mainVisible = (m: MainNode) => filter === "all" || m.areas.some(areaVisible) || m.subs.some(passes) || visibleDocs(m.directDocs).length > 0;
 
   // ── 통합 DnD (순서변경 + 카테고리 이동) ───────────────────────────────
   const dndSensors = useSensors(

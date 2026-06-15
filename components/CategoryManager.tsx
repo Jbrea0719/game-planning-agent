@@ -178,7 +178,7 @@ export default function CategoryManager({
   }
 
   // ── 순서 변경 (display_order 일괄 저장) ───────────────────────
-  async function reorder(type: "main" | "sub", orderedIds: string[]) {
+  async function reorder(type: "main" | "sub" | "area", orderedIds: string[]) {
     const ok = await api("/api/categories/reorder", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -206,13 +206,15 @@ export default function CategoryManager({
     m.areas.forEach((a, ai) => (ai === areaIdx ? newAreaSubs : a.subs).forEach(s => orderedIds.push(s.id)));
     void reorder("sub", orderedIds);
   }
-  // 중카테고리(영역) 위/아래 — 영역 블록 통째로 이동
+  // 중카테고리(영역) 위/아래 — 영역 블록 통째로 이동 (areas 테이블 display_order)
   function moveArea(m: MainItem, areaIdx: number, dir: -1 | 1) {
     const j = areaIdx + dir;
     if (j < 0 || j >= m.areas.length) return;
     const areas = [...m.areas];
     [areas[areaIdx], areas[j]] = [areas[j], areas[areaIdx]];
-    void reorder("sub", areas.flatMap(a => a.subs.map(s => s.id)));
+    // 실제 중(area.code 있는 것)만 id로 — code null(대 직속 소 묶음)은 제외
+    const ids = areas.filter(a => a.code).map(a => `${m.id}:${a.code}`);
+    if (ids.length > 0) void reorder("area", ids);
   }
 
   async function deleteMain(id: string, name: string) {
@@ -235,11 +237,15 @@ export default function CategoryManager({
     });
     if (ok) { await load(); onChanged(); }
   }
-  async function createArea(mainId: string, areaName: string, firstSubName: string) {
-    if (!areaName.trim() || !firstSubName.trim()) return;
-    // 영역 자체는 가상이므로 첫 sub와 함께 생성. area_code는 슬러그
-    const code = areaName.toLowerCase().replace(/[^a-z0-9가-힣]/g, "_").slice(0, 30) || `area_${Date.now()}`;
-    await createSub(mainId, code, areaName.trim(), firstSubName);
+  async function createArea(mainId: string, areaName: string) {
+    if (!areaName.trim()) return;
+    // 중(area)은 1급 객체 — 소 없이 이름만으로 빈 중 생성
+    const ok = await api("/api/categories/area", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ main_id: mainId, name: areaName.trim() }),
+    });
+    if (ok) { await load(); onChanged(); }
   }
   async function renameSub(id: string, name: string) {
     if (!name.trim()) return;
@@ -618,7 +624,7 @@ export default function CategoryManager({
               </p>
               {adding.type === "area" && (
                 <p className="text-xs" style={{ color: SILVER_DIM }}>
-                  영역은 첫 소카테고리와 함께 생성돼요. 영역명 + 첫 소카테고리명 입력.
+                  중카테고리는 소 없이도 생성돼요. 만든 뒤 기획서를 바로 넣거나 소를 추가할 수 있어요.
                 </p>
               )}
               <input
@@ -626,22 +632,13 @@ export default function CategoryManager({
                 onChange={(e) => setAddText(e.target.value)}
                 placeholder={
                   adding.type === "main" ? "예: 라이브 운영"
-                    : adding.type === "area" ? "영역 이름 (예: 영웅, PVE)"
+                    : adding.type === "area" ? "중카테고리 이름 (예: 영웅, PVE)"
                     : "소카테고리 이름 (예: 영웅 등급)"
                 }
                 className="px-3 py-2 rounded-lg text-sm outline-none"
                 style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
                 autoFocus
               />
-              {adding.type === "area" && (
-                <input
-                  value={addExtra}
-                  onChange={(e) => setAddExtra(e.target.value)}
-                  placeholder="첫 소카테고리 이름 (필수)"
-                  className="px-3 py-2 rounded-lg text-sm outline-none"
-                  style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
-                />
-              )}
               <div className="flex gap-2 justify-end mt-1">
                 <button
                   onClick={() => { setAdding(null); setAddText(""); setAddExtra(""); }}
@@ -649,11 +646,11 @@ export default function CategoryManager({
                   style={{ backgroundColor: SILVER_FAINT, color: SILVER }}
                 >취소</button>
                 <button
-                  disabled={busy || !addText.trim() || (adding.type === "area" && !addExtra.trim())}
+                  disabled={busy || !addText.trim()}
                   onClick={async () => {
                     if (adding.type === "main") await createMain(addText);
                     else if (adding.type === "sub") await createSub(adding.mainId, adding.areaCode, adding.areaName, addText);
-                    else if (adding.type === "area") await createArea(adding.mainId, addText, addExtra);
+                    else if (adding.type === "area") await createArea(adding.mainId, addText);
                     setAdding(null); setAddText(""); setAddExtra("");
                   }}
                   className="text-xs px-4 py-2 rounded-lg font-bold disabled:opacity-40"
