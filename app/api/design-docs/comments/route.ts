@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     if (!doc_family_id) return Response.json({ error: "doc_family_id 필수" }, { status: 400 });
     const c = content?.trim();
     if (!c) return Response.json({ error: "내용 필수" }, { status: 400 });
-    if (c.length > 2000) return Response.json({ error: "댓글이 너무 길어요(최대 2000자)" }, { status: 400 });
+    if (c.length > 6000) return Response.json({ error: "댓글이 너무 길어요" }, { status: 400 });
 
     const { data, error } = await supabase
       .from("doc_comments")

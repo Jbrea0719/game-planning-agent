@@ -4,6 +4,8 @@
 // doc_family_id 기준으로 의견을 달고, 각 의견에 1단계 답글을 단다.
 
 import { useCallback, useEffect, useState } from "react";
+import RichCommentEditor from "@/components/RichCommentEditor";
+import { sanitizeCommentHtml, isPlainText } from "@/lib/sanitize-comment";
 
 const SILVER = "#c0c8d8";
 const SILVER_DIM = "rgba(192,200,216,0.5)";
@@ -37,10 +39,8 @@ function timeAgo(iso: string): string {
 export default function DocComments({ docFamilyId, nickname }: { docFamilyId: string; nickname?: string }) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(false);
-  const [newText, setNewText] = useState("");
   const [posting, setPosting] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
-  const [replyText, setReplyText] = useState("");
 
   const load = useCallback(async () => {
     if (!docFamilyId) return;
@@ -65,7 +65,7 @@ export default function DocComments({ docFamilyId, nickname }: { docFamilyId: st
       });
       const data = await res.json();
       if (data.error) { alert(`등록 실패: ${data.error}\n(테이블이 없으면 마이그레이션 021을 적용하세요)`); return; }
-      if (parentId) { setReplyText(""); setReplyingTo(null); } else { setNewText(""); }
+      if (parentId) setReplyingTo(null);
       await load();
     } catch (e) { alert(`등록 실패: ${String(e)}`); } finally { setPosting(false); }
   }
@@ -88,6 +88,14 @@ export default function DocComments({ docFamilyId, nickname }: { docFamilyId: st
   const tops = comments.filter(c => !c.parent_id);
   const repliesOf = (id: string) => comments.filter(c => c.parent_id === id);
 
+  // 댓글 본문 렌더 — 옛 평문은 줄바꿈 보존 텍스트, 리치텍스트는 새니타이즈 HTML
+  function renderContent(content: string) {
+    if (isPlainText(content)) {
+      return <p className="text-[13px] mt-0.5 whitespace-pre-wrap break-words" style={{ color: "#dbe2ec" }}>{content}</p>;
+    }
+    return <div className="text-[13px] mt-0.5 break-words" style={{ color: "#dbe2ec", lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: sanitizeCommentHtml(content) }} />;
+  }
+
   function Avatar({ name }: { name: string | null }) {
     const ch = (name ?? "?").trim().charAt(0).toUpperCase() || "?";
     return (
@@ -105,23 +113,7 @@ export default function DocComments({ docFamilyId, nickname }: { docFamilyId: st
       {/* 새 의견 입력 */}
       <div className="flex gap-2 mb-5">
         <Avatar name={nickname ?? null} />
-        <div className="flex-1">
-          <textarea
-            value={newText}
-            onChange={e => setNewText(e.target.value)}
-            placeholder="이 기획서에 대한 의견을 남겨주세요…"
-            rows={2}
-            className="w-full text-[13px] px-3 py-2 rounded-lg outline-none resize-none"
-            style={{ backgroundColor: "rgba(255,255,255,0.04)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
-          />
-          <div className="flex justify-end mt-1.5">
-            <button onClick={() => post(null, newText)} disabled={posting || !newText.trim()}
-              className="text-xs px-4 py-1.5 rounded-lg font-bold disabled:opacity-40"
-              style={{ backgroundColor: "rgba(100,180,255,0.2)", border: "1px solid rgba(100,180,255,0.5)", color: BLUE }}>
-              {posting ? "등록 중…" : "의견 등록"}
-            </button>
-          </div>
-        </div>
+        <RichCommentEditor onSubmit={(html) => post(null, html)} placeholder="이 기획서에 대한 의견을 남겨주세요…" submitLabel="의견 등록" posting={posting} />
       </div>
 
       {/* 목록 */}
@@ -139,9 +131,9 @@ export default function DocComments({ docFamilyId, nickname }: { docFamilyId: st
                   <span className="text-[12px] font-bold" style={{ color: SILVER }}>{c.nickname ?? "익명"}</span>
                   <span className="text-[10px]" style={{ color: SILVER_DIM }}>{timeAgo(c.created_at)}</span>
                 </div>
-                <p className="text-[13px] mt-0.5 whitespace-pre-wrap break-words" style={{ color: "#dbe2ec" }}>{c.content}</p>
+                {renderContent(c.content)}
                 <div className="flex items-center gap-3 mt-1">
-                  <button onClick={() => { setReplyingTo(replyingTo === c.id ? null : c.id); setReplyText(""); }}
+                  <button onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)}
                     className="text-[11px]" style={{ color: SILVER_DIM }}>답글</button>
                   {canDelete(c) && (
                     <button onClick={() => remove(c.id)} className="text-[11px]" style={{ color: "rgba(255,150,150,0.7)" }}>삭제</button>
@@ -150,23 +142,15 @@ export default function DocComments({ docFamilyId, nickname }: { docFamilyId: st
 
                 {/* 답글 입력 */}
                 {replyingTo === c.id && (
-                  <div className="flex gap-2 mt-2">
-                    <textarea
-                      value={replyText}
-                      onChange={e => setReplyText(e.target.value)}
+                  <div className="mt-2">
+                    <RichCommentEditor
+                      onSubmit={(html) => post(c.id, html)}
+                      onCancel={() => setReplyingTo(null)}
                       placeholder={`${c.nickname ?? "익명"}님에게 답글…`}
-                      rows={2}
-                      autoFocus
-                      className="flex-1 text-[12px] px-2.5 py-1.5 rounded-lg outline-none resize-none"
-                      style={{ backgroundColor: "rgba(255,255,255,0.04)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+                      submitLabel="등록"
+                      posting={posting}
+                      compact
                     />
-                    <div className="flex flex-col gap-1">
-                      <button onClick={() => post(c.id, replyText)} disabled={posting || !replyText.trim()}
-                        className="text-[11px] px-3 py-1.5 rounded-lg font-bold disabled:opacity-40"
-                        style={{ backgroundColor: "rgba(100,180,255,0.2)", border: "1px solid rgba(100,180,255,0.5)", color: BLUE }}>등록</button>
-                      <button onClick={() => { setReplyingTo(null); setReplyText(""); }}
-                        className="text-[11px] px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>취소</button>
-                    </div>
                   </div>
                 )}
 
@@ -181,7 +165,7 @@ export default function DocComments({ docFamilyId, nickname }: { docFamilyId: st
                             <span className="text-[12px] font-bold" style={{ color: SILVER }}>{r.nickname ?? "익명"}</span>
                             <span className="text-[10px]" style={{ color: SILVER_DIM }}>{timeAgo(r.created_at)}</span>
                           </div>
-                          <p className="text-[13px] mt-0.5 whitespace-pre-wrap break-words" style={{ color: "#dbe2ec" }}>{r.content}</p>
+                          {renderContent(r.content)}
                           {canDelete(r) && (
                             <button onClick={() => remove(r.id)} className="text-[11px] mt-1" style={{ color: "rgba(255,150,150,0.7)" }}>삭제</button>
                           )}
