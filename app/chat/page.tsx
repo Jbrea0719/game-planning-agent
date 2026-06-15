@@ -18,6 +18,7 @@ import ImageIntentBar from "@/components/ImageIntentBar";
 import ImageAnnotator from "@/components/ImageAnnotator";
 import SketchWireframeModal from "@/components/SketchWireframeModal";
 import ReferenceGallery from "@/components/ReferenceGallery";
+import NotificationBell from "@/components/NotificationBell";
 import { buildImageIntentPrefix } from "@/lib/image-intent";
 import { useDeviceMode, DEVICE_FRAMES } from "@/hooks/useIsMobile";
 import { useCrossTabSync } from "@/hooks/useCrossTabSync";
@@ -304,6 +305,7 @@ function DesktopChatPage() {
   const [showAnnotator, setShowAnnotator] = useState(false);
   const [showSketchModal, setShowSketchModal] = useState(false);  // 스케치→와이어프레임 (Feature L)
   const [showRefGallery, setShowRefGallery] = useState(false);  // 레퍼런스 갤러리 (Feature J)
+  const [docOpenTarget, setDocOpenTarget] = useState<{ docId: string | null; commentId: string | null } | null>(null);  // 알림 바로가기 타겟
   // 이미지 첨부 해제 시 의도 상태도 초기화
   function clearAttachedImage() {
     setAttachedImage(null);
@@ -1941,6 +1943,7 @@ function DesktopChatPage() {
         onDecisionsChanged={() => bumpDecisions()}
         onStartWriting={(subId, label) => startInterviewForCategory(subId, label)}
         onReviseViaChat={(docId, docTitle) => enterReviseViaChat(docId, docTitle)}
+        openTarget={docOpenTarget}
       />
 
       {/* 참고 기획서 선택 (다중) */}
@@ -2493,7 +2496,10 @@ function DesktopChatPage() {
                   <p className="text-sm font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🆕 최근 추가 (2026-06-15)</p>
                   <div className="px-3 py-2.5 rounded-lg flex flex-col gap-2 text-[11px]" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}`, color: SILVER }}>
                     <p><b style={{ color: "rgba(255,205,120,1)" }}>⚖️ 절대 규칙(게임 헌법)</b> — 📚 기획 바이블 패널 맨 위. 가로형·턴제 같은 불변 규칙을 등록하면 모든 답변·기획서·시안이 반드시 준수해요(바이블보다 상위).</p>
-                    <p><b style={{ color: SILVER }}>💬 기획서 댓글</b> — 📄 기획서 맨 아래에서 의견을 남기고 서로 답글을 달 수 있어요(유튜브식). 팀이 늘면 기획서별로 토론하기 좋아요.</p>
+                    <p><b style={{ color: SILVER }}>💬 기획서 댓글</b> — 📄 기획서 맨 아래에서 의견·답글(유튜브식). <b>볼드·글자크기·색상</b> 서식 지원.</p>
+                    <p><b style={{ color: SILVER }}>🔔 알림</b> — 내 기획서에 댓글이 달리거나 내 댓글에 답글이 달리면 헤더 🔔에 표시. 누르면 <b>그 댓글로 바로가기</b>.</p>
+                    <p><b style={{ color: SILVER }}>🔍 기획서 검색</b> — 📄 기획서 리스트 상단 검색창에서 제목·본문 내용으로 검색.</p>
+                    <p><b style={{ color: SILVER }}>✍️ 작성 방향 지시</b> — 대화 선택 후 작성 시작 시, 원하는 방향(예: “초보 소환만”)을 입력창에 적으면 그 범위로 좁혀 작성.</p>
                     <p><b style={{ color: SILVER }}>🕘 히스토리 팝업</b> — 설정의 “🕘 히스토리 열기” 버튼으로 변경 이력(조던기능/기획서)을 별도 창에서 봅니다.</p>
                     <p><b style={{ color: SILVER }}>⚠️ 바이블 일관성 검사</b> — 답변이 누적된 결정과 모순되면 자동으로 경고창이 떠요. “의도한 변경”이면 닫으면 됩니다.</p>
                     <p><b style={{ color: SILVER }}>🖼️ 이미지 의도 태그·영역 표시</b> — 이미지 첨부 시 분석 관점(레이아웃·색감 등) 선택 + 메모, ✏️로 이미지에 동그라미·선 표시.</p>
@@ -2956,6 +2962,15 @@ function DesktopChatPage() {
           </div>
 
           {/* 출처 표시·참고 게임·큐레이션은 ⚙️ 설정 모달로 이동됨 */}
+
+          {/* 🔔 알림 — 기획서 댓글/답글 */}
+          <NotificationBell
+            nickname={sessionId?.replace(/^agent:/, "") ?? undefined}
+            onOpen={(docId, _familyId, commentId) => {
+              setDocOpenTarget({ docId, commentId });
+              setShowDocumentView(true);
+            }}
+          />
 
           {/* ⑦ 가이드 — 조던 전체 기능 요약 */}
           <Tooltip text="조던의 모든 기능 한눈에 보기">

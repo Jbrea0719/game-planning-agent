@@ -79,6 +79,7 @@ export default function DocumentView({
   onDecisionsChanged,
   onStartWriting,
   onReviseViaChat,
+  openTarget,
 }: {
   open: boolean;
   onClose: () => void;
@@ -89,6 +90,7 @@ export default function DocumentView({
   onDecisionsChanged?: () => void;   // 결정사항 변경 시 부모에 알림 (AI 재분류 적용 후 바이블 새로고침용)
   onStartWriting?: (subCategoryId: string, label: string) => void;  // 빈 소분류 '작성하기' → 채팅으로 이동해 조던 인터뷰 시작
   onReviseViaChat?: (docId: string, docTitle: string) => void;  // '대화를 통한 수정' → 채팅으로 이동해 이 기획서를 수정 대상으로 지정
+  openTarget?: { docId: string | null; commentId: string | null } | null;  // 알림 바로가기 — 이 기획서를 열고 댓글로 스크롤
 }) {
   const [versions, setVersions] = useState<DocMeta[]>([]);
   const [currentDoc, setCurrentDoc] = useState<DocFull | null>(null);
@@ -355,6 +357,15 @@ export default function DocumentView({
 
   // 마운트·열림·reloadKey 변경 시 갱신
   useEffect(() => { if (open) void loadVersions(); }, [open, loadVersions]);
+
+  // 알림 '바로가기' — 지정된 기획서를 열고 댓글로 스크롤할 id를 DocComments에 전달
+  const [scrollCommentId, setScrollCommentId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!openTarget) return;
+    if (openTarget.docId) void loadDoc(openTarget.docId);
+    setScrollCommentId(openTarget.commentId ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openTarget]);
 
   // 기획서 스크롤 위치 복원 — 새로고침/문서 전환 시 마지막 위치로 (댓글 확인 등)
   // 본문·이미지 로드로 높이가 바뀌므로 몇 차례 시도. 사용자가 직접 스크롤하면 멈춤.
@@ -1015,7 +1026,7 @@ export default function DocumentView({
           {/* 💬 기획서 댓글 (유튜브식: 의견 + 답글) — 보기 모드에서만 */}
           {currentDoc && !editing && (
             <div className="max-w-3xl mx-auto">
-              <DocComments docFamilyId={currentDoc.doc_family_id ?? currentDoc.id} nickname={nickname} />
+              <DocComments docFamilyId={currentDoc.doc_family_id ?? currentDoc.id} nickname={nickname} scrollToCommentId={scrollCommentId} />
             </div>
           )}
           {currentDoc && editing && (

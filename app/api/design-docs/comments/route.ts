@@ -45,6 +45,43 @@ export async function POST(request: Request) {
       .select("id, doc_family_id, parent_id, content, nickname, created_at")
       .single();
     if (error) return Response.json({ error: error.message }, { status: 500 });
+
+    // ── 알림 생성 (fire-and-forget) ──
+    // 기획서 작성자에게 "댓글 달림", 답글이면 부모 댓글 작성자에게 "답글 달림".
+    try {
+      const recipients = new Map<string, "comment" | "reply">();
+      const { data: docRow } = await supabase
+        .from("design_docs")
+        .select("id, title, created_by_nickname")
+        .eq("doc_family_id", doc_family_id)
+        .order("version_no", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const docAuthor = (docRow?.created_by_nickname as string | null) ?? null;
+      if (docAuthor && docAuthor !== nickname) recipients.set(docAuthor, "comment");
+      if (parent_id) {
+        const { data: parentRow } = await supabase.from("doc_comments").select("nickname").eq("id", parent_id).maybeSingle();
+        const parentAuthor = (parentRow?.nickname as string | null) ?? null;
+        if (parentAuthor && parentAuthor !== nickname) recipients.set(parentAuthor, "reply");  // 답글이 더 구체적 → 우선
+      }
+      if (recipients.size > 0) {
+        const preview = c.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().slice(0, 80);
+        const rows = [...recipients.entries()].map(([recipient, type]) => ({
+          recipient_nickname: recipient,
+          actor_nickname: nickname ?? null,
+          type,
+          doc_family_id,
+          doc_id: (docRow?.id as string | null) ?? null,
+          doc_title: (docRow?.title as string | null) ?? "기획서",
+          comment_id: data.id,
+          preview,
+        }));
+        await supabase.from("notifications").insert(rows);
+      }
+    } catch (e) {
+      console.error("[comments] 알림 생성 실패:", e);
+    }
+
     return Response.json({ comment: data });
   } catch (err) {
     return Response.json({ error: String(err) }, { status: 500 });

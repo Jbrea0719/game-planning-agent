@@ -37,6 +37,7 @@ import ImageIntentBar from "@/components/ImageIntentBar";
 import ImageAnnotator from "@/components/ImageAnnotator";
 import SketchWireframeModal from "@/components/SketchWireframeModal";
 import ReferenceGallery from "@/components/ReferenceGallery";
+import NotificationBell from "@/components/NotificationBell";
 import { buildImageIntentPrefix } from "@/lib/image-intent";
 
 // WireframeEditor·MockupGenerator는 DocumentView 안에서 호출 (📄 기획서 → 🎨 화면 설계)
@@ -134,6 +135,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   const [showAnnotator, setShowAnnotator] = useState(false);
   const [showSketchModal, setShowSketchModal] = useState(false);  // 스케치→와이어프레임 (Feature L)
   const [showRefGallery, setShowRefGallery] = useState(false);  // 레퍼런스 갤러리 (Feature J)
+  const [docOpenTarget, setDocOpenTarget] = useState<{ docId: string | null; commentId: string | null } | null>(null);  // 알림 바로가기 타겟
   function clearAttachedImage() {
     setAttachedImage(null);
     setImageIntentTags([]);
@@ -1296,6 +1298,12 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           <p className="text-[10px] truncate" style={{ color: "rgba(180,210,255,0.9)" }}>💬 {conversations.find(c => c.id === currentConvId)?.title ?? "대화방"}</p>
         </button>
 
+        {/* 🔔 알림 */}
+        <NotificationBell
+          nickname={nickname}
+          onOpen={(docId, _familyId, commentId) => { setDocOpenTarget({ docId, commentId }); setShowDocs(true); }}
+        />
+
         {/* 핵심 버튼 — 책(바이블) + 기획서 */}
         <button
           onClick={() => openMenu("bible")}
@@ -1794,6 +1802,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         onDecisionsChanged={() => bumpDecisions()}
         onStartWriting={(subId, label) => startInterviewForCategory(subId, label)}
         onReviseViaChat={(docId, docTitle) => enterReviseViaChat(docId, docTitle)}
+        openTarget={docOpenTarget}
       />
 
       {/* 참고 기획서 선택 (다중) */}
@@ -2373,7 +2382,9 @@ function MobileGuide({ onClose }: { onClose: () => void }) {
           <section>
             <p className="font-bold mb-1.5" style={{ color: "rgba(180,210,255,1)" }}>🆕 최근 추가 (2026-06-15)</p>
             <p><b style={{ color: "rgba(255,205,120,1)" }}>⚖️ 절대 규칙</b> — 📚 바이블 맨 위. 가로형·턴제 등 불변 규칙 등록 → 모든 답변·기획서가 준수.</p>
-            <p className="mt-1"><b>💬 기획서 댓글</b> — 📄 기획서 맨 아래에서 의견·답글(유튜브식).</p>
+            <p className="mt-1"><b>💬 기획서 댓글</b> — 📄 기획서 맨 아래 의견·답글(볼드·크기·색상 서식).</p>
+            <p className="mt-1"><b>🔔 알림</b> — 내 기획서/댓글에 반응이 오면 헤더 🔔, 눌러서 바로가기.</p>
+            <p className="mt-1"><b>🔍 검색 / ✍️ 작성 방향</b> — 기획서 리스트 상단 검색창, 대화 선택 작성 시 방향 입력.</p>
             <p className="mt-1"><b>🕘 히스토리 팝업</b> — 설정의 “히스토리 열기”로 변경 이력을 별도 창에서.</p>
             <p className="mt-1"><b>⚠️ 일관성 검사</b> — 답변이 기존 결정과 모순되면 경고창이 떠요.</p>
             <p className="mt-1"><b>🖼️ 의도 태그·영역 표시</b> — 이미지 첨부 시 분석 관점·메모 + ✏️로 동그라미 표시.</p>

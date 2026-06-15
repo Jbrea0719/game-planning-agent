@@ -36,11 +36,23 @@ function timeAgo(iso: string): string {
   } catch { return ""; }
 }
 
-export default function DocComments({ docFamilyId, nickname }: { docFamilyId: string; nickname?: string }) {
+export default function DocComments({ docFamilyId, nickname, scrollToCommentId }: { docFamilyId: string; nickname?: string; scrollToCommentId?: string | null }) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(false);
   const [posting, setPosting] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [flashId, setFlashId] = useState<string | null>(null);
+
+  // 알림 '바로가기' — 해당 댓글로 스크롤 + 잠깐 강조
+  useEffect(() => {
+    if (!scrollToCommentId || comments.length === 0) return;
+    const el = document.getElementById(`doccomment-${scrollToCommentId}`);
+    if (!el) return;
+    const t1 = setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
+    setFlashId(scrollToCommentId);
+    const t2 = setTimeout(() => setFlashId(null), 2600);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [scrollToCommentId, comments]);
 
   const load = useCallback(async () => {
     if (!docFamilyId) return;
@@ -124,7 +136,7 @@ export default function DocComments({ docFamilyId, nickname }: { docFamilyId: st
       ) : (
         <div className="space-y-4">
           {tops.map(c => (
-            <div key={c.id} className="flex gap-2">
+            <div key={c.id} id={`doccomment-${c.id}`} className="flex gap-2 rounded-lg transition-colors" style={{ backgroundColor: flashId === c.id ? "rgba(100,180,255,0.12)" : "transparent", padding: flashId === c.id ? 6 : 0 }}>
               <Avatar name={c.nickname} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -158,7 +170,7 @@ export default function DocComments({ docFamilyId, nickname }: { docFamilyId: st
                 {repliesOf(c.id).length > 0 && (
                   <div className="mt-3 space-y-3 pl-3" style={{ borderLeft: `2px solid ${SILVER_FAINT}` }}>
                     {repliesOf(c.id).map(r => (
-                      <div key={r.id} className="flex gap-2">
+                      <div key={r.id} id={`doccomment-${r.id}`} className="flex gap-2 rounded-lg transition-colors" style={{ backgroundColor: flashId === r.id ? "rgba(100,180,255,0.12)" : "transparent", padding: flashId === r.id ? 6 : 0 }}>
                         <Avatar name={r.nickname} />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
