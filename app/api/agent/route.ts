@@ -847,80 +847,112 @@ async function analyzeWithWebSearch(
 [현재 질문]
 ${userQuery}`;
 
-  try {
-    const res = await client.messages.create({
-      model: "claude-sonnet-4-5",
-      max_tokens: 6000,  // 검색 7회 + 정리 텍스트 여유분 확보
-      // Prompt Caching 적용 — 시스템 프롬프트가 ~2,500토큰으로 큰 편이라 캐시 효과 큼
-      // 첫 호출은 25% 비싸지만, 5분 내 후속 호출은 90% 할인
-      system: [
-        {
-          type: "text",
-          text: systemPrompt,
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      tools: [
-        {
-          type: "web_search_20250305",
-          name: "web_search",
-          // 단순 질문은 2~3회, 사실+반응 복합 질문은 6~7회 사용
-          // 한도 부족 시 디시 검색이 잘리는 문제를 해결하기 위해 7로 상향
-          max_uses: 7,
-          allowed_domains: allowedDomains,
-          user_location: { type: "approximate", country: "KR", timezone: "Asia/Seoul" },
-        } as unknown as Anthropic.Tool,
-      ],
-      messages: [{ role: "user", content: userContent }],
-    });
+  // 웹 검색 도구 에러코드 → 사람이 읽을 한국어 사유
+  const webSearchErrorMessage = (code: string): string => {
+    switch (code) {
+      case "too_many_requests": return "요청이 잠깐 몰렸어요(속도 제한)";
+      case "max_uses_exceeded": return "검색 횟수 한도에 도달했어요";
+      case "query_too_long": return "검색어가 너무 길었어요";
+      case "unavailable": return "검색 서비스가 일시적으로 불안정해요";
+      default: return "일시적 검색 오류";
+    }
+  };
 
-    // 검색 진행상황 스트림 출력
+  // 검색 호출 — 일시 오류(429/5xx)면 짧게 대기 후 재시도 (한 번 튕겼다고 포기하지 않게)
+  let searchErrorCode: string | null = null;
+  try {
+    let res: Anthropic.Message | null = null;
+    let lastErr: unknown = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        res = await client.messages.create({
+          model: "claude-sonnet-4-5",
+          max_tokens: 6000,  // 검색 7회 + 정리 텍스트 여유분 확보
+          // Prompt Caching 적용 — 시스템 프롬프트가 ~2,500토큰으로 큰 편이라 캐시 효과 큼
+          system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
+          tools: [
+            {
+              type: "web_search_20250305",
+              name: "web_search",
+              max_uses: 7,  // 사실+반응 복합 질문 대비 7회
+              allowed_domains: allowedDomains,
+              user_location: { type: "approximate", country: "KR", timezone: "Asia/Seoul" },
+            } as unknown as Anthropic.Tool,
+          ],
+          messages: [{ role: "user", content: userContent }],
+        });
+        break;  // 성공
+      } catch (e) {
+        lastErr = e;
+        const status = (e as { status?: number })?.status;
+        const transient = status === 429 || (typeof status === "number" && status >= 500);
+        if (attempt < 2 && transient) {
+          onProgress?.(`  ⏳ 검색 일시 오류(HTTP ${status}) — 잠시 후 재시도 (${attempt + 1}/2)\n`);
+          await new Promise(r => setTimeout(r, 900 * (attempt + 1)));  // 0.9s → 1.8s 백오프
+          continue;
+        }
+        throw e;  // 비(非)일시 오류거나 재시도 소진
+      }
+    }
+    if (!res) throw lastErr ?? new Error("웹 검색 응답 없음");
+
+    // 검색 진행상황 + 도구 에러 감지
     let searchCount = 0;
     const citations: { url: string; title: string }[] = [];
 
     for (const block of res.content) {
-      // 서버 측 검색 도구 사용 추적
-      const b = block as { type: string; tool_use_id?: string; content?: unknown };
-      if (b.type === "server_tool_use") {
-        searchCount++;
-      }
-      // 검색 결과에서 URL 수집 (인용 표시용)
+      const b = block as { type: string; content?: unknown };
+      if (b.type === "server_tool_use") searchCount++;
       if (b.type === "web_search_tool_result") {
-        const arr = Array.isArray(b.content) ? b.content : [];
-        for (const item of arr) {
-          const it = item as { url?: string; title?: string };
-          if (it.url && it.title) {
-            citations.push({ url: it.url, title: it.title });
+        if (Array.isArray(b.content)) {
+          // 성공 — 결과 배열
+          for (const item of b.content) {
+            const it = item as { url?: string; title?: string };
+            if (it.url && it.title) citations.push({ url: it.url, title: it.title });
+          }
+        } else {
+          // 실패 — 에러 객체 ({ type: "web_search_tool_result_error", error_code })
+          const errObj = b.content as { error_code?: string } | null;
+          if (errObj?.error_code) {
+            searchErrorCode = errObj.error_code;
+            console.error(`[web_search] 도구 오류 error_code=${errObj.error_code}`);
           }
         }
       }
     }
 
-    // 진행상황 출력 — 사용자 친화적 형식
-    if (searchCount > 0) {
-      onProgress?.(`✅ **검색 완료** — ${searchCount}회 검색, 출처 ${citations.length}개 수집\n\n`);
-
-      if (citations.length > 0) {
-        onProgress?.(`**📑 참고한 출처** (상위 ${Math.min(5, citations.length)}개)\n\n`);
-        const topCitations = citations.slice(0, 5);
-        for (const c of topCitations) {
-          onProgress?.(`• ${c.title.slice(0, 70)}\n`);
-        }
-        onProgress?.(`\n`);
-      }
-    }
-
-    // 텍스트 응답 추출
     const textContent = res.content
       .filter(b => b.type === "text")
       .map(b => (b as Anthropic.TextBlock).text)
       .join("");
 
+    // 검색은 됐지만 도구가 에러를 냈고 결과가 0건 → 모델에 '재확인 못 함' 명시 (지어내기 방지)
+    if (searchErrorCode && citations.length === 0) {
+      onProgress?.(`  ⚠️ 웹 검색 도구 오류: ${webSearchErrorMessage(searchErrorCode)} (${searchErrorCode})\n`);
+      return {
+        analysis: `${textContent}\n\n[검색 상태] 웹 검색 도구가 일시적으로 응답하지 않았어요(${searchErrorCode}). 신뢰 사이트로 재확인을 못 했으니, 게임별 구체 사실(시스템·수치 등)은 단정하지 말고 "확인 필요"로 명시하세요.`,
+        route,
+      };
+    }
+
+    if (searchCount > 0) {
+      onProgress?.(`✅ **검색 완료** — ${searchCount}회 검색, 출처 ${citations.length}개 수집\n\n`);
+      if (citations.length > 0) {
+        onProgress?.(`**📑 참고한 출처** (상위 ${Math.min(5, citations.length)}개)\n\n`);
+        for (const c of citations.slice(0, 5)) onProgress?.(`• ${c.title.slice(0, 70)}\n`);
+        onProgress?.(`\n`);
+      }
+    }
+
     return { analysis: textContent || "검색 완료 (분석 텍스트 없음)", route };
   } catch (err) {
+    const status = (err as { status?: number })?.status;
     console.error("[analyzeWithWebSearch] 오류:", err);
-    onProgress?.(`  ❌ 웹 검색 실패: ${String(err).slice(0, 100)}\n`);
-    return { analysis: `웹 검색 중 오류 발생: ${String(err)}`, route };
+    onProgress?.(`  ❌ 웹 검색 실패${status ? `(HTTP ${status})` : ""} — 기억 기반으로 답변해요\n`);
+    return {
+      analysis: `[검색 상태] 웹 검색이 일시적으로 실패했어요${status ? ` (HTTP ${status})` : ""}. 신뢰 사이트로 재확인을 못 했으니, 게임별 구체 사실은 단정하지 말고 "확인 필요"로 명시하고 답하세요.`,
+      route,
+    };
   }
 }
 
