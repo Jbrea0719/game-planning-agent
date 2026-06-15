@@ -137,6 +137,23 @@ export default function DocList({
   onMoved?: () => void;   // 드래그로 기획서를 다른 카테고리로 옮긴 뒤 부모에 새로고침 요청
 }) {
   const [filter, setFilter] = useState<FilterMode>("all");
+  // 기획서 검색 (제목+본문) — 입력 시 디바운스로 서버 검색, 결과는 평면 리스트로
+  const [searchQ, setSearchQ] = useState("");
+  const [searchResults, setSearchResults] = useState<{ id: string; title: string; snippet: string; inTitle: boolean }[]>([]);
+  const [searching, setSearching] = useState(false);
+  useEffect(() => {
+    const q = searchQ.trim();
+    if (!q) { setSearchResults([]); setSearching(false); return; }
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/design-docs/search?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        setSearchResults(data.results ?? []);
+      } catch { setSearchResults([]); } finally { setSearching(false); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchQ]);
   // 완성/빈항목 필터에선 기본 펼침이라, 접기 상태를 별도 Set으로 관리(전체 탭은 부모 expandedCats 사용)
   // localStorage에서 복원 → 필터 전환·새로고침 후에도 마지막 +/- 상태 유지
   const [collapsedInFilter, setCollapsedInFilter] = useState<Set<string>>(() => {
@@ -640,8 +657,50 @@ export default function DocList({
         </button>
       </div>
 
-      {/* 전체 진행률 */}
+      {/* 🔍 기획서 검색 (제목+본문) */}
       <div className="px-3 py-2 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
+        <div className="relative">
+          <input
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            placeholder="🔍 기획서 검색 (제목·내용)"
+            className="w-full text-[12px] pl-3 pr-7 py-1.5 rounded-lg outline-none"
+            style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+          />
+          {searchQ && (
+            <button onClick={() => setSearchQ("")} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs px-1" style={{ color: SILVER_DIM }}>✕</button>
+          )}
+        </div>
+      </div>
+
+      {/* 검색 결과 (검색어 있을 때만 — 진행률/트리 대신 표시) */}
+      {searchQ.trim() && (
+        <div className="flex-1 overflow-y-auto px-2 py-2" style={{ scrollbarWidth: "thin" }}>
+          {searching ? (
+            <p className="text-xs text-center mt-6" style={{ color: SILVER_DIM }}>검색 중…</p>
+          ) : searchResults.length === 0 ? (
+            <p className="text-xs text-center mt-6" style={{ color: SILVER_DIM }}>“{searchQ.trim()}” 검색 결과가 없어요</p>
+          ) : (
+            <>
+              <p className="text-[11px] px-1 mb-1.5" style={{ color: SILVER_DIM }}>결과 {searchResults.length}개</p>
+              {searchResults.map(r => (
+                <button key={r.id}
+                  onClick={() => { onLoadDoc(r.id); setSearchQ(""); }}
+                  className="block w-full text-left px-2.5 py-2 rounded-lg mb-1 hover:bg-white/5"
+                  style={{ border: `1px solid ${SILVER_FAINT}` }}>
+                  <span className="text-[12px] font-bold block truncate" style={{ color: r.id === currentDoc?.id ? "rgba(180,210,255,1)" : SILVER }}>
+                    {r.inTitle ? "📄 " : "📝 "}{r.title}
+                  </span>
+                  {r.snippet && <span className="text-[10px] block mt-0.5 line-clamp-2" style={{ color: SILVER_DIM }}>{r.snippet}</span>}
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* 전체 진행률 */}
+      <div className="px-3 py-2 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}`, display: searchQ.trim() ? "none" : undefined }}>
         <div className="flex items-center justify-between mb-1">
           <span className="text-[11px]" style={{ color: SILVER_DIM }}>전체 채움</span>
           <span className="text-[11px] font-bold" style={{ color: "rgba(180,210,255,1)" }}>
@@ -673,7 +732,7 @@ export default function DocList({
       </div>
 
       {/* 트리 */}
-      <div className="flex-1 overflow-y-auto px-2 py-2" style={{ scrollbarWidth: "thin", scrollbarColor: `${SILVER_DIM} transparent` }}>
+      <div className="flex-1 overflow-y-auto px-2 py-2" style={{ scrollbarWidth: "thin", scrollbarColor: `${SILVER_DIM} transparent`, display: searchQ.trim() ? "none" : undefined }}>
         {mains.length === 0 && (
           <p className="text-xs text-center mt-6" style={{ color: SILVER_DIM }}>카테고리가 없어요</p>
         )}
