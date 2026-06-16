@@ -17,6 +17,28 @@ export interface ActivityEntry {
   nickname?: string;                    // 작업자 닉네임(있을 때만)
 }
 
+// 기획서 본문(마크다운)에서 "어떤 기획서인지" 한 줄 요약을 뽑는다 (히스토리 부가설명용).
+// LLM 없이 휴리스틱 — 제목·헤딩·이미지·표 기호를 걷어내고 첫 의미 있는 문장을 ~70자로.
+export function oneLineSummary(markdown?: string | null): string | undefined {
+  if (!markdown) return undefined;
+  for (const raw of markdown.split(/\r?\n/)) {
+    let line = raw.trim();
+    if (!line || line.startsWith("#")) continue;               // 빈 줄·헤딩(제목) skip
+    if (line.startsWith("|") || line.startsWith("```")) continue; // 표·코드블록 skip
+    line = line
+      .replace(/^[-*>\s]+/, "")                                 // 리스트·인용 기호
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, "")                     // 이미지
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")                  // 링크 → 텍스트만
+      .replace(/[*_`~]/g, "")                                   // 강조 기호
+      .replace(/\s+/g, " ")
+      .trim();
+    if (line.length < 4) continue;
+    const sentence = line.split(/(?<=[.!?。])\s/)[0] ?? line;   // 첫 문장
+    return sentence.length > 70 ? sentence.slice(0, 68) + "…" : sentence;
+  }
+  return undefined;
+}
+
 // 한 건의 변경 이력을 기록. 실패해도 throw하지 않음.
 export async function logActivity(entry: ActivityEntry): Promise<void> {
   try {

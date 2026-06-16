@@ -7,6 +7,7 @@
 
 import { supabase } from "@/lib/supabase";
 import { suggestDocumentCategory } from "@/lib/document-categorizer";
+import { logActivity } from "@/lib/activity-log";
 
 export async function POST(request: Request) {
   try {
@@ -54,6 +55,20 @@ export async function POST(request: Request) {
             category_sub_id: a.sub_id ?? null,
           })
           .eq("id", a.id);
+      }
+
+      // 변경 히스토리 기록 (조던 기능 탭 — 폴더구조 변경) : 옮긴 기획서 제목으로
+      if (assignments.length > 0) {
+        const { data: movedDocs } = await supabase
+          .from("design_docs").select("id, title").in("id", assignments.map(a => a.id));
+        const titles = (movedDocs ?? []).map(d => (d.title as string | null) ?? "").filter(Boolean);
+        const title = assignments.length === 1
+          ? `기획서 분류 이동: ${titles[0] ?? ""}`
+          : `기획서 ${assignments.length}건 분류 이동`;
+        await logActivity({
+          scope: "jordan", action: "update", entity: "category",
+          title, detail: assignments.length > 1 ? titles.slice(0, 5).join(", ") : undefined,
+        });
       }
       return Response.json({ ok: true, applied: assignments.length });
     }

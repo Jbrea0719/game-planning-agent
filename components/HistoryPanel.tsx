@@ -46,6 +46,8 @@ function entityLabel(entity?: string | null): string {
     case "decision": return "결정사항";
     case "category": return "카테고리";
     case "doc": return "기획서";
+    case "comment": return "의견";
+    case "feature": return "기능";
     default: return entity ?? "";
   }
 }

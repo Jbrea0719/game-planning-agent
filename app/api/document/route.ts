@@ -12,7 +12,7 @@ import { buildDecisionContext } from "@/lib/decision-context";
 import { supabase } from "@/lib/supabase";
 import { suggestDocumentCategory } from "@/lib/document-categorizer";
 import { MODEL } from "@/lib/models";
-import { logActivity } from "@/lib/activity-log";
+import { logActivity, oneLineSummary } from "@/lib/activity-log";
 
 const DOC_SYSTEM_PROMPT = `당신은 영웅수집형 모바일 게임 기획서 작성 전문가입니다.
 
@@ -173,7 +173,7 @@ export async function POST(request: Request) {
             console.error("[api/document] 칸 채우기 실패:", fillErr.message);
             return Response.json({ error: fillErr.message }, { status: 500 });
           }
-          await logActivity({ scope: "doc", action: "update", entity: "doc", title: finalTitle, target_id: body.target_doc_id, nickname: body.nickname });
+          await logActivity({ scope: "doc", action: "update", entity: "doc", title: finalTitle, detail: oneLineSummary(body.content_markdown), target_id: body.target_doc_id, nickname: body.nickname });
           return Response.json({ success: true, doc: filled, filled: true });
         }
         // target이 사라진 경우(삭제 등) → 아래 일반 INSERT로 폴백
@@ -207,6 +207,7 @@ export async function POST(request: Request) {
         action: "create",
         entity: "doc",
         title: finalTitle,
+        detail: oneLineSummary(body.content_markdown),
         target_id: doc?.id,
         nickname: body.nickname,
       });

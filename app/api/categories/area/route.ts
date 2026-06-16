@@ -4,6 +4,7 @@
 // DELETE { main_id, area_code, hard? }      → 중 제거(areas 행 삭제 + 소/기획서 detach)
 
 import { supabase } from "@/lib/supabase";
+import { logActivity } from "@/lib/activity-log";
 
 // 이름 → area_code 슬러그 (CategoryManager 와 동일 규칙)
 function slugify(name: string): string {
@@ -50,6 +51,7 @@ export async function POST(request: Request) {
       .select()
       .single();
     if (error) return Response.json({ error: error.message }, { status: 500 });
+    await logActivity({ scope: "jordan", action: "create", entity: "category", title: `중카테고리 추가: ${name.trim()}`, detail: "소 없이 기획서를 바로 담을 수 있는 중" });
     return Response.json({ ok: true, area: data });
   } catch (err) {
     return Response.json({ error: String(err) }, { status: 500 });
@@ -82,6 +84,7 @@ export async function PATCH(request: Request) {
       .eq("main_category_id", main_id)
       .eq("area_code", area_code);
 
+    await logActivity({ scope: "jordan", action: "update", entity: "category", title: `중카테고리 이름 변경: ${name}` });
     return Response.json({ ok: true, updated: count ?? 0 });
   } catch (err) {
     return Response.json({ error: String(err) }, { status: 500 });
@@ -98,6 +101,11 @@ export async function DELETE(request: Request) {
     if (!main_id || !area_code) {
       return Response.json({ error: "main_id, area_code 필수" }, { status: 400 });
     }
+
+    // 삭제 전 중 이름을 읽어 히스토리 제목으로 사용
+    const { data: areaRow } = await supabase
+      .from("areas").select("name").eq("main_category_id", main_id).eq("code", area_code).maybeSingle();
+    const areaName = (areaRow?.name as string | null) ?? area_code;
 
     if (hard) {
       // 영역의 모든 sub_categories 삭제 (참조 detach 후)
@@ -120,6 +128,7 @@ export async function DELETE(request: Request) {
         .eq("category_area_code", area_code);
       // 1급 테이블에서 중 제거
       await supabase.from("areas").delete().eq("main_category_id", main_id).eq("code", area_code);
+      await logActivity({ scope: "jordan", action: "delete", entity: "category", title: `중카테고리 삭제: ${areaName}`, detail: subIds.length > 0 ? `하위 소 ${subIds.length}개 함께 삭제` : undefined });
       return Response.json({ ok: true, deleted: subIds.length });
     } else {
       // soft — sub들의 area만 비움(소는 대 직속으로) + 기획서도 중에서 떼어 대 직속으로
@@ -135,6 +144,7 @@ export async function DELETE(request: Request) {
         .eq("category_area_code", area_code);
       // 1급 테이블에서 중 제거(빈 중도 사라지도록)
       await supabase.from("areas").delete().eq("main_category_id", main_id).eq("code", area_code);
+      await logActivity({ scope: "jordan", action: "delete", entity: "category", title: `중카테고리 삭제: ${areaName}`, detail: (count ?? 0) > 0 ? `소 ${count}개는 대 직속으로 이동` : undefined });
       return Response.json({ ok: true, detached: count ?? 0 });
     }
   } catch (err) {

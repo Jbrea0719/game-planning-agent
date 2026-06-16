@@ -6,6 +6,7 @@
 // 테이블 미생성 시에도 앱이 죽지 않게 GET은 빈 배열 폴백(마이그레이션 021 적용 전 안전).
 
 import { supabase } from "@/lib/supabase";
+import { logActivity } from "@/lib/activity-log";
 
 const ADMIN = "정민";
 
@@ -46,17 +47,34 @@ export async function POST(request: Request) {
       .single();
     if (error) return Response.json({ error: error.message }, { status: 500 });
 
+    // 댓글 미리보기(태그 제거) — 히스토리·알림 공용
+    const preview = c.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().slice(0, 80);
+
+    // 대상 기획서 정보 (히스토리·알림 공용으로 1회 조회)
+    const { data: docRow } = await supabase
+      .from("design_docs")
+      .select("id, title, created_by_nickname")
+      .eq("doc_family_id", doc_family_id)
+      .order("version_no", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const docTitle = (docRow?.title as string | null) ?? "기획서";
+
+    // ── 변경 히스토리 기록 (조던 기능 탭) ──
+    await logActivity({
+      scope: "jordan",
+      action: "create",
+      entity: "comment",
+      title: `${parent_id ? "답글" : "의견"}: ${docTitle}`,
+      detail: preview,
+      target_id: (docRow?.id as string | null) ?? doc_family_id,
+      nickname: nickname ?? undefined,
+    });
+
     // ── 알림 생성 (fire-and-forget) ──
     // 기획서 작성자에게 "댓글 달림", 답글이면 부모 댓글 작성자에게 "답글 달림".
     try {
       const recipients = new Map<string, "comment" | "reply">();
-      const { data: docRow } = await supabase
-        .from("design_docs")
-        .select("id, title, created_by_nickname")
-        .eq("doc_family_id", doc_family_id)
-        .order("version_no", { ascending: false })
-        .limit(1)
-        .maybeSingle();
       const docAuthor = (docRow?.created_by_nickname as string | null) ?? null;
       if (docAuthor && docAuthor !== nickname) recipients.set(docAuthor, "comment");
       if (parent_id) {
@@ -65,14 +83,13 @@ export async function POST(request: Request) {
         if (parentAuthor && parentAuthor !== nickname) recipients.set(parentAuthor, "reply");  // 답글이 더 구체적 → 우선
       }
       if (recipients.size > 0) {
-        const preview = c.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().slice(0, 80);
         const rows = [...recipients.entries()].map(([recipient, type]) => ({
           recipient_nickname: recipient,
           actor_nickname: nickname ?? null,
           type,
           doc_family_id,
           doc_id: (docRow?.id as string | null) ?? null,
-          doc_title: (docRow?.title as string | null) ?? "기획서",
+          doc_title: docTitle,
           comment_id: data.id,
           preview,
         }));
