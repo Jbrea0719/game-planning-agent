@@ -48,17 +48,28 @@ async function fetchCurrentCategories(): Promise<SubCategoryInfo[]> {
   return (data as SubCategoryInfo[]) ?? [];
 }
 
-// 대카테고리 ID → 한국어 이름
-function mainDisplayName(mainId: string): string {
+// 대카테고리 ID → 한국어 이름 맵 (main_categories 테이블에서 최신 조회)
+// 정민님이 직접 만든 커스텀 대카테고리(예: main_1781268209386_vjzcn)도 실제 이름이 나오도록.
+async function fetchMainNames(): Promise<Map<string, string>> {
+  const { data, error } = await supabase
+    .from("main_categories")
+    .select("id, name_ko");
+  if (error) {
+    console.error("[doc-categorizer] 대카테고리 조회 실패:", error.message);
+    return new Map();
+  }
+  return new Map(((data as { id: string; name_ko: string }[]) ?? []).map(m => [m.id, m.name_ko]));
+}
+
+// 구 체계 하드코딩 이름 — 테이블에 없을 때만 쓰는 폴백
+function legacyMainName(mainId: string): string {
   switch (mainId) {
-    // 신규 카테고리 체계
     case "g_outgame": return "게임 외부 설계";
     case "g_base": return "베이스";
     case "g_growth": return "성장";
     case "g_system": return "게임 시스템";
     case "g_content": return "콘텐츠";
     case "g_art": return "아트";
-    // 구 체계 (호환용)
     case "outgame": return "아웃게임";
     case "ingame": return "인게임";
     case "graphic": return "그래픽";
@@ -68,9 +79,14 @@ function mainDisplayName(mainId: string): string {
   }
 }
 
+// 대카테고리 ID → 표시 이름: 테이블 이름 우선, 없으면 구 체계 폴백, 그래도 없으면 ID 그대로.
+function mainDisplayName(mainId: string, names: Map<string, string>): string {
+  return names.get(mainId) ?? legacyMainName(mainId);
+}
+
 // 소카테고리 → 사람이 읽는 라벨 ("대 > 영역 > 소")
-function buildLabel(c: SubCategoryInfo): string {
-  const main = mainDisplayName(c.main_category_id);
+function buildLabel(c: SubCategoryInfo, names: Map<string, string>): string {
+  const main = mainDisplayName(c.main_category_id, names);
   return c.area_name ? `${main} > ${c.area_name} > ${c.name_ko}` : `${main} > ${c.name_ko}`;
 }
 
@@ -81,13 +97,13 @@ export async function suggestDocumentCategory(
 ): Promise<CategorySuggestion> {
   const empty: CategorySuggestion = { main_id: null, area_code: null, sub_id: null, label: null, reasoning: "" };
 
-  const cats = await fetchCurrentCategories();
+  const [cats, mainNames] = await Promise.all([fetchCurrentCategories(), fetchMainNames()]);
   if (cats.length === 0) return empty; // 분류할 카테고리가 없으면 제안 불가
 
   // 프롬프트용 카테고리 목록 (ID + 대 + 영역 + 이름)
   const categoryList = cats
     .map(c => {
-      const main = mainDisplayName(c.main_category_id);
+      const main = mainDisplayName(c.main_category_id, mainNames);
       const prefix = c.area_name ? `${main} / ${c.area_name}` : main;
       return `- ${c.id}: [${prefix}] ${c.name_ko}`;
     })
@@ -149,7 +165,7 @@ ${contentExcerpt.slice(0, 1500)}
       main_id: chosen.main_category_id,
       area_code: chosen.area_code ?? null,
       sub_id: chosen.id,
-      label: buildLabel(chosen),
+      label: buildLabel(chosen, mainNames),
       reasoning,
     };
   } catch (err) {

@@ -59,17 +59,28 @@ async function fetchCurrentCategories(): Promise<SubCategoryInfo[]> {
   return (data as SubCategoryInfo[]) ?? [];
 }
 
-// ── 헬퍼: 대카테고리 ID → 한국어 이름 ────────────────────────────────
-function mainDisplayName(mainId: string): string {
+// ── 헬퍼: 대카테고리 ID → 한국어 이름 맵 (main_categories 테이블에서 최신 조회) ──
+// 정민님이 직접 만든 커스텀 대카테고리도 실제 이름이 나오도록.
+async function fetchMainNames(): Promise<Map<string, string>> {
+  const { data, error } = await supabase
+    .from("main_categories")
+    .select("id, name_ko");
+  if (error) {
+    console.error("[reclassifier] 대카테고리 조회 실패:", error.message);
+    return new Map();
+  }
+  return new Map(((data as { id: string; name_ko: string }[]) ?? []).map(m => [m.id, m.name_ko]));
+}
+
+// 구 체계 하드코딩 이름 — 테이블에 없을 때만 쓰는 폴백
+function legacyMainName(mainId: string): string {
   switch (mainId) {
-    // 신규 카테고리 체계
     case "g_outgame": return "게임 외부 설계";
     case "g_base": return "베이스";
     case "g_growth": return "성장";
     case "g_system": return "게임 시스템";
     case "g_content": return "콘텐츠";
     case "g_art": return "아트";
-    // 구 체계 (호환용)
     case "outgame": return "아웃게임";
     case "ingame": return "인게임";
     case "graphic": return "그래픽";
@@ -79,11 +90,16 @@ function mainDisplayName(mainId: string): string {
   }
 }
 
+// 대카테고리 ID → 표시 이름: 테이블 이름 우선, 없으면 구 체계 폴백, 그래도 없으면 ID 그대로.
+function mainDisplayName(mainId: string, names: Map<string, string>): string {
+  return names.get(mainId) ?? legacyMainName(mainId);
+}
+
 // 소카테고리 ID → 사람이 읽는 라벨 ("영역 > 소" 또는 "대 > 소")
-function buildLabelMap(cats: SubCategoryInfo[]): Map<string, string> {
+function buildLabelMap(cats: SubCategoryInfo[], names: Map<string, string>): Map<string, string> {
   const m = new Map<string, string>();
   for (const c of cats) {
-    const prefix = c.area_name ?? mainDisplayName(c.main_category_id);
+    const prefix = c.area_name ?? mainDisplayName(c.main_category_id, names);
     m.set(c.id, `${prefix} > ${c.name_ko}`);
   }
   return m;
@@ -93,12 +109,13 @@ function buildLabelMap(cats: SubCategoryInfo[]): Map<string, string> {
 async function reclassifyBatch(
   batch: ReclassifyInput[],
   cats: SubCategoryInfo[],
-  labelMap: Map<string, string>
+  labelMap: Map<string, string>,
+  mainNames: Map<string, string>
 ): Promise<Map<string, { sub_category_id: string | null; reasoning: string }>> {
   // 프롬프트용 카테고리 목록 (ID + 영역 + 이름)
   const categoryList = cats
     .map(c => {
-      const prefix = c.area_name ?? mainDisplayName(c.main_category_id);
+      const prefix = c.area_name ?? mainDisplayName(c.main_category_id, mainNames);
       return `- ${c.id}: [${prefix}] ${c.name_ko}`;
     })
     .join("\n");
@@ -187,9 +204,9 @@ ${decisionList}
 export async function reclassifyDecisions(decisions: ReclassifyInput[]): Promise<ReclassifyProposal[]> {
   if (decisions.length === 0) return [];
 
-  const cats = await fetchCurrentCategories();
+  const [cats, mainNames] = await Promise.all([fetchCurrentCategories(), fetchMainNames()]);
   if (cats.length === 0) return [];   // 분류할 카테고리가 없으면 제안 불가
-  const labelMap = buildLabelMap(cats);
+  const labelMap = buildLabelMap(cats, mainNames);
 
   // 배치로 쪼개 병렬 호출
   const batches: ReclassifyInput[][] = [];
@@ -197,7 +214,7 @@ export async function reclassifyDecisions(decisions: ReclassifyInput[]): Promise
     batches.push(decisions.slice(i, i + BATCH_SIZE));
   }
   const batchResults = await Promise.all(
-    batches.map(b => reclassifyBatch(b, cats, labelMap))
+    batches.map(b => reclassifyBatch(b, cats, labelMap, mainNames))
   );
   // 합치기
   const merged = new Map<string, { sub_category_id: string | null; reasoning: string }>();
