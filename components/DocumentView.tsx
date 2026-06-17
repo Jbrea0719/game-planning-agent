@@ -21,6 +21,7 @@ import { MermaidDiagram, DocImage } from "./DocImages";
 import { stripJordanImages, type DocImageItem } from "@/lib/doc-images";
 import DocReferencePanel from "./DocReferencePanel";
 import BulkReplaceModal from "./BulkReplaceModal";
+import BulkReviseModal from "./BulkReviseModal";
 import DocComments from "./DocComments";
 
 const SILVER = "#c0c8d8";
@@ -142,6 +143,7 @@ export default function DocumentView({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [refCollapsed, setRefCollapsed] = useState(false);  // 우측 레퍼런스 패널 접기/펴기
   const [showBulkReplace, setShowBulkReplace] = useState(false);  // 용어 일괄 변경 모달
+  const [showBulkRevise, setShowBulkRevise] = useState(false);  // AI 일괄 수정 모달
   // 화면 설계 메뉴 (와이어프레임 / AI 시안)
   const [showScreenDesignMenu, setShowScreenDesignMenu] = useState(false);
   const [showReviseMenu, setShowReviseMenu] = useState(false);  // 수정 요청 → [직접수정 / 대화를 통한 수정]
@@ -911,6 +913,14 @@ export default function DocumentView({
               >
                 🔧 용어 일괄 변경
               </button>
+              <button
+                onClick={() => setShowBulkRevise(true)}
+                title="여러 기획서를 하나의 지시로 AI가 문맥에 맞게 수정 (예: 재화 체계 변경)"
+                className="w-full text-left text-xs px-3 py-2 rounded-lg font-medium mt-1.5"
+                style={{ backgroundColor: "rgba(200,180,255,0.14)", border: "1px solid rgba(200,180,255,0.35)", color: "rgba(220,200,255,1)" }}
+              >
+                🤖 AI 일괄 수정
+              </button>
             </div>
 
             {/* 현재 보고 있는 기획서 제목 — ✕ 클릭 시 리스트로 돌아감 */}
@@ -1148,6 +1158,19 @@ export default function DocumentView({
           void loadVersions();
           if (currentDoc) void loadDoc(currentDoc.id);
           alert(`${updated}개 기획서에 일괄 적용했어요.`);
+        }}
+      />
+
+      {/* AI 일괄 수정 모달 */}
+      <BulkReviseModal
+        open={showBulkRevise}
+        projectId={projectId}
+        nickname={nickname}
+        onClose={() => setShowBulkRevise(false)}
+        onApplied={(n) => {
+          void loadVersions();
+          if (currentDoc) void loadDoc(currentDoc.id);
+          if (n > 0) alert(`${n}개 기획서에 AI 수정을 적용했어요.`);
         }}
       />
 
