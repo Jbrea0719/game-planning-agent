@@ -19,6 +19,7 @@ import {
 } from "@/lib/doc-export";
 import { MermaidDiagram, DocImage } from "./DocImages";
 import { stripJordanImages, type DocImageItem } from "@/lib/doc-images";
+import DocReferencePanel from "./DocReferencePanel";
 import DocComments from "./DocComments";
 
 const SILVER = "#c0c8d8";
@@ -1066,7 +1067,20 @@ export default function DocumentView({
               autoFocus
             />
           )}
+          {/* 모바일: 레퍼런스 이미지 — 본문 아래 (md 미만에서만) */}
+          {currentDoc && !editing && (
+            <div className="md:hidden max-w-3xl mx-auto mt-8 pt-6" style={{ borderTop: `1px solid ${SILVER_FAINT}` }}>
+              <DocReferencePanel familyId={currentDoc.doc_family_id ?? currentDoc.id} />
+            </div>
+          )}
         </div>
+
+        {/* 데스크톱: 우측 레퍼런스 이미지 패널 */}
+        {currentDoc && !editing && (
+          <aside className="hidden md:block flex-shrink-0 w-[300px] overflow-y-auto px-4 py-5" style={{ borderLeft: `1px solid ${SILVER_FAINT}`, scrollbarWidth: "thin" }}>
+            <DocReferencePanel familyId={currentDoc.doc_family_id ?? currentDoc.id} />
+          </aside>
+        )}
       </div>
 
       {/* 카테고리 관리 모달 — 톱니바퀴로 열림 */}
