@@ -35,7 +35,9 @@ export async function POST(request: Request) {
     const { data, error } = await supabase
       .from("design_docs")
       .select("id, title, content_markdown")
-      .eq("project_id", project_id);
+      .eq("project_id", project_id)
+      .order("created_at", { ascending: false })
+      .limit(1000);
     if (error) return Response.json({ error: error.message }, { status: 500 });
     const docs = (data as DocRow[]) ?? [];
 
