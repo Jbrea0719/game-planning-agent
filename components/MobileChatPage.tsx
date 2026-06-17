@@ -947,13 +947,59 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   }
 
   // DocumentView "대화를 통한 수정" 진입 → 수정 대상 지정 + 기획서 뷰 닫기
-  function enterReviseViaChat(docId: string, docTitle: string) {
-    setReviseTargetDocId(docId);
-    setReviseTargetTitle(docTitle);
-    setShowDocs(false);
-    // 수정 진입 시점 이후의 대화만 근거가 되도록, 다음 새 대화 페어를 맥락선으로 자동 설정
-    pendingAutoAnchorRef.current = true;
-    setTimeout(() => inputRef.current?.focus(), 100);
+  async function enterReviseViaChat(docId: string, docTitle: string) {
+    if (interviewLoading) return;
+    setInterviewLoading(true);
+    try {
+      // 1. 새 대화방 생성 — 수정도 작성하기처럼 새 방(질문창)에서 시작
+      let newConvId: string | null = null;
+      try {
+        const cr = await fetch("/api/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: sessionId, title: `🛠️ ${docTitle} 수정` }),
+        });
+        const cd = await cr.json();
+        if (cd.conversation?.id) {
+          newConvId = cd.conversation.id;
+          setConversations(prev => [{ ...cd.conversation, writing_doc_id: null }, ...prev]);
+        }
+      } catch { /* 방 생성 실패 시 현재 방에서 진행(폴백) */ }
+
+      if (newConvId) await loadConversation(newConvId);
+      const convId = newConvId ?? currentConvIdRef.current;
+
+      setReviseTargetDocId(docId);
+      setReviseTargetTitle(docTitle);
+      setShowDocs(false);
+
+      const pairId = crypto.randomUUID();
+      const userMsg = `🛠️ "${docTitle}" 기획서 수정 시작`;
+      const intro = `**🛠️ 기획서 수정 — \`${docTitle}\`**\n\n이 기획서를 어떻게 바꿀지 말씀해주세요. 바꿀 내용을 대화로 정리한 뒤, **[🛠️ 이 대화로 기획서 수정]** 을 누르면 반영됩니다.`;
+      await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [
+            { session_id: sessionId, pair_id: pairId, role: "user", content: userMsg, conversation_id: convId },
+            { session_id: sessionId, pair_id: pairId, role: "assistant", content: intro, conversation_id: convId },
+          ],
+        }),
+      }).catch(() => {});
+
+      setPairs(prev => [...prev, {
+        pair_id: pairId,
+        user: { role: "user", content: userMsg },
+        assistant: { role: "assistant", content: intro },
+      }]);
+      // 자동 맥락선 — 이 시점 이후 대화부터 수정 근거로
+      setContextAnchor(pairId, new Date().toISOString());
+      setTimeout(() => inputRef.current?.focus(), 100);
+    } catch (err) {
+      alert(`기획서 수정 시작 실패: ${String(err)}`);
+    } finally {
+      setInterviewLoading(false);
+    }
   }
 
   async function sendMessage() {
