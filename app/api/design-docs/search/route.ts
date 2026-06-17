@@ -11,7 +11,6 @@ interface Row {
   title: string;
   content_markdown: string;
   doc_family_id: string | null;
-  version_no: number;
   created_at: string;
 }
 
@@ -38,17 +37,17 @@ export async function GET(request: Request) {
     const pattern = `%${q}%`;
     const { data, error } = await supabase
       .from("design_docs")
-      .select("id, title, content_markdown, doc_family_id, version_no, created_at")
+      .select("id, title, content_markdown, doc_family_id, created_at")
       .eq("project_id", projectId)
       .or(`title.ilike.${pattern},content_markdown.ilike.${pattern}`)
-      .order("version_no", { ascending: false })
+      .order("created_at", { ascending: false })
       .limit(200);
     if (error) {
       console.error("[doc-search] 실패:", error.message);
       return Response.json({ results: [] });
     }
 
-    // family별 최신 버전만 (version_no desc 정렬돼 있으니 먼저 만난 것 채택)
+    // family별 최신 버전만 (created_at desc 정렬돼 있으니 먼저 만난 것 채택)
     const seen = new Set<string>();
     const results: { id: string; title: string; snippet: string; inTitle: boolean }[] = [];
     for (const r of (data ?? []) as Row[]) {

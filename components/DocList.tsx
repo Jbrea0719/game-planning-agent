@@ -549,12 +549,12 @@ export default function DocList({
         <CatDroppable key={key} id={`D:sub:${leaf.id}`}>
         <div
           className="w-full px-2 py-1 rounded flex items-center justify-between gap-1"
-          style={{ backgroundColor: EMPTY_BG, border: `1px solid ${EMPTY_BORDER}`, color: EMPTY_TEXT, fontSize: "11.5px" }}
+          style={{ backgroundColor: EMPTY_BG, border: `1px solid ${EMPTY_BORDER}`, color: EMPTY_TEXT, fontSize: "13.5px" }}
         >
           <span className="flex items-center gap-1 min-w-0">
             {grip(handle)}
             <span style={{ flexShrink: 0, fontSize: "8px" }}>▸</span>
-            <span className="truncate font-medium" title={leaf.label}>{leaf.label}</span>
+            <span className="truncate font-bold" title={leaf.label}>{leaf.label}</span>
           </span>
           <button
             onClick={() => onStartWriting?.(leaf.id, leaf.label)}
@@ -575,8 +575,8 @@ export default function DocList({
           {grip(handle)}
           <button
             onClick={() => tog(key)}
-            className="flex-1 min-w-0 text-left px-2 py-1 rounded flex items-center justify-between font-medium transition-colors hover:bg-white/5"
-            style={{ color: SUB_COLOR, fontSize: "11.5px" }}
+            className="flex-1 min-w-0 text-left px-2 py-1 rounded flex items-center justify-between font-bold transition-colors hover:bg-white/5"
+            style={{ color: "#ffffff", fontSize: "13.5px" }}
           >
           <span className="flex items-center gap-1 min-w-0">
             <span style={{ flexShrink: 0, fontSize: "8px" }}>▸</span>
