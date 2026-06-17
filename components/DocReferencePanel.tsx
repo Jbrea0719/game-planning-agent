@@ -135,6 +135,23 @@ export default function DocReferencePanel({ familyId }: { familyId?: string | nu
     } catch { /* 무시 */ }
   }
 
+  // 순서 이동 (▲ 위 / ▼ 아래) — 낙관적 갱신 후 서버에 새 순서 저장
+  async function move(id: string, dir: "up" | "down") {
+    const idx = images.findIndex(im => im.id === id);
+    if (idx < 0) return;
+    const j = dir === "up" ? idx - 1 : idx + 1;
+    if (j < 0 || j >= images.length) return;
+    const next = [...images];
+    [next[idx], next[j]] = [next[j], next[idx]];
+    setImages(next);
+    try {
+      await fetch("/api/design-docs/reference-images", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ordered_ids: next.map(im => im.id) }),
+      });
+    } catch { /* 낙관적 — 실패해도 다음 로드 시 동기화 */ }
+  }
+
   if (!familyId) return null;
 
   return (
@@ -176,10 +193,15 @@ export default function DocReferencePanel({ familyId }: { familyId?: string | nu
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">
-          {images.map(im => (
+          {images.map((im, idx) => (
             <div key={im.id} className="rounded-xl overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
               <div className="relative group">
                 <img src={im.url} alt={im.comment || "레퍼런스"} onClick={() => setViewer(im)} className="w-full cursor-zoom-in" style={{ maxHeight: 150, objectFit: "cover" }} />
+                {/* 순서 이동 ▲▼ */}
+                <div className="absolute top-1.5 left-1.5 flex flex-col gap-1">
+                  <button onClick={() => move(im.id, "up")} disabled={idx === 0} title="위로" className="w-6 h-6 rounded flex items-center justify-center text-[11px] disabled:opacity-25" style={{ backgroundColor: "rgba(0,0,0,0.6)", color: "rgba(180,210,255,1)" }}>▲</button>
+                  <button onClick={() => move(im.id, "down")} disabled={idx === images.length - 1} title="아래로" className="w-6 h-6 rounded flex items-center justify-center text-[11px] disabled:opacity-25" style={{ backgroundColor: "rgba(0,0,0,0.6)", color: "rgba(180,210,255,1)" }}>▼</button>
+                </div>
                 <button onClick={() => remove(im.id)} className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center text-[11px]" style={{ backgroundColor: "rgba(0,0,0,0.6)", color: "rgba(255,160,160,1)" }}>🗑️</button>
                 <span className="absolute bottom-1.5 right-1.5 text-[9px] px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(0,0,0,0.6)", color: "rgba(180,210,255,1)" }}>🔍 크게</span>
               </div>
