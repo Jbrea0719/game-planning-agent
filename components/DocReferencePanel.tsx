@@ -40,9 +40,13 @@ function downscale(file: File, maxEdge = 1920): Promise<Pending> {
   });
 }
 
-// 큰 화면 뷰어 — 모바일 세로면 90° 회전해 가로 풀스크린
-function LargeViewer({ img, onClose }: { img: RefImg; onClose: () => void }) {
+// 큰 화면 뷰어 — 양옆 ‹ › 로 이전/다음 이동. 모바일 세로면 90° 회전해 가로 풀스크린
+function LargeViewer({ images, index, onIndex, onClose }: { images: RefImg[]; index: number; onIndex: (i: number) => void; onClose: () => void }) {
   const [portrait, setPortrait] = useState(false);
+  const img = images[index];
+  const hasPrev = index > 0;
+  const hasNext = index < images.length - 1;
+
   useEffect(() => {
     const check = () => setPortrait(window.innerHeight > window.innerWidth && window.innerWidth < 760);
     check();
@@ -51,22 +55,52 @@ function LargeViewer({ img, onClose }: { img: RefImg; onClose: () => void }) {
     return () => { window.removeEventListener("resize", check); window.removeEventListener("orientationchange", check); };
   }, []);
 
+  // 키보드 ← → / Esc
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowLeft" && index > 0) onIndex(index - 1);
+      else if (e.key === "ArrowRight" && index < images.length - 1) onIndex(index + 1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [index, images.length, onIndex, onClose]);
+
+  if (!img) return null;
+
   // 모바일 세로: 회전시켜 화면 긴 변을 가로로 사용
   const imgStyle: React.CSSProperties = portrait
     ? { transform: "rotate(90deg)", maxWidth: "100vh", maxHeight: "100vw", objectFit: "contain" }
-    : { maxWidth: "96vw", maxHeight: "92vh", objectFit: "contain" };
+    : { maxWidth: "88vw", maxHeight: "92vh", objectFit: "contain" };
+
+  const arrowStyle: React.CSSProperties = { backgroundColor: "rgba(0,0,0,0.55)", color: "#fff", border: "1px solid rgba(255,255,255,0.3)" };
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.92)" }} onClick={onClose}>
       <img src={img.url} alt={img.comment || "레퍼런스"} style={imgStyle} onClick={(e) => e.stopPropagation()} />
+
+      {/* 이전 ‹ — 첫 이미지엔 안 보임 */}
+      {hasPrev && (
+        <button onClick={(e) => { e.stopPropagation(); onIndex(index - 1); }} title="이전 (←)"
+          className="absolute left-3 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full flex items-center justify-center text-2xl z-10" style={arrowStyle}>‹</button>
+      )}
+      {/* 다음 › — 마지막 이미지엔 안 보임 */}
+      {hasNext && (
+        <button onClick={(e) => { e.stopPropagation(); onIndex(index + 1); }} title="다음 (→)"
+          className="absolute right-3 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full flex items-center justify-center text-2xl z-10" style={arrowStyle}>›</button>
+      )}
+
+      {/* 위치 표시 */}
+      <span className="absolute top-3 left-1/2 -translate-x-1/2 text-[11px] px-2.5 py-1 rounded-full" style={{ backgroundColor: "rgba(0,0,0,0.5)", color: "#e0e8f0" }}>{index + 1} / {images.length}</span>
+
       {img.comment && (
         <div className="absolute left-0 right-0 bottom-0 px-4 py-3 text-center text-xs" style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.7))", color: "#e0e8f0" }}>
           {img.comment}
         </div>
       )}
-      <button onClick={onClose} className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center text-sm" style={{ backgroundColor: "rgba(0,0,0,0.55)", color: "#fff", border: "1px solid rgba(255,255,255,0.25)" }}>✕</button>
+      <button onClick={onClose} className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center text-sm z-10" style={{ backgroundColor: "rgba(0,0,0,0.55)", color: "#fff", border: "1px solid rgba(255,255,255,0.25)" }}>✕</button>
       {portrait && (
-        <p className="absolute top-3 left-3 text-[10px] px-2 py-1 rounded" style={{ backgroundColor: "rgba(0,0,0,0.5)", color: SILVER_DIM }}>📱 가로로 크게 보는 중</p>
+        <p className="absolute bottom-2 left-3 text-[10px] px-2 py-1 rounded" style={{ backgroundColor: "rgba(0,0,0,0.5)", color: SILVER_DIM }}>📱 가로로 크게 보는 중</p>
       )}
     </div>
   );
@@ -75,7 +109,7 @@ function LargeViewer({ img, onClose }: { img: RefImg; onClose: () => void }) {
 export default function DocReferencePanel({ familyId }: { familyId?: string | null }) {
   const [images, setImages] = useState<RefImg[]>([]);
   const [loading, setLoading] = useState(false);
-  const [viewer, setViewer] = useState<RefImg | null>(null);
+  const [viewerIdx, setViewerIdx] = useState<number | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [pendingComment, setPendingComment] = useState("");
   const [saving, setSaving] = useState(false);
@@ -196,7 +230,7 @@ export default function DocReferencePanel({ familyId }: { familyId?: string | nu
           {images.map((im, idx) => (
             <div key={im.id} className="rounded-xl overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
               <div className="relative group">
-                <img src={im.url} alt={im.comment || "레퍼런스"} onClick={() => setViewer(im)} className="w-full cursor-zoom-in" style={{ maxHeight: 150, objectFit: "cover" }} />
+                <img src={im.url} alt={im.comment || "레퍼런스"} onClick={() => setViewerIdx(idx)} className="w-full cursor-zoom-in" style={{ maxHeight: 150, objectFit: "cover" }} />
                 {/* 순서 이동 ▲▼ */}
                 <div className="absolute top-1.5 left-1.5 flex flex-col gap-1">
                   <button onClick={() => move(im.id, "up")} disabled={idx === 0} title="위로" className="w-6 h-6 rounded flex items-center justify-center text-[11px] disabled:opacity-25" style={{ backgroundColor: "rgba(0,0,0,0.6)", color: "rgba(180,210,255,1)" }}>▲</button>
@@ -227,7 +261,9 @@ export default function DocReferencePanel({ familyId }: { familyId?: string | nu
         </div>
       )}
 
-      {viewer && <LargeViewer img={viewer} onClose={() => setViewer(null)} />}
+      {viewerIdx !== null && images[viewerIdx] && (
+        <LargeViewer images={images} index={viewerIdx} onIndex={setViewerIdx} onClose={() => setViewerIdx(null)} />
+      )}
     </div>
   );
 }
