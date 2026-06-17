@@ -20,6 +20,7 @@ import {
 import { MermaidDiagram, DocImage } from "./DocImages";
 import { stripJordanImages, type DocImageItem } from "@/lib/doc-images";
 import DocReferencePanel from "./DocReferencePanel";
+import BulkReplaceModal from "./BulkReplaceModal";
 import DocComments from "./DocComments";
 
 const SILVER = "#c0c8d8";
@@ -140,6 +141,7 @@ export default function DocumentView({
   // 사이드바 접기/펴기 (localStorage 영속)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [refCollapsed, setRefCollapsed] = useState(false);  // 우측 레퍼런스 패널 접기/펴기
+  const [showBulkReplace, setShowBulkReplace] = useState(false);  // 용어 일괄 변경 모달
   // 화면 설계 메뉴 (와이어프레임 / AI 시안)
   const [showScreenDesignMenu, setShowScreenDesignMenu] = useState(false);
   const [showReviseMenu, setShowReviseMenu] = useState(false);  // 수정 요청 → [직접수정 / 대화를 통한 수정]
@@ -901,6 +903,14 @@ export default function DocumentView({
                 <span>📚 기획서 리스트</span>
                 <span style={{ color: SILVER_DIM, fontWeight: 400 }}>({versions.length})</span>
               </button>
+              <button
+                onClick={() => setShowBulkReplace(true)}
+                title="여러 기획서의 단어를 한 번에 찾아 바꾸기 (예: 재화 이름 변경)"
+                className="w-full text-left text-xs px-3 py-2 rounded-lg font-medium mt-2"
+                style={{ backgroundColor: SILVER_FAINT, color: SILVER }}
+              >
+                🔧 용어 일괄 변경
+              </button>
             </div>
 
             {/* 현재 보고 있는 기획서 제목 — ✕ 클릭 시 리스트로 돌아감 */}
@@ -1125,6 +1135,20 @@ export default function DocumentView({
         onOrphaned={(ids) => setReclassifyIds(ids)}
         onOrphanedDocs={(ids) => setReclassifyDocIds(ids)}
         projectId={projectId}
+      />
+
+      {/* 용어 일괄 변경 모달 */}
+      <BulkReplaceModal
+        open={showBulkReplace}
+        projectId={projectId}
+        nickname={nickname}
+        onClose={() => setShowBulkReplace(false)}
+        onApplied={(updated) => {
+          setShowBulkReplace(false);
+          void loadVersions();
+          if (currentDoc) void loadDoc(currentDoc.id);
+          alert(`${updated}개 기획서에 일괄 적용했어요.`);
+        }}
       />
 
       {/* AI 재분류 검토 모달 — 카테고리 삭제로 미분류된 결정사항을 새 위치로 제안 */}
