@@ -58,7 +58,7 @@ export async function POST(request: Request) {
         };
       }).filter(Boolean);
       const total = matches.reduce((s, m) => s + (m!.content_count + m!.title_count), 0);
-      return Response.json({ matches, doc_count: matches.length, total, _n: docs.length, _pid: project_id });  // 임시 진단
+      return Response.json({ matches, doc_count: matches.length, total });
     }
 
     // ── 적용 ──
