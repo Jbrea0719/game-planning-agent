@@ -19,6 +19,7 @@ import ImageAnnotator from "@/components/ImageAnnotator";
 import SketchWireframeModal from "@/components/SketchWireframeModal";
 import ReferenceGallery from "@/components/ReferenceGallery";
 import NotificationBell from "@/components/NotificationBell";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { buildImageIntentPrefix } from "@/lib/image-intent";
 import { useDeviceMode, DEVICE_FRAMES } from "@/hooks/useIsMobile";
 import { useCrossTabSync } from "@/hooks/useCrossTabSync";
@@ -62,10 +63,10 @@ function getTime() {
   return `${ampm} ${hour}:${m}`;
 }
 
-// 조던 테마 컬러
-const SILVER = "#c0c8d8";
-const SILVER_DIM = "rgba(192,200,216,0.5)";
-const SILVER_FAINT = "rgba(192,200,216,0.15)";
+// 조던 테마 컬러 — globals.css 의 CSS 변수(토큰)에 연결 → 스킨(테마) 전환 시 자동 반영
+const SILVER = "var(--accent)";
+const SILVER_DIM = "var(--accent-dim)";
+const SILVER_FAINT = "var(--accent-faint)";
 
 function getDateStr() {
   const now = new Date();
@@ -190,7 +191,7 @@ const citationComponents = {
       <table {...props} style={{ borderCollapse: "collapse", width: "auto", fontSize: "13px", lineHeight: 1.5 }}>{children}</table>
     </div>
   ),
-  th: ({ children, ...props }: MdProps) => <th {...props} style={{ border: "1px solid rgba(192,200,216,0.22)", padding: "6px 10px", textAlign: "left", whiteSpace: "nowrap", backgroundColor: "rgba(255,255,255,0.05)", fontWeight: 700 }}>{processChildrenForCitations(children)}</th>,
+  th: ({ children, ...props }: MdProps) => <th {...props} style={{ border: "1px solid rgba(192,200,216,0.22)", padding: "6px 10px", textAlign: "left", whiteSpace: "nowrap", backgroundColor: "var(--surface-input)", fontWeight: 700 }}>{processChildrenForCitations(children)}</th>,
   td: ({ children, ...props }: MdProps) => <td {...props} style={{ border: "1px solid rgba(192,200,216,0.15)", padding: "6px 10px", verticalAlign: "top", minWidth: 56 }}>{processChildrenForCitations(children)}</td>,
   blockquote: ({ children, ...props }: MdProps) => <blockquote {...props}>{processChildrenForCitations(children)}</blockquote>,
 };
@@ -220,7 +221,7 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
         style={{
           backgroundColor: "rgba(15,25,40,0.97)",
           border: "1px solid rgba(192,200,216,0.3)",
-          color: "#e0e8f0",
+          color: "var(--text)",
           backdropFilter: "blur(8px)",
           boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
           maxWidth: "240px",
@@ -250,7 +251,7 @@ export default function ChatPage() {
   // SSR/초기 hydration 동안엔 null → 깜빡임 방지 위해 빈 화면
   const { isMobile, frameKind } = useDeviceMode();
   if (isMobile === null) {
-    return <div className="h-screen" style={{ background: "linear-gradient(160deg, #0a0e1a 0%, #0d1525 50%, #0a1020 100%)" }} />;
+    return <div className="h-screen" style={{ background: "var(--bg-gradient)" }} />;
   }
   if (isMobile) {
     // PC에서 모바일 뷰 강제 (frameKind 있음) → 디바이스 프레임 안에 렌더
@@ -1881,12 +1882,12 @@ function DesktopChatPage() {
   const deletedPairs = pairs.filter((p) => p.is_deleted);
 
   return (
-    <div className="flex flex-col h-[100dvh] overflow-hidden" style={{ background: "linear-gradient(160deg, #0a0e1a 0%, #0d1525 50%, #0a1020 100%)" }}>
+    <div className="flex flex-col h-[100dvh] overflow-hidden" style={{ background: "var(--bg-gradient)" }}>
 
       {/* 닉네임 입력 모달 */}
       {showModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="rounded-2xl p-8 w-80 shadow-2xl" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}>
+          <div className="rounded-2xl p-8 w-80 shadow-2xl" style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }}>
             <div className="flex items-center gap-2 mb-1">
               <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ border: `1px solid ${SILVER_DIM}` }}>
                 <img src="/avatar.jpg" alt="조던" className="w-full h-full object-cover" />
@@ -1901,14 +1902,14 @@ function DesktopChatPage() {
               placeholder="닉네임 입력"
               autoComplete="off"
               className="w-full px-4 py-2.5 rounded-xl text-sm mb-4 outline-none"
-              style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+              style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)" }}
               autoFocus
             />
             <button
               onClick={confirmNickname}
               disabled={!nicknameInput.trim()}
               className="w-full py-2.5 rounded-xl text-sm font-bold disabled:opacity-40"
-              style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
+              style={{ backgroundColor: SILVER, color: "var(--on-accent)" }}
             >
               입장하기
             </button>
@@ -1919,7 +1920,7 @@ function DesktopChatPage() {
       {/* 기획서 모달 */}
       {showDocModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}>
+          <div className="rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl" style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }}>
             {/* 모달 헤더 */}
             <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
               <div className="flex items-center gap-2">
@@ -1958,7 +1959,7 @@ function DesktopChatPage() {
                 </div>
               )}
               {docContent && (
-                <div className="prose prose-sm max-w-none" style={{ color: "#e0e8f0" }}>
+                <div className="prose prose-sm max-w-none" style={{ color: "var(--text)" }}>
                   <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{fixMarkdown(docContent)}</ReactMarkdown>
                 </div>
               )}
@@ -1970,7 +1971,7 @@ function DesktopChatPage() {
       {/* 부정확 피드백 사유 입력 팝업 */}
       {reasonInputPairId && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setReasonInputPairId(null)}>
-          <div className="rounded-2xl w-full max-w-md shadow-2xl" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }} onClick={(e) => e.stopPropagation()}>
+          <div className="rounded-2xl w-full max-w-md shadow-2xl" style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }} onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b" style={{ borderColor: SILVER_FAINT }}>
               <p className="text-sm font-bold" style={{ color: "rgba(255,180,180,1)" }}>👎 부정확한 부분 알려주세요</p>
               <p className="text-xs mt-1" style={{ color: SILVER_DIM }}>구체적으로 알려주시면 다음 답변 품질 개선에 활용해요. 비워두고 보내도 OK.</p>
@@ -1982,7 +1983,7 @@ function DesktopChatPage() {
                 placeholder="예: 5월 14일 업데이트 정보가 잘못됨, 신규 영웅 이름이 다름 등"
                 rows={4}
                 className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none"
-                style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+                style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)" }}
                 autoFocus
               />
               <div className="flex gap-2 justify-end">
@@ -2056,7 +2057,7 @@ function DesktopChatPage() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[70] p-4" onClick={() => setShowDocDirection(false)}>
           <div
             className="rounded-2xl w-full max-w-lg shadow-2xl flex flex-col"
-            style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+            style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
@@ -2074,7 +2075,7 @@ function DesktopChatPage() {
                 rows={5}
                 autoFocus
                 className="w-full px-3 py-2.5 rounded-lg text-[13px] outline-none resize-none"
-                style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0", lineHeight: 1.6 }}
+                style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)", lineHeight: 1.6 }}
               />
               <div className="flex gap-2 justify-end mt-3">
                 <button
@@ -2085,7 +2086,7 @@ function DesktopChatPage() {
                 <button
                   onClick={() => generateDocument(docDirection)}
                   className="text-xs px-4 py-2 rounded-lg font-bold"
-                  style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
+                  style={{ backgroundColor: SILVER, color: "var(--on-accent)" }}
                 >{docDirection.trim() ? "이 방향으로 작성" : "작성 시작"}</button>
               </div>
             </div>
@@ -2138,7 +2139,7 @@ function DesktopChatPage() {
       {/* 기획서 생성 중 오버레이 */}
       {generatingDoc && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>
-          <div className="px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3" style={{ backgroundColor: "#0f1628", border: "1px solid rgba(100,180,255,0.5)" }}>
+          <div className="px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3" style={{ backgroundColor: "var(--surface)", border: "1px solid rgba(100,180,255,0.5)" }}>
             <div className="w-5 h-5 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(100,180,255,0.3)", borderTopColor: "rgba(180,210,255,1)" }} />
             <p className="text-sm" style={{ color: "rgba(180,210,255,1)" }}>
               📄 기획서 생성 중... (10~30초 소요)
@@ -2303,7 +2304,7 @@ function DesktopChatPage() {
       {/* 맥락 결정사항 팝업 — 맥락선 이하 기획 바이블에 추가된 결정 목록 */}
       {showContextModal && (
         <div className="fixed inset-0 bg-black/60 flex items-start justify-end z-50 p-4 pt-16" onClick={() => setShowContextModal(false)}>
-          <div className="rounded-2xl w-96 max-h-[80vh] flex flex-col shadow-2xl" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }} onClick={(e) => e.stopPropagation()}>
+          <div className="rounded-2xl w-96 max-h-[80vh] flex flex-col shadow-2xl" style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
@@ -2341,7 +2342,7 @@ function DesktopChatPage() {
                           {confStyle.label}
                         </span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs" style={{ color: "#e0e8f0", lineHeight: 1.45 }}>{d.content}</p>
+                          <p className="text-xs" style={{ color: "var(--text)", lineHeight: 1.45 }}>{d.content}</p>
                           <p className="text-[10px] mt-1" style={{ color: SILVER_DIM }}>
                             {new Date(d.created_at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                             {d.created_by_nickname && ` · ${d.created_by_nickname}`}
@@ -2373,7 +2374,7 @@ function DesktopChatPage() {
           <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowSettingsModal(false)}>
             <div
               className="rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl"
-              style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+              style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* 헤더 */}
@@ -2642,7 +2643,7 @@ function DesktopChatPage() {
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-[60] p-4" onClick={() => setShowHistoryModal(false)}>
           <div
             className="rounded-2xl w-full max-w-xl max-h-[85vh] flex flex-col shadow-2xl"
-            style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+            style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
@@ -2664,7 +2665,7 @@ function DesktopChatPage() {
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4" onClick={() => setShowGuideModal(false)}>
           <div
             className="rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl"
-            style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+            style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* 팝업 헤더 */}
@@ -2682,7 +2683,7 @@ function DesktopChatPage() {
               {/* 섹션 1 — 핵심 동작 */}
               <section>
                 <p className="text-xs font-bold mb-2" style={{ color: "rgba(150,255,200,1)" }}>🤖 핵심 동작</p>
-                <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
+                <div className="space-y-2 text-xs" style={{ color: "var(--text-dim)", lineHeight: 1.55 }}>
                   <p><b style={{ color: SILVER }}>다단계 에이전트 파이프라인</b> — 분석 → 설계 → 검토 → 답변. 단순 챗봇이 아닌 디렉터급 의사결정 과정을 거쳐요.</p>
                   <p><b style={{ color: SILVER }}>실시간 게임 데이터 분석</b> — 등록된 11개 게임의 신뢰 출처(공식·라운지·인벤·디시·나무위키 등)를 실시간 검색해 근거 기반 답변.</p>
                   <p><b style={{ color: SILVER }}>스트리밍 응답</b> — 답변이 작성되는 과정을 실시간으로 표시.</p>
@@ -2695,7 +2696,7 @@ function DesktopChatPage() {
               {/* 섹션 2 — 헤더 도구 */}
               <section>
                 <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🛠️ 헤더 도구 (좌 → 우)</p>
-                <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
+                <div className="space-y-2 text-xs" style={{ color: "var(--text-dim)", lineHeight: 1.55 }}>
                   <p><b style={{ color: SILVER }}>💬 대화방 (병렬 작업)</b> — 조던 이름 옆 <b>💬 버튼</b>으로 여러 대화방을 만들어 <b>주제별로 병렬 작업</b>. 카톡 채팅방처럼 [새 대화방 / 전환 / ✏️ 이름변경 / 🗑️ 삭제]. <b>방마다 대화·맥락이 독립</b>이라 서로 안 섞여요. 단, <b>기획 바이블·기획서는 전 방 공유</b>라 어느 방에서 작업해도 자산은 하나로 쌓여요. (기존 대화는 "기본 대화" 방에 그대로 보존)</p>
                   <p><b style={{ color: SILVER }}>📌 맥락</b> — 클릭하면 현재 맥락선 위치로 스크롤 + 노란 하이라이트. 설정 안 돼 있으면 <i>"맥락선이 없습니다"</i> 토스트. 설정/해제는 본문 안에서.</p>
                   <p><b style={{ color: SILVER }}>📚 기획 바이블 — 탭</b> — 바이블 패널 상단 <b>[전체] / [현재 맥락]</b> 탭. <b>전체</b>는 누적된 모든 결정, <b>현재 맥락</b>은 맥락선 이후 추가된 결정만 보여줘요. (옛 "📋 맥락 결정사항" 버튼이 이 탭으로 통합됨)</p>
@@ -2712,7 +2713,7 @@ function DesktopChatPage() {
               {/* 섹션 3 — 답변별 도구 */}
               <section>
                 <p className="text-xs font-bold mb-2" style={{ color: "rgba(255,220,150,1)" }}>💬 답변별 도구</p>
-                <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
+                <div className="space-y-2 text-xs" style={{ color: "var(--text-dim)", lineHeight: 1.55 }}>
                   <p><b style={{ color: SILVER }}>▼ 자세한 답변 보기</b> — 같은 질문에 대해 더 깊이 있는 확장 설명. <b>최고 품질 모델(Opus)</b>로 작성되고 글자가 흐르듯 실시간 표시돼요. <b>⚙️ 설정 → 답변 표시 → "자세한 답변 자동 표시"</b>를 켜면 매 답변마다 자동으로 펼쳐져요 (대신 답변마다 비용↑).</p>
                   <p><b style={{ color: SILVER }}>📋 디렉터 검토 의견</b> — 검토 에이전트가 본 답변에 대해 짚은 보완점·우려 사항.</p>
                   <p><b style={{ color: SILVER }}>👍 정확함 / 👎 부정확</b> — 피드백 저장. 부정확은 사유 입력 가능 → 차후 품질 개선에 활용.</p>
@@ -2724,7 +2725,7 @@ function DesktopChatPage() {
               {/* 섹션 — 조던 인터뷰 */}
               <section>
                 <p className="text-xs font-bold mb-2" style={{ color: "rgba(255,210,160,1)" }}>🎤 조던 인터뷰 (능동 질문)</p>
-                <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
+                <div className="space-y-2 text-xs" style={{ color: "var(--text-dim)", lineHeight: 1.55 }}>
                   <p><b style={{ color: SILVER }}>답변 끝 후속 질문</b> — 모든 답변 끝에 조던이 다음 결정에 도움될 질문 1~2개를 자연스럽게 제안. 선택지 포함이라 답변 부담 ↓.</p>
                   <p><b style={{ color: SILVER }}>🎤 조던에게 질문 받기</b> — (현재 버튼은 숨김 처리, 기능은 보존 — 필요 시 복구 가능) 조던이 바이블의 빈 영역을 자동 분석해 미결정 항목을 질문하던 기능.</p>
                   <p>두 가지 모두 사용자가 주도하지 않아도 조던이 능동적으로 결정 영역을 채워나가도록 유도.</p>
@@ -2734,7 +2735,7 @@ function DesktopChatPage() {
               {/* 섹션 4 — 자동 기능 */}
               <section>
                 <p className="text-xs font-bold mb-2" style={{ color: "rgba(255,180,180,1)" }}>⚙️ 자동 기능</p>
-                <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
+                <div className="space-y-2 text-xs" style={{ color: "var(--text-dim)", lineHeight: 1.55 }}>
                   <p><b style={{ color: SILVER }}>기획 바이블 자동 추출</b> — 대화에서 결정·검토된 사항을 조던이 자동 추출해 바이블에 추가. 카테고리 자동 분류.</p>
                   <p><b style={{ color: SILVER }}>충돌 항목 보류</b> — 조던이 반대·우려를 표한 결정은 자동 등록 보류. 사용자가 "그래도 등록해줘" 요청 시에만 등록.</p>
                   <p><b style={{ color: SILVER }}>대화 기록 자동 저장</b> — Supabase에 저장. 새로고침·다른 기기에서도 복원.</p>
@@ -2744,7 +2745,7 @@ function DesktopChatPage() {
               {/* 섹션 5 — 활용 팁 */}
               <section>
                 <p className="text-xs font-bold mb-2" style={{ color: "rgba(200,180,255,1)" }}>💡 활용 팁</p>
-                <div className="space-y-2 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
+                <div className="space-y-2 text-xs" style={{ color: "var(--text-dim)", lineHeight: 1.55 }}>
                   <p><b style={{ color: SILVER }}>긴 프로젝트일 때</b> — 주제 전환 시 맥락 시작점(📌) 설정해서 이전 맥락 제외. 핵심 결정은 바이블에 누적돼 있으니 손실 없음.</p>
                   <p><b style={{ color: SILVER }}>기획서 만들기</b> — 충분히 대화로 발산 → 결정사항이 바이블에 쌓임 → 헤더 [📄 기획서 작성]으로 한 번에 정리.</p>
                   <p><b style={{ color: SILVER }}>바이블 직접 편집</b> — 📚 클릭해서 패널 열고 +/✏️/🗑️로 수동 관리 가능. 자동 추출이 놓친 항목도 직접 추가.</p>
@@ -2760,7 +2761,7 @@ function DesktopChatPage() {
       {/* 참고 게임 팝업 — 설정 모달 위에 띄울 수 있도록 z-[60] */}
       {showGameModal && (
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-[60] p-4" onClick={() => setShowGameModal(false)}>
-          <div className="rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }} onClick={(e) => e.stopPropagation()}>
+          <div className="rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl" style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }} onClick={(e) => e.stopPropagation()}>
             {/* 팝업 헤더 */}
             <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
               <div>
@@ -2786,7 +2787,7 @@ function DesktopChatPage() {
                   </div>
                   <ul className="space-y-1 mb-3">
                     {game.items.map((item, i) => (
-                      <li key={i} className="text-xs flex gap-2" style={{ color: "#b8c4d4" }}>
+                      <li key={i} className="text-xs flex gap-2" style={{ color: "var(--text-dim)" }}>
                         <span style={{ color: SILVER_DIM, flexShrink: 0 }}>•</span>
                         <span>{item}</span>
                       </li>
@@ -2821,7 +2822,7 @@ function DesktopChatPage() {
       )}
 
       {/* 헤더 */}
-      <header className="px-6 py-4 flex items-center gap-4" style={{ backgroundColor: "rgba(0,0,0,0.4)", borderBottom: `1px solid ${SILVER_FAINT}` }}>
+      <header className="px-6 py-4 flex items-center gap-4" style={{ backgroundColor: "var(--header-bg)", borderBottom: `1px solid ${SILVER_FAINT}` }}>
         <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0" style={{ border: `1px solid ${SILVER_DIM}`, boxShadow: `0 0 15px rgba(192,200,216,0.2)` }}>
           <img src="/avatar.jpg" alt="조던" className="w-full h-full object-cover" />
         </div>
@@ -2853,8 +2854,8 @@ function DesktopChatPage() {
               <span style={{ fontSize: "9px" }}>▾</span>
             </button>
             {showConvList && (
-              <div className="absolute left-0 top-full mt-1 rounded-lg shadow-2xl py-1 z-30" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}`, minWidth: 240, maxHeight: 380, overflowY: "auto" }}>
-                <button onClick={createConversation} className="block w-full text-left text-xs px-3 py-2 font-bold hover:bg-white/5" style={{ color: "#7dd3fc", borderBottom: `1px solid ${SILVER_FAINT}` }}>+ 새 대화방</button>
+              <div className="absolute left-0 top-full mt-1 rounded-lg shadow-2xl py-1 z-30" style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}`, minWidth: 240, maxHeight: 380, overflowY: "auto" }}>
+                <button onClick={createConversation} className="block w-full text-left text-xs px-3 py-2 font-bold hover:bg-white/5" style={{ color: "var(--accent-2)", borderBottom: `1px solid ${SILVER_FAINT}` }}>+ 새 대화방</button>
                 {conversations.map(c => (
                   <div key={c.id} className="flex items-center gap-1 px-2 py-0.5 hover:bg-white/5" style={{ backgroundColor: c.id === currentConvId ? "rgba(100,180,255,0.12)" : "transparent" }}>
                     {renamingConvId === c.id ? (
@@ -2865,10 +2866,10 @@ function DesktopChatPage() {
                         onKeyDown={e => { if (e.key === "Enter") renameConversation(c.id, convRenameInput); if (e.key === "Escape") { setRenamingConvId(null); setConvRenameInput(""); } }}
                         autoFocus
                         className="flex-1 min-w-0 text-xs px-1.5 py-1 rounded outline-none"
-                        style={{ backgroundColor: "rgba(0,0,0,0.4)", border: "1px solid rgba(100,180,255,0.5)", color: "#e0e8f0" }}
+                        style={{ backgroundColor: "var(--header-bg)", border: "1px solid rgba(100,180,255,0.5)", color: "var(--text)" }}
                       />
                     ) : (
-                      <button onClick={() => loadConversation(c.id)} className="flex-1 min-w-0 text-left text-xs px-1.5 py-1 truncate" style={{ color: c.id === currentConvId ? "rgba(180,210,255,1)" : "#d0d8e0" }} title={c.title}>{c.title}</button>
+                      <button onClick={() => loadConversation(c.id)} className="flex-1 min-w-0 text-left text-xs px-1.5 py-1 truncate" style={{ color: c.id === currentConvId ? "rgba(180,210,255,1)" : "var(--text-dim)" }} title={c.title}>{c.title}</button>
                     )}
                     <button onClick={() => { setRenamingConvId(c.id); setConvRenameInput(c.title); }} className="text-xs px-1 rounded hover:bg-white/10 flex-shrink-0" style={{ color: SILVER_DIM }} title="이름 변경">✏️</button>
                     <button onClick={() => deleteConversation(c.id)} className="text-xs px-1 rounded hover:bg-white/10 flex-shrink-0" style={{ color: "rgba(255,160,160,0.7)" }} title="삭제">🗑️</button>
@@ -2880,6 +2881,8 @@ function DesktopChatPage() {
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          {/* 스킨(테마) 전환 — 선택 모드가 아닐 때만 노출 */}
+          {!selectMode && <ThemeSwitcher />}
           {/* ─── 선택 모드: 작성 컨트롤만 크게 표시, 다른 헤더 버튼은 숨김 ─── */}
           {selectMode && (
             <>
@@ -2890,7 +2893,7 @@ function DesktopChatPage() {
                 onClick={() => { if (selectedPairIds.size > 0) { setDocDirection(""); setShowDocDirection(true); } }}
                 disabled={selectedPairIds.size === 0}
                 className="text-sm px-4 py-2 rounded-lg font-bold disabled:opacity-40 whitespace-nowrap"
-                style={{ backgroundColor: SILVER, color: "#0a0e1a", boxShadow: "0 2px 8px rgba(192,200,216,0.3)" }}
+                style={{ backgroundColor: SILVER, color: "var(--on-accent)", boxShadow: "0 2px 8px rgba(192,200,216,0.3)" }}
               >
                 ✓ 작성 시작
               </button>
@@ -3007,7 +3010,7 @@ function DesktopChatPage() {
             {showDocMenu && (
               <>
                 <div className="fixed inset-0 z-20" onClick={() => setShowDocMenu(false)} />
-                <div className="absolute right-0 mt-1 rounded-lg overflow-hidden z-30" style={{ minWidth: "240px", backgroundColor: "#141c2e", border: `1px solid ${SILVER_FAINT}`, boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
+                <div className="absolute right-0 mt-1 rounded-lg overflow-hidden z-30" style={{ minWidth: "240px", backgroundColor: "var(--surface-2)", border: `1px solid ${SILVER_FAINT}`, boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
                   {/* 기획서 리스트 이동 */}
                   <button
                     onClick={() => { setShowDocMenu(false); if (showDocumentView) setShowDocumentView(false); else openDocumentView(); }}
@@ -3210,7 +3213,7 @@ function DesktopChatPage() {
               {selectMode && (
                 <div className="absolute -left-6 top-1 flex items-start">
                   <div className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0" style={{ backgroundColor: selectedPairIds.has(pair.pair_id) ? SILVER : "transparent", border: `2px solid ${selectedPairIds.has(pair.pair_id) ? SILVER : SILVER_DIM}` }}>
-                    {selectedPairIds.has(pair.pair_id) && <span style={{ color: "#0a0e1a", fontSize: "10px", fontWeight: "bold" }}>✓</span>}
+                    {selectedPairIds.has(pair.pair_id) && <span style={{ color: "var(--on-accent)", fontSize: "10px", fontWeight: "bold" }}>✓</span>}
                   </div>
                 </div>
               )}
@@ -3242,7 +3245,7 @@ function DesktopChatPage() {
                       style={{ border: `1px solid ${SILVER_FAINT}` }}
                       onClick={() => window.open(`/api/img/${pair.user.image_id}`, "_blank")} />
                   )}
-                  <div className="px-4 py-3 rounded-2xl rounded-tr-sm text-sm font-medium whitespace-pre-wrap" style={{ backgroundColor: SILVER, color: "#0a0e1a", boxShadow: `0 4px 15px rgba(192,200,216,0.25)` }}>
+                  <div className="px-4 py-3 rounded-2xl rounded-tr-sm text-sm font-medium whitespace-pre-wrap" style={{ backgroundColor: SILVER, color: "var(--on-accent)", boxShadow: `0 4px 15px rgba(192,200,216,0.25)` }}>
                     {pair.user.content}
                   </div>
                 </div>
@@ -3264,7 +3267,7 @@ function DesktopChatPage() {
                         {copiedId === `${pair.pair_id}-assistant` ? "✓" : "⎘"}
                       </span>
                     </button>
-                    <div className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm prose prose-sm max-w-none" style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0", backdropFilter: "blur(10px)" }}>
+                    <div className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm prose prose-sm max-w-none" style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)", backdropFilter: "blur(10px)" }}>
                       <AssistantMarkdown text={pair.assistant.content} />
                     </div>
                   </div>
@@ -3320,7 +3323,7 @@ function DesktopChatPage() {
 
                   {/* 설계 피드백 요약 패널 — 피드백 색상: rgba(100,180,255,...) */}
                   {pair.feedback_summary_shown && pair.feedback_summary && (
-                    <div className="px-4 py-3 rounded-2xl text-sm prose prose-sm max-w-none" style={{ backgroundColor: "rgba(100,180,255,0.06)", border: "1px solid rgba(100,180,255,0.2)", color: "#e0e8f0" }}>
+                    <div className="px-4 py-3 rounded-2xl text-sm prose prose-sm max-w-none" style={{ backgroundColor: "rgba(100,180,255,0.06)", border: "1px solid rgba(100,180,255,0.2)", color: "var(--text)" }}>
                       <p className="text-xs font-semibold mb-2 not-prose" style={{ color: "rgba(100,180,255,0.85)" }}>📋 디렉터 검토 의견</p>
                       <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{pair.feedback_summary}</ReactMarkdown>
                     </div>
@@ -3338,7 +3341,7 @@ function DesktopChatPage() {
                     const fullText = markerIdx !== -1 ? rawDetail.slice(markerIdx + MARKER.length).trim() : null;
                     return (
                       <div className="flex flex-col gap-2">
-                        <div className="px-4 py-3 rounded-2xl text-sm prose prose-sm max-w-none" style={{ backgroundColor: "rgba(192,200,216,0.07)", border: `1px solid rgba(192,200,216,0.25)`, color: "#e0e8f0" }}>
+                        <div className="px-4 py-3 rounded-2xl text-sm prose prose-sm max-w-none" style={{ backgroundColor: "rgba(192,200,216,0.07)", border: `1px solid rgba(192,200,216,0.25)`, color: "var(--text)" }}>
                           <AssistantMarkdown text={bubbleText} />
                         </div>
                         {fullText && !pair.detail_loading && (
@@ -3388,7 +3391,7 @@ function DesktopChatPage() {
                     <img src={`/api/img/${streamingPair.userImageId}`} alt="첨부 이미지"
                       className="rounded-xl max-h-72 w-auto" style={{ border: `1px solid ${SILVER_FAINT}` }} />
                   )}
-                  <div className="px-4 py-3 rounded-2xl rounded-tr-sm text-sm font-medium" style={{ backgroundColor: SILVER, color: "#0a0e1a" }}>
+                  <div className="px-4 py-3 rounded-2xl rounded-tr-sm text-sm font-medium" style={{ backgroundColor: SILVER, color: "var(--on-accent)" }}>
                     {streamingPair.user}
                   </div>
                 </div>
@@ -3397,7 +3400,7 @@ function DesktopChatPage() {
                 <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ border: `1px solid ${SILVER_DIM}` }}><img src="/avatar.jpg" alt="조던" className="w-full h-full object-cover" /></div>
                 <div className="flex flex-col gap-1 max-w-[75%]">
                   <p className="text-xs ml-1" style={{ color: SILVER }}>조던</p>
-                  <div className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm prose prose-sm max-w-none" style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}>
+                  <div className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm prose prose-sm max-w-none" style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)" }}>
                     {streamingPair.assistant
                       ? <AssistantMarkdown text={streamingPair.assistant} />
                       : <span style={{ color: SILVER_DIM }} className="animate-pulse">···</span>}
@@ -3444,13 +3447,13 @@ function DesktopChatPage() {
                           <button onClick={() => restorePair(pair.pair_id)} className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(192,200,216,0.1)", border: `1px solid ${SILVER_FAINT}`, color: SILVER }}>↩️ 복원</button>
                           <button onClick={() => { if (confirm("영구 삭제할까요?")) permanentDeletePair(pair.pair_id); }} className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(255,50,50,0.1)", border: "1px solid rgba(255,50,50,0.2)", color: "#f87171" }}>🗑️ 영구삭제</button>
                         </div>
-                        <div className="max-w-[70%] px-4 py-3 rounded-2xl rounded-tr-sm text-sm line-through" style={{ backgroundColor: SILVER, color: "#0a0e1a" }}>
+                        <div className="max-w-[70%] px-4 py-3 rounded-2xl rounded-tr-sm text-sm line-through" style={{ backgroundColor: SILVER, color: "var(--on-accent)" }}>
                           {pair.user.content}
                         </div>
                       </div>
                       <div className="flex items-start gap-3">
                         <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ border: `1px solid ${SILVER_DIM}` }}><img src="/avatar.jpg" alt="조던" className="w-full h-full object-cover" /></div>
-                        <div className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm max-w-[75%]" style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}>
+                        <div className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm max-w-[75%]" style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)" }}>
                           {pair.assistant.content}
                         </div>
                       </div>
@@ -3470,7 +3473,7 @@ function DesktopChatPage() {
         <button
           onClick={() => { scrollToBottom(); setShowAnswerCompleteBtn(false); }}
           className="fixed bottom-24 right-6 px-4 h-10 rounded-full flex items-center gap-2 text-xs font-bold shadow-lg z-40"
-          style={{ backgroundColor: SILVER, color: "#0a0e1a", boxShadow: `0 4px 15px rgba(192,200,216,0.5)` }}
+          style={{ backgroundColor: SILVER, color: "var(--on-accent)", boxShadow: `0 4px 15px rgba(192,200,216,0.5)` }}
         >
           답변 완료 ↓
         </button>
@@ -3478,11 +3481,11 @@ function DesktopChatPage() {
       {/* 수동 스크롤 버튼 — 누르면 자동스크롤 재개 (답변 완료 버튼 있을 때 숨김) */}
       {showScrollBtn && !showAnswerCompleteBtn && (
         <button onClick={() => { userScrolledUpRef.current = false; scrollToBottom(); }} className="fixed bottom-24 right-6 w-10 h-10 rounded-full flex items-center justify-center text-base shadow-lg z-40"
-          style={{ backgroundColor: SILVER, color: "#0a0e1a", boxShadow: `0 4px 15px rgba(192,200,216,0.4)` }}>↓</button>
+          style={{ backgroundColor: SILVER, color: "var(--on-accent)", boxShadow: `0 4px 15px rgba(192,200,216,0.4)` }}>↓</button>
       )}
 
       {/* 입력창 */}
-      <div style={{ backgroundColor: "rgba(0,0,0,0.5)", borderTop: `1px solid ${SILVER_FAINT}` }}>
+      <div style={{ backgroundColor: "var(--header-bg)", borderTop: `1px solid ${SILVER_FAINT}` }}>
         {/* 자세한 답변 기본 보기 토글 (⚙️ 설정과 연동) */}
         <div className="px-4 pt-2">
           <button
@@ -3490,7 +3493,7 @@ function DesktopChatPage() {
             title="켜면 답변마다 자세한 답변까지 자동으로 펼쳐요 (답변마다 비용↑)"
             className="text-xs px-2.5 py-1 rounded-full flex items-center gap-1.5"
             style={{
-              backgroundColor: autoDetail ? "rgba(100,220,160,0.18)" : "rgba(255,255,255,0.05)",
+              backgroundColor: autoDetail ? "rgba(100,220,160,0.18)" : "var(--surface-input)",
               border: `1px solid ${autoDetail ? "rgba(100,220,160,0.55)" : SILVER_FAINT}`,
               color: autoDetail ? "rgba(150,255,200,1)" : SILVER_DIM,
             }}
@@ -3562,7 +3565,7 @@ function DesktopChatPage() {
             style={{
               backgroundColor: "rgba(255,255,255,0.07)",
               border: `1px solid ${SILVER_FAINT}`,
-              color: "#e0e8f0",
+              color: "var(--text)",
               maxHeight: "160px",
               overflowY: "auto",
               lineHeight: "1.5",
@@ -3579,7 +3582,7 @@ function DesktopChatPage() {
             onClick={sendMessage}
             disabled={isLoading || (!input.trim() && !attachedImage)}
             className="w-11 h-11 rounded-xl flex items-center justify-center text-base flex-shrink-0 font-bold disabled:opacity-40"
-            style={{ backgroundColor: SILVER, color: "#0a0e1a", boxShadow: `0 4px 15px rgba(192,200,216,0.3)` }}
+            style={{ backgroundColor: SILVER, color: "var(--on-accent)", boxShadow: `0 4px 15px rgba(192,200,216,0.3)` }}
           >
             ➤
           </button>

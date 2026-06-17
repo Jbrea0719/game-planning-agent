@@ -76,14 +76,15 @@ function CatDroppable({ id, children }: { id: string; children: ReactNode }) {
   );
 }
 
-const SILVER = "#c0c8d8";
-const SILVER_DIM = "rgba(192,200,216,0.5)";
-const SILVER_FAINT = "rgba(192,200,216,0.15)";
+// 조던 테마 컬러 — globals.css 의 CSS 변수(토큰)에 연결 → 스킨(테마) 전환 시 자동 반영
+const SILVER = "var(--accent)";
+const SILVER_DIM = "var(--accent-dim)";
+const SILVER_FAINT = "var(--accent-faint)";
 
 // 단계별 텍스트 색 (대=가장 밝고 큼 → 소=어둡고 작음)
-const MAIN_COLOR = SILVER;
-const AREA_COLOR = "rgba(210,220,235,1)";
-const SUB_COLOR = SILVER_DIM;
+const MAIN_COLOR = "var(--text)";
+const AREA_COLOR = "var(--text-dim)";
+const SUB_COLOR = "var(--text-mute)";
 
 // 빈 소분류 강조 (주황) — 아직 기획서가 없어 채워야 할 곳
 const EMPTY_BG = "rgba(255,150,60,0.15)";
@@ -451,7 +452,7 @@ export default function DocList({
               if (e.key === "Escape") cancelRename();
             }}
             className="flex-1 text-xs font-medium px-2 py-1.5 rounded outline-none"
-            style={{ backgroundColor: "rgba(0,0,0,0.5)", border: "1px solid rgba(100,180,255,0.6)", color: "#e0e8f0" }}
+            style={{ backgroundColor: "rgba(0,0,0,0.5)", border: "1px solid rgba(100,180,255,0.6)", color: "var(--text)" }}
             autoFocus
           />
         </div>
@@ -508,7 +509,7 @@ export default function DocList({
             border: active ? "1px solid rgba(110,235,175,0.95)" : "1px solid transparent",
             borderLeft: active ? "3px solid rgba(120,255,190,1)" : undefined,
             boxShadow: active ? "0 0 8px rgba(80,210,150,0.45)" : undefined,
-            color: active ? "#c8ffe6" : "#d0d8e0",
+            color: active ? "var(--text)" : "var(--text-dim)",
             fontWeight: active ? 700 : undefined,
           }}
         >
@@ -576,7 +577,7 @@ export default function DocList({
           <button
             onClick={() => tog(key)}
             className="flex-1 min-w-0 text-left px-2 py-1 rounded flex items-center justify-between font-bold transition-colors hover:bg-white/5"
-            style={{ color: "#ffffff", fontSize: "13.5px" }}
+            style={{ color: "var(--text)", fontSize: "13.5px" }}
           >
           <span className="flex items-center gap-1 min-w-0">
             <span style={{ flexShrink: 0, fontSize: "8px" }}>▸</span>
@@ -712,7 +713,7 @@ export default function DocList({
   return (
     <div
       className="absolute inset-0 flex flex-col z-10"
-      style={{ backgroundColor: "#0a0e1a", borderRight: `1px solid ${SILVER_FAINT}` }}
+      style={{ backgroundColor: "var(--sidebar-bg)", borderRight: `1px solid ${SILVER_FAINT}` }}
     >
       {/* 헤더 */}
       <div className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 gap-2" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
@@ -738,7 +739,7 @@ export default function DocList({
             onChange={(e) => setSearchQ(e.target.value)}
             placeholder="🔍 기획서 검색 (제목·내용)"
             className="w-full text-[12px] pl-3 pr-7 py-1.5 rounded-lg outline-none"
-            style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+            style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)" }}
           />
           {searchQ && (
             <button onClick={() => setSearchQ("")} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs px-1" style={{ color: SILVER_DIM }}>✕</button>

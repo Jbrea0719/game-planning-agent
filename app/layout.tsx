@@ -37,9 +37,18 @@ export default function RootLayout({
   return (
     <html
       lang="ko"
+      // 테마 선적용 스크립트가 첫 페인트 전에 data-theme 을 바꾸므로
+      // 서버 HTML과 차이가 생김 → 의도된 동작이라 하이드레이션 경고 억제
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
+        {/* 테마(스킨) 선적용 — 첫 페인트 전에 저장된 테마를 입혀 깜빡임(FOUC) 방지 */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var k=localStorage.getItem('jordan-theme');var bar={dark:'#0a0e1a',light:'#eaf0f8',sepia:'#e7dcc4',ocean:'#06161d'};if(k&&k!=='dark'&&bar[k]){document.documentElement.setAttribute('data-theme',k);var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement('meta');m.setAttribute('name','theme-color');document.head.appendChild(m);}m.setAttribute('content',bar[k]);}}catch(e){}})();`,
+          }}
+        />
         {/* 한글 웹폰트 Pretendard — 전 기기에서 동일한 글자로 통일 (CDN, 필요한 글자만 동적 로드) */}
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
         <link

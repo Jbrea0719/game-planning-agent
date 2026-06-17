@@ -38,13 +38,15 @@ import ImageAnnotator from "@/components/ImageAnnotator";
 import SketchWireframeModal from "@/components/SketchWireframeModal";
 import ReferenceGallery from "@/components/ReferenceGallery";
 import NotificationBell from "@/components/NotificationBell";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { buildImageIntentPrefix } from "@/lib/image-intent";
 
 // WireframeEditor·MockupGenerator는 DocumentView 안에서 호출 (📄 기획서 → 🎨 화면 설계)
 
-const SILVER = "#c0c8d8";
-const SILVER_DIM = "rgba(192,200,216,0.5)";
-const SILVER_FAINT = "rgba(192,200,216,0.15)";
+// 조던 테마 컬러 — globals.css 의 CSS 변수(토큰)에 연결 → 스킨(테마) 전환 시 자동 반영
+const SILVER = "var(--accent)";
+const SILVER_DIM = "var(--accent-dim)";
+const SILVER_FAINT = "var(--accent-faint)";
 const DEFAULT_PROJECT_ID = "00000000-0000-0000-0000-000000000001";
 
 type Message = { role: "user" | "assistant"; content: string; image_id?: string };  // image_id: 첨부 이미지 (doc_images id) — /api/img/<id>로 표시
@@ -66,7 +68,7 @@ const mdComponents = {
       <table {...props} style={{ borderCollapse: "collapse", width: "auto", fontSize: "13px", lineHeight: 1.5 }}>{children}</table>
     </div>
   ),
-  th: ({ children, ...props }: { children?: ReactNode }) => <th {...props} style={{ border: "1px solid rgba(192,200,216,0.22)", padding: "6px 10px", textAlign: "left", whiteSpace: "nowrap", backgroundColor: "rgba(255,255,255,0.05)", fontWeight: 700 }}>{children}</th>,
+  th: ({ children, ...props }: { children?: ReactNode }) => <th {...props} style={{ border: "1px solid rgba(192,200,216,0.22)", padding: "6px 10px", textAlign: "left", whiteSpace: "nowrap", backgroundColor: "var(--surface-input)", fontWeight: 700 }}>{children}</th>,
   td: ({ children, ...props }: { children?: ReactNode }) => <td {...props} style={{ border: "1px solid rgba(192,200,216,0.15)", padding: "6px 10px", verticalAlign: "top", minWidth: 56 }}>{children}</td>,
 };
 
@@ -98,10 +100,10 @@ export default function MobileChatPage({ simulateKeyboard = false }: { simulateK
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden" style={{ background: "linear-gradient(160deg, #0a0e1a 0%, #0d1525 50%, #0a1020 100%)" }}>
+    <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--bg-gradient)" }}>
       {showNicknameModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="rounded-2xl p-6 w-full max-w-xs shadow-2xl" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}>
+          <div className="rounded-2xl p-6 w-full max-w-xs shadow-2xl" style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }}>
             <p className="text-sm font-bold mb-1" style={{ color: SILVER }}>입장하기</p>
             <p className="text-xs mb-4" style={{ color: SILVER_DIM }}>닉네임을 입력하면 대화 기록이 저장돼요</p>
             <input
@@ -112,13 +114,13 @@ export default function MobileChatPage({ simulateKeyboard = false }: { simulateK
               autoFocus
               className="w-full px-3 py-2.5 rounded-lg text-sm outline-none mb-3"
               // fontSize 16px: iOS 자동 확대(줌인) 방지
-              style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0", fontSize: "16px" }}
+              style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)", fontSize: "16px" }}
             />
             <button
               onClick={confirmNickname}
               disabled={!nicknameInput.trim()}
               className="w-full py-2.5 rounded-lg text-sm font-bold disabled:opacity-40"
-              style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
+              style={{ backgroundColor: SILVER, color: "var(--on-accent)" }}
             >
               입장
             </button>
@@ -1344,7 +1346,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
     <>
       {/* 선택 모드 헤더 (기획서 작성용) */}
       {selectMode && (
-        <header className="px-3 py-2.5 flex items-center gap-2 flex-shrink-0" style={{ backgroundColor: "rgba(0,0,0,0.5)", borderBottom: `1px solid rgba(100,180,255,0.4)` }}>
+        <header className="px-3 py-2.5 flex items-center gap-2 flex-shrink-0" style={{ backgroundColor: "var(--header-bg)", borderBottom: `1px solid rgba(100,180,255,0.4)` }}>
           <span className="text-xs font-medium flex-1" style={{ color: SILVER }}>
             <b style={{ color: "rgba(180,210,255,1)" }}>{selectedPairIds.size}개</b> 선택됨
           </span>
@@ -1352,7 +1354,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
             onClick={() => { if (selectedPairIds.size > 0) { setDocDirection(""); setShowDocDirection(true); } }}
             disabled={selectedPairIds.size === 0}
             className="text-xs px-3 py-1.5 rounded-lg font-bold disabled:opacity-40"
-            style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
+            style={{ backgroundColor: SILVER, color: "var(--on-accent)" }}
           >✓ 작성</button>
           <button
             onClick={cancelSelectMode}
@@ -1364,7 +1366,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
 
       {/* 일반 헤더 */}
       {!selectMode && (
-      <header className="px-3 py-2.5 flex items-center gap-2 flex-shrink-0" style={{ backgroundColor: "rgba(0,0,0,0.4)", borderBottom: `1px solid ${SILVER_FAINT}` }}>
+      <header className="px-3 py-2.5 flex items-center gap-2 flex-shrink-0" style={{ backgroundColor: "var(--header-bg)", borderBottom: `1px solid ${SILVER_FAINT}` }}>
         <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0" style={{ border: `1px solid ${SILVER_DIM}` }}>
           <img src="/avatar.jpg" alt="조던" className="w-full h-full object-cover" />
         </div>
@@ -1372,6 +1374,9 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           <p className="font-bold text-sm truncate flex items-center gap-1" style={{ color: SILVER }}>조던 <span style={{ fontSize: "9px", color: SILVER_DIM }}>▾</span></p>
           <p className="text-[10px] truncate" style={{ color: "rgba(180,210,255,0.9)" }}>💬 {conversations.find(c => c.id === currentConvId)?.title ?? "대화방"}</p>
         </button>
+
+        {/* 스킨(테마) 전환 — 모바일은 이모지만(compact) */}
+        <ThemeSwitcher compact />
 
         {/* 🔔 알림 */}
         <NotificationBell
@@ -1429,14 +1434,14 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       {/* 대화방 목록 (모바일) */}
       {showConvList && (
         <div className="fixed inset-0 z-40" onClick={() => setShowConvList(false)}>
-          <div className="absolute top-14 left-2 right-2 rounded-xl shadow-2xl py-1 max-h-[60vh] overflow-y-auto" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }} onClick={e => e.stopPropagation()}>
-            <button onClick={createConversation} className="block w-full text-left text-sm px-4 py-2.5 font-bold" style={{ color: "#7dd3fc", borderBottom: `1px solid ${SILVER_FAINT}` }}>+ 새 대화방</button>
+          <div className="absolute top-14 left-2 right-2 rounded-xl shadow-2xl py-1 max-h-[60vh] overflow-y-auto" style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }} onClick={e => e.stopPropagation()}>
+            <button onClick={createConversation} className="block w-full text-left text-sm px-4 py-2.5 font-bold" style={{ color: "var(--accent-2)", borderBottom: `1px solid ${SILVER_FAINT}` }}>+ 새 대화방</button>
             {conversations.map(c => (
               <div key={c.id} className="flex items-center gap-1 px-2 py-1" style={{ backgroundColor: c.id === currentConvId ? "rgba(100,180,255,0.12)" : "transparent" }}>
                 {renamingConvId === c.id ? (
-                  <input value={convRenameInput} onChange={e => setConvRenameInput(e.target.value)} onBlur={() => renameConversation(c.id, convRenameInput)} onKeyDown={e => { if (e.key === "Enter") renameConversation(c.id, convRenameInput); if (e.key === "Escape") { setRenamingConvId(null); setConvRenameInput(""); } }} autoFocus className="flex-1 min-w-0 text-sm px-2 py-1.5 rounded outline-none" style={{ backgroundColor: "rgba(0,0,0,0.4)", border: "1px solid rgba(100,180,255,0.5)", color: "#e0e8f0" }} />
+                  <input value={convRenameInput} onChange={e => setConvRenameInput(e.target.value)} onBlur={() => renameConversation(c.id, convRenameInput)} onKeyDown={e => { if (e.key === "Enter") renameConversation(c.id, convRenameInput); if (e.key === "Escape") { setRenamingConvId(null); setConvRenameInput(""); } }} autoFocus className="flex-1 min-w-0 text-sm px-2 py-1.5 rounded outline-none" style={{ backgroundColor: "var(--header-bg)", border: "1px solid rgba(100,180,255,0.5)", color: "var(--text)" }} />
                 ) : (
-                  <button onClick={() => loadConversation(c.id)} className="flex-1 min-w-0 text-left text-sm px-2 py-2 truncate" style={{ color: c.id === currentConvId ? "rgba(180,210,255,1)" : "#d0d8e0" }}>{c.title}</button>
+                  <button onClick={() => loadConversation(c.id)} className="flex-1 min-w-0 text-left text-sm px-2 py-2 truncate" style={{ color: c.id === currentConvId ? "rgba(180,210,255,1)" : "var(--text-dim)" }}>{c.title}</button>
                 )}
                 <button onClick={() => { setRenamingConvId(c.id); setConvRenameInput(c.title); }} className="px-2 py-1 flex-shrink-0" style={{ color: SILVER_DIM, fontSize: "13px" }}>✏️</button>
                 <button onClick={() => deleteConversation(c.id)} className="px-2 py-1 flex-shrink-0" style={{ color: "rgba(255,160,160,0.7)", fontSize: "13px" }}>🗑️</button>
@@ -1451,7 +1456,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         <div className="fixed inset-0 z-40 flex justify-end" onClick={() => setShowMenu(false)}>
           <div
             className="w-3/4 max-w-xs h-full flex flex-col"
-            style={{ backgroundColor: "#0a0e1a", borderLeft: `1px solid ${SILVER_FAINT}` }}
+            style={{ backgroundColor: "var(--sidebar-bg)", borderLeft: `1px solid ${SILVER_FAINT}` }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
@@ -1574,7 +1579,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                     <div
                       onClick={(e) => { if (!selectMode) { e.stopPropagation(); setActionForPair(pair.pair_id); } }}
                       className="px-3 py-2 rounded-2xl rounded-tr-sm text-sm whitespace-pre-wrap"
-                      style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
+                      style={{ backgroundColor: SILVER, color: "var(--on-accent)" }}
                     >
                       {pair.user.content}
                     </div>
@@ -1587,7 +1592,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="px-3 py-2 rounded-2xl rounded-tl-sm text-sm prose prose-sm max-w-none"
-                      style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}>
+                      style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)" }}>
                       <MemoMarkdown text={pair.assistant.content} />
                     </div>
                     {/* 답변 도구 — 자세한 답변 + 피드백 */}
@@ -1623,7 +1628,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                     {/* 자세한 답변 본문 */}
                     {pair.detail_shown && pair.detail_content && (
                       <div className="px-3 py-2 rounded-2xl text-sm prose prose-sm max-w-none mt-1.5"
-                        style={{ backgroundColor: "rgba(192,200,216,0.07)", border: `1px solid rgba(192,200,216,0.25)`, color: "#e0e8f0" }}>
+                        style={{ backgroundColor: "rgba(192,200,216,0.07)", border: `1px solid rgba(192,200,216,0.25)`, color: "var(--text)" }}>
                         <MemoMarkdown text={pair.detail_content} />
                       </div>
                     )}
@@ -1652,7 +1657,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                     <img src={`/api/img/${streaming.userImageId}`} alt="첨부 이미지"
                       className="rounded-xl max-h-72 w-auto" style={{ border: `1px solid ${SILVER_FAINT}` }} />
                   )}
-                  <div className="px-3 py-2 rounded-2xl rounded-tr-sm text-sm" style={{ backgroundColor: SILVER, color: "#0a0e1a" }}>
+                  <div className="px-3 py-2 rounded-2xl rounded-tr-sm text-sm" style={{ backgroundColor: SILVER, color: "var(--on-accent)" }}>
                     {streaming.user}
                   </div>
                 </div>
@@ -1663,7 +1668,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="px-3 py-2 rounded-2xl rounded-tl-sm text-sm prose prose-sm max-w-none"
-                    style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}>
+                    style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)" }}>
                     {streaming.assistant
                       ? <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]} components={mdComponents}>{streaming.assistant}</ReactMarkdown>
                       : streamFailed
@@ -1682,20 +1687,20 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         <button
           onClick={() => { userScrolledUpRef.current = false; const el = scrollRef.current; if (el) el.scrollTop = el.scrollHeight; setShowScrollBtn(false); }}
           className="fixed right-4 bottom-20 w-10 h-10 rounded-full flex items-center justify-center text-base shadow-lg z-30"
-          style={{ backgroundColor: SILVER, color: "#0a0e1a", boxShadow: "0 4px 15px rgba(192,200,216,0.4)" }}
+          style={{ backgroundColor: SILVER, color: "var(--on-accent)", boxShadow: "0 4px 15px rgba(192,200,216,0.4)" }}
           aria-label="맨 아래로"
         >↓</button>
       )}
 
       {/* 입력창 */}
-      <div className="flex-shrink-0" style={{ backgroundColor: "rgba(0,0,0,0.5)", borderTop: `1px solid ${SILVER_FAINT}` }}>
+      <div className="flex-shrink-0" style={{ backgroundColor: "var(--header-bg)", borderTop: `1px solid ${SILVER_FAINT}` }}>
         {/* 자세한 답변 기본 보기 토글 (⚙️ 설정과 연동) */}
         <div className="px-3 pt-2">
           <button
             onClick={() => { const nv = !autoDetail; setAutoDetail(nv); broadcastSync({ kind: "toggle", key: "autoDetail", value: nv }); }}
             className="text-[11px] px-2.5 py-1 rounded-full flex items-center gap-1.5"
             style={{
-              backgroundColor: autoDetail ? "rgba(100,220,160,0.18)" : "rgba(255,255,255,0.05)",
+              backgroundColor: autoDetail ? "rgba(100,220,160,0.18)" : "var(--surface-input)",
               border: `1px solid ${autoDetail ? "rgba(100,220,160,0.55)" : SILVER_FAINT}`,
               color: autoDetail ? "rgba(150,255,200,1)" : SILVER_DIM,
             }}
@@ -1778,7 +1783,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           rows={1}
           className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none resize-none"
           // fontSize 16px: iOS 사파리는 16px 미만 입력칸에 포커스 시 화면을 자동 확대하므로 16px로 고정해 줌인 방지
-          style={{ backgroundColor: "rgba(255,255,255,0.07)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0", maxHeight: "120px", lineHeight: "1.45", fontSize: "16px" }}
+          style={{ backgroundColor: "rgba(255,255,255,0.07)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)", maxHeight: "120px", lineHeight: "1.45", fontSize: "16px" }}
           onInput={(e) => {
             const el = e.currentTarget;
             el.style.height = "auto";
@@ -1805,7 +1810,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           onClick={sendMessage}
           disabled={isLoading || (!input.trim() && !attachedImage)}
           className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 font-bold disabled:opacity-40"
-          style={{ backgroundColor: SILVER, color: "#0a0e1a" }}
+          style={{ backgroundColor: SILVER, color: "var(--on-accent)" }}
         >
           ➤
         </button>
@@ -1911,7 +1916,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       {/* 기획서 작성 방향 지시 입력 (바텀시트) */}
       {showDocDirection && (
         <div className="fixed inset-0 z-[70] flex items-end bg-black/60" onClick={() => setShowDocDirection(false)}>
-          <div className="w-full rounded-t-2xl flex flex-col" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }} onClick={(e) => e.stopPropagation()}>
+          <div className="w-full rounded-t-2xl flex flex-col" style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }} onClick={(e) => e.stopPropagation()}>
             <div className="px-4 py-3 flex items-center justify-between flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
               <div>
                 <p className="text-sm font-bold" style={{ color: SILVER }}>✍️ 기획서 작성 방향</p>
@@ -1927,11 +1932,11 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                 rows={4}
                 autoFocus
                 className="w-full px-3 py-2.5 rounded-lg text-[13px] outline-none resize-none"
-                style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0", lineHeight: 1.6 }}
+                style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)", lineHeight: 1.6 }}
               />
               <div className="flex gap-2 justify-end mt-3">
                 <button onClick={() => generateDocument("")} className="text-xs px-3 py-2 rounded-lg font-medium" style={{ backgroundColor: SILVER_FAINT, border: `1px solid ${SILVER_DIM}`, color: SILVER }}>전체 반영</button>
-                <button onClick={() => generateDocument(docDirection)} className="text-xs px-4 py-2 rounded-lg font-bold" style={{ backgroundColor: SILVER, color: "#0a0e1a" }}>{docDirection.trim() ? "이 방향으로 작성" : "작성 시작"}</button>
+                <button onClick={() => generateDocument(docDirection)} className="text-xs px-4 py-2 rounded-lg font-bold" style={{ backgroundColor: SILVER, color: "var(--on-accent)" }}>{docDirection.trim() ? "이 방향으로 작성" : "작성 시작"}</button>
               </div>
             </div>
           </div>
@@ -1977,7 +1982,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       {/* 대화 기반 수정 — 수정본 생성 중 로딩 오버레이 (메뉴가 닫혀 진행 표시가 없으므로) */}
       {reviseGenLoading && (
         <div className="fixed inset-0 z-[75] flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}>
-          <div className="px-5 py-4 rounded-xl flex items-center gap-3" style={{ backgroundColor: "#141c2e", border: `1px solid ${SILVER_FAINT}` }}>
+          <div className="px-5 py-4 rounded-xl flex items-center gap-3" style={{ backgroundColor: "var(--surface-2)", border: `1px solid ${SILVER_FAINT}` }}>
             <span className="inline-block w-4 h-4 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(210,190,255,0.3)", borderTopColor: "rgba(210,190,255,1)" }} />
             <span className="text-sm" style={{ color: SILVER }}>수정본 생성 중...</span>
           </div>
@@ -2002,7 +2007,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         <div className="fixed inset-0 z-[60] flex items-end" onClick={() => setShowHistory(false)}>
           <div
             className="w-full max-h-[85dvh] flex flex-col rounded-t-2xl"
-            style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+            style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
@@ -2079,7 +2084,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={() => setActionForPair(null)}>
             <div
               className="w-full rounded-t-2xl flex flex-col"
-              style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+              style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="px-4 py-3" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
@@ -2139,7 +2144,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         <div className="fixed inset-0 z-50 flex items-end bg-black/60 p-4" onClick={() => setReasonInputPairId(null)}>
           <div
             className="w-full rounded-2xl shadow-2xl flex flex-col"
-            style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+            style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-4 py-3" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
@@ -2154,7 +2159,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                 rows={3}
                 className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none"
                 // fontSize 16px: iOS 자동 확대(줌인) 방지
-                style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0", fontSize: "16px" }}
+                style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)", fontSize: "16px" }}
                 autoFocus
               />
               <div className="flex gap-2 justify-end">
@@ -2216,7 +2221,7 @@ function MobileSettings({
     <div className="fixed inset-0 z-50 flex items-end" onClick={onClose}>
       <div
         className="w-full max-h-[85dvh] flex flex-col rounded-t-2xl"
-        style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+        style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
@@ -2369,7 +2374,7 @@ function MobileSettings({
       <div className="fixed inset-0 z-[60] flex items-end" onClick={() => setShowGameModal(false)}>
         <div
           className="w-full max-h-[85dvh] flex flex-col rounded-t-2xl"
-          style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+          style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
@@ -2393,7 +2398,7 @@ function MobileSettings({
                 </div>
                 <ul className="space-y-1 mb-2">
                   {game.items.map((item, i) => (
-                    <li key={i} className="text-[11px] flex gap-2" style={{ color: "#b8c4d4" }}>
+                    <li key={i} className="text-[11px] flex gap-2" style={{ color: "var(--text-dim)" }}>
                       <span style={{ color: SILVER_DIM, flexShrink: 0 }}>•</span>
                       <span>{item}</span>
                     </li>
@@ -2423,14 +2428,14 @@ function MobileGuide({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex items-end" onClick={onClose}>
       <div
         className="w-full max-h-[85dvh] flex flex-col rounded-t-2xl"
-        style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+        style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
           <p className="text-sm font-bold flex items-center gap-2" style={{ color: SILVER }}>📖 사용 가이드</p>
           <button onClick={onClose} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 pt-4 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-3 text-xs" style={{ color: "#b8c4d4", lineHeight: 1.55 }}>
+        <div className="flex-1 overflow-y-auto px-4 pt-4 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-3 text-xs" style={{ color: "var(--text-dim)", lineHeight: 1.55 }}>
           <section>
             <p className="font-bold mb-1.5" style={{ color: "rgba(150,255,200,1)" }}>🤖 조던이란?</p>
             <p>영웅수집형 게임 디렉터 AI. 분석부터 기획까지 같이 풀어가자.</p>

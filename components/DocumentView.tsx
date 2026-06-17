@@ -24,9 +24,10 @@ import BulkReplaceModal from "./BulkReplaceModal";
 import BulkReviseModal from "./BulkReviseModal";
 import DocComments from "./DocComments";
 
-const SILVER = "#c0c8d8";
-const SILVER_DIM = "rgba(192,200,216,0.5)";
-const SILVER_FAINT = "rgba(192,200,216,0.15)";
+// 조던 테마 컬러 — globals.css 의 CSS 변수(토큰)에 연결 → 스킨(테마) 전환 시 자동 반영
+const SILVER = "var(--accent)";
+const SILVER_DIM = "var(--accent-dim)";
+const SILVER_FAINT = "var(--accent-faint)";
 
 export interface DocMeta {
   id: string;
@@ -650,7 +651,7 @@ export default function DocumentView({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col" style={{ backgroundColor: "#0a0e1a" }}>
+    <div className="fixed inset-0 z-50 flex flex-col" style={{ backgroundColor: "var(--background)" }}>
       {/* 상단 액션 바 — 모바일에서는 줄바꿈 허용 */}
       <div className="flex flex-wrap items-center justify-between px-3 py-2 md:px-4 md:py-3 flex-shrink-0 gap-2 md:gap-3" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
         <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
@@ -693,7 +694,7 @@ export default function DocumentView({
                 </button>
                 {showReviseMenu && currentDoc && (
                   <div className="absolute left-0 mt-1 rounded-lg overflow-hidden z-30 min-w-[200px]"
-                    style={{ backgroundColor: "#141c2e", border: `1px solid ${SILVER_FAINT}`, boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
+                    style={{ backgroundColor: "var(--surface-2)", border: `1px solid ${SILVER_FAINT}`, boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
                     <button
                       onClick={() => { setShowReviseMenu(false); setReviseInstruction(""); setShowReviseModal(true); }}
                       className="block w-full text-left text-xs px-3 py-2.5 hover:bg-white/5"
@@ -742,7 +743,7 @@ export default function DocumentView({
                   🎨 화면 설계 ▾
                 </button>
                 {showScreenDesignMenu && (
-                  <div className="absolute right-0 top-full mt-1 rounded-lg shadow-2xl py-1 z-10" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}`, minWidth: "220px" }}>
+                  <div className="absolute right-0 top-full mt-1 rounded-lg shadow-2xl py-1 z-10" style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}`, minWidth: "220px" }}>
                     <button
                       onClick={() => { setShowScreenDesignMenu(false); setScreenDesignOpen("wireframe"); }}
                       className="block w-full text-left text-xs px-3 py-2 hover:bg-white/5"
@@ -788,7 +789,7 @@ export default function DocumentView({
                   📥 내보내기 ▾
                 </button>
                 {showExportMenu && (
-                  <div className="absolute right-0 top-full mt-1 rounded-lg shadow-2xl py-1 z-10" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}`, minWidth: "180px" }}>
+                  <div className="absolute right-0 top-full mt-1 rounded-lg shadow-2xl py-1 z-10" style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}`, minWidth: "180px" }}>
                     <button onClick={downloadMD} className="block w-full text-left text-xs px-3 py-2 hover:bg-white/5" style={{ color: SILVER }}>📝 MD (마크다운)</button>
                     <button onClick={downloadTXT} className="block w-full text-left text-xs px-3 py-2 hover:bg-white/5" style={{ color: SILVER }}>📄 TXT (순수 텍스트)</button>
                     <button onClick={downloadHTML} className="block w-full text-left text-xs px-3 py-2 hover:bg-white/5" style={{ color: SILVER }}>🌐 HTML (웹 페이지)</button>
@@ -1027,7 +1028,7 @@ export default function DocumentView({
             </div>
           )}
           {currentDoc && currentDoc.status !== "planned" && !editing && (
-            <article className="prose prose-sm max-w-3xl mx-auto" style={{ color: "#e0e8f0" }}>
+            <article className="prose prose-sm max-w-3xl mx-auto" style={{ color: "var(--text)" }}>
               <ReactMarkdown
                 remarkPlugins={[[remarkGfm, { singleTilde: false }]]}
                 components={{
@@ -1044,7 +1045,7 @@ export default function DocumentView({
                       <table {...props} style={{ borderCollapse: "collapse", width: "auto", fontSize: "13px", lineHeight: 1.5 }}>{children}</table>
                     </div>
                   ),
-                  th: ({ children, ...props }) => <th {...props} style={{ border: "1px solid rgba(192,200,216,0.22)", padding: "6px 10px", textAlign: "left", whiteSpace: "nowrap", backgroundColor: "rgba(255,255,255,0.05)", fontWeight: 700 }}>{children}</th>,
+                  th: ({ children, ...props }) => <th {...props} style={{ border: "1px solid rgba(192,200,216,0.22)", padding: "6px 10px", textAlign: "left", whiteSpace: "nowrap", backgroundColor: "var(--surface-input)", fontWeight: 700 }}>{children}</th>,
                   td: ({ children, ...props }) => <td {...props} style={{ border: "1px solid rgba(192,200,216,0.15)", padding: "6px 10px", verticalAlign: "top", minWidth: 56 }}>{children}</td>,
                 }}
               >{currentDoc.content_markdown}</ReactMarkdown>
@@ -1061,7 +1062,7 @@ export default function DocumentView({
               value={editText}
               onChange={e => setEditText(e.target.value)}
               className="w-full h-full px-4 py-3 rounded text-sm outline-none resize-none font-mono"
-              style={{ backgroundColor: "rgba(255,255,255,0.04)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0", minHeight: "60vh" }}
+              style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)", minHeight: "60vh" }}
               autoFocus
             />
           )}
@@ -1190,7 +1191,7 @@ export default function DocumentView({
         >
           <div
             className="rounded-2xl w-full max-w-sm shadow-2xl"
-            style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+            style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
@@ -1218,7 +1219,7 @@ export default function DocumentView({
                   value={catPickMainId}
                   onChange={(e) => { setCatPickMainId(e.target.value); setCatPickAreaCode(""); setCatPickSubId(""); }}
                   className="px-3 py-2 rounded-lg text-xs outline-none"
-                  style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+                  style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)" }}
                 >
                   <option value="">(분류 안 됨)</option>
                   {categories.map(m => (
@@ -1239,7 +1240,7 @@ export default function DocumentView({
                       value={catPickAreaCode}
                       onChange={(e) => { setCatPickAreaCode(e.target.value); setCatPickSubId(""); }}
                       className="px-3 py-2 rounded-lg text-xs outline-none"
-                      style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+                      style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)" }}
                     >
                       <option value="">(중카테고리 선택 안 함)</option>
                       {currentMain.areas.map(a => (
@@ -1269,7 +1270,7 @@ export default function DocumentView({
                       value={catPickSubId}
                       onChange={(e) => setCatPickSubId(e.target.value)}
                       className="px-3 py-2 rounded-lg text-xs outline-none"
-                      style={{ backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+                      style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)" }}
                     >
                       <option value="">(소카테고리 선택 안 함)</option>
                       {subOptions.map(s => (
@@ -1309,7 +1310,7 @@ export default function DocumentView({
         >
           <div
             className="rounded-2xl w-full max-w-xl shadow-2xl"
-            style={{ backgroundColor: "#0f1628", border: "1px solid rgba(100,180,255,0.4)" }}
+            style={{ backgroundColor: "var(--surface)", border: "1px solid rgba(100,180,255,0.4)" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
@@ -1331,9 +1332,9 @@ export default function DocumentView({
                 rows={7}
                 className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none"
                 style={{
-                  backgroundColor: "rgba(255,255,255,0.05)",
+                  backgroundColor: "var(--surface-input)",
                   border: `1px solid ${SILVER_FAINT}`,
-                  color: "#e0e8f0",
+                  color: "var(--text)",
                   lineHeight: 1.55,
                 }}
                 autoFocus
@@ -1378,7 +1379,7 @@ export default function DocumentView({
       {/* 자동 이미지 미리보기 모달 — 적용 전 위치 확인·삭제·재생성 */}
       {showImagePreview && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.85)" }}>
-          <div className="rounded-2xl w-full max-w-2xl max-h-[88vh] flex flex-col shadow-2xl" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}>
+          <div className="rounded-2xl w-full max-w-2xl max-h-[88vh] flex flex-col shadow-2xl" style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }}>
             {/* 헤더 */}
             <div className="flex items-center justify-between px-5 py-4 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
               <div className="flex items-center gap-2">
