@@ -44,7 +44,7 @@ export async function GET(request: Request) {
       .limit(200);
     if (error) {
       console.error("[doc-search] 실패:", error.message);
-      return Response.json({ results: [] });
+      return Response.json({ results: [], _err: error.message });  // 임시 진단
     }
 
     // family별 최신 버전만 (created_at desc 정렬돼 있으니 먼저 만난 것 채택)
@@ -65,7 +65,7 @@ export async function GET(request: Request) {
     }
     // 제목 매칭을 위로
     results.sort((a, b) => Number(b.inTitle) - Number(a.inTitle));
-    return Response.json({ results });
+    return Response.json({ results, _raw: (data ?? []).length });  // 임시 진단(_raw=DB 매칭 행수)
   } catch (err) {
     return Response.json({ results: [], error: String(err) });
   }
