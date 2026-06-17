@@ -137,7 +137,7 @@ export default function BulkReviseModal({
       <div className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl" style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }} onClick={e => e.stopPropagation()}>
         <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
           <div>
-            <p className="text-sm font-bold" style={{ color: "rgba(200,180,255,1)" }}>🤖 AI 일괄 수정 (방향성 변경)</p>
+            <p className="text-sm font-bold" style={{ color: "rgba(200,180,255,1)" }}>🤖 문맥 일괄 변경 (방향성 변경)</p>
             <p className="text-xs mt-0.5" style={{ color: SILVER_DIM }}>여러 기획서를 하나의 지시로 AI가 문맥에 맞게 수정 — 미리보고 적용</p>
           </div>
           <button onClick={onClose} className="text-xs px-3 py-1.5 rounded-lg flex-shrink-0" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>

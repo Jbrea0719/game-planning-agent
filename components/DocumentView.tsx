@@ -522,19 +522,6 @@ export default function DocumentView({
     }
   }
 
-  // ── 삭제 ───────────────────────────────────────────────────────
-  async function deleteDoc() {
-    if (!currentDoc) return;
-    if (!confirm(`"${currentDoc.title}" 기획서를 삭제할까요?`)) return;
-    try {
-      await fetch(`/api/design-docs/${currentDoc.id}`, { method: "DELETE" });
-      setCurrentDoc(null);
-      await loadVersions();
-    } catch (err) {
-      console.error("[doc-view] 삭제 실패:", err);
-    }
-  }
-
   // ── 자동 이미지: 미리보기 → 조정 → 적용 ──────────────────────────
   // 1단계: 이미지 후보를 받아 미리보기 팝업 열기 (즉시 적용 X)
   async function startImagePreview() {
@@ -721,6 +708,20 @@ export default function DocumentView({
                     >
                       💬 <b>대화를 통한 수정</b> — 채팅에서 논의 후 반영
                     </button>
+                    <button
+                      onClick={() => { setShowReviseMenu(false); setShowBulkReplace(true); }}
+                      className="block w-full text-left text-xs px-3 py-2.5 hover:bg-white/5"
+                      style={{ color: SILVER, borderTop: `1px solid ${SILVER_FAINT}` }}
+                    >
+                      🔧 <b>용어 일괄 변경</b> — 여러 기획서 단어 교체
+                    </button>
+                    <button
+                      onClick={() => { setShowReviseMenu(false); setShowBulkRevise(true); }}
+                      className="block w-full text-left text-xs px-3 py-2.5 hover:bg-white/5"
+                      style={{ color: SILVER, borderTop: `1px solid ${SILVER_FAINT}` }}
+                    >
+                      🤖 <b>문맥 일괄 변경</b> — 여러 기획서 AI 문맥 수정
+                    </button>
                   </div>
                 )}
               </div>
@@ -796,14 +797,6 @@ export default function DocumentView({
                   </div>
                 )}
               </div>
-              <button
-                onClick={deleteDoc}
-                disabled={!currentDoc}
-                className="text-xs px-3 py-1.5 rounded-lg"
-                style={{ backgroundColor: "rgba(255,180,180,0.1)", color: "rgba(255,180,180,0.8)", opacity: currentDoc ? 1 : 0.5 }}
-              >
-                🗑️ 삭제
-              </button>
             </>
           ) : (
             <>
@@ -904,22 +897,6 @@ export default function DocumentView({
               >
                 <span>📚 기획서 리스트</span>
                 <span style={{ color: SILVER_DIM, fontWeight: 400 }}>({versions.length})</span>
-              </button>
-              <button
-                onClick={() => setShowBulkReplace(true)}
-                title="여러 기획서의 단어를 한 번에 찾아 바꾸기 (예: 재화 이름 변경)"
-                className="w-full text-left text-xs px-3 py-2 rounded-lg font-medium mt-2"
-                style={{ backgroundColor: SILVER_FAINT, color: SILVER }}
-              >
-                🔧 용어 일괄 변경
-              </button>
-              <button
-                onClick={() => setShowBulkRevise(true)}
-                title="여러 기획서를 하나의 지시로 AI가 문맥에 맞게 수정 (예: 재화 체계 변경)"
-                className="w-full text-left text-xs px-3 py-2 rounded-lg font-medium mt-1.5"
-                style={{ backgroundColor: "rgba(200,180,255,0.14)", border: "1px solid rgba(200,180,255,0.35)", color: "rgba(220,200,255,1)" }}
-              >
-                🤖 AI 일괄 수정
               </button>
             </div>
 
