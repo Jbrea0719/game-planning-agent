@@ -4,7 +4,7 @@
 // 제목(수정 가능) + 카테고리 위치 + 전체 요약을 보여주고, [저장] 시 실제로 design_docs에 저장.
 // 본문은 생성 단계에서 이미 만들어졌고, 저장은 재생성 없이 그대로 INSERT (apply 모드).
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const SILVER = "#c0c8d8";
 const SILVER_DIM = "rgba(192,200,216,0.5)";
@@ -38,6 +38,7 @@ export default function DocGenPreview({
   const [title, setTitle] = useState("");
   const [saving, setSaving] = useState(false);
   const [showFull, setShowFull] = useState(false);
+  const backdropDown = useRef(false);  // 배경에서 mousedown 시작했는지 — 제목 드래그-선택 중 닫힘 방지
 
   useEffect(() => {
     if (preview) { setTitle(preview.title); setShowFull(false); }
@@ -80,7 +81,12 @@ export default function DocGenPreview({
   const charCount = preview.content.length;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.75)" }} onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(0,0,0,0.75)" }}
+      onMouseDown={(e) => { backdropDown.current = e.target === e.currentTarget; }}
+      onClick={(e) => { if (e.target === e.currentTarget && backdropDown.current) onClose(); }}
+    >
       <div
         className="w-full max-w-2xl max-h-[88vh] flex flex-col rounded-2xl"
         style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
