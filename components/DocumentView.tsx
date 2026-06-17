@@ -139,6 +139,7 @@ export default function DocumentView({
   const [viewedDocIds, setViewedDocIds] = useState<Set<string>>(new Set());
   // 사이드바 접기/펴기 (localStorage 영속)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [refCollapsed, setRefCollapsed] = useState(false);  // 우측 레퍼런스 패널 접기/펴기
   // 화면 설계 메뉴 (와이어프레임 / AI 시안)
   const [showScreenDesignMenu, setShowScreenDesignMenu] = useState(false);
   const [showReviseMenu, setShowReviseMenu] = useState(false);  // 수정 요청 → [직접수정 / 대화를 통한 수정]
@@ -1075,11 +1076,44 @@ export default function DocumentView({
           )}
         </div>
 
-        {/* 데스크톱: 우측 레퍼런스 이미지 패널 */}
+        {/* 데스크톱: 우측 레퍼런스 이미지 패널 (기획서 리스트처럼 접기/펴기) */}
         {currentDoc && !editing && (
-          <aside className="hidden md:block flex-shrink-0 w-[300px] overflow-y-auto px-4 py-5" style={{ borderLeft: `1px solid ${SILVER_FAINT}`, scrollbarWidth: "thin" }}>
-            <DocReferencePanel familyId={currentDoc.doc_family_id ?? currentDoc.id} />
-          </aside>
+          <>
+            {/* 우측 패널 토글 탭 — 패널 좌측 경계를 따라 슬라이드 */}
+            <button
+              onClick={() => setRefCollapsed(v => !v)}
+              title={refCollapsed ? "레퍼런스 이미지 펼치기" : "레퍼런스 이미지 접기"}
+              className={`hidden md:flex absolute z-20 items-center justify-center transition-all duration-300 ease-in-out hover:!opacity-100 ${refCollapsed ? "right-0" : "right-[300px]"}`}
+              style={{
+                top: "50%",
+                transform: refCollapsed ? "translateY(-50%)" : "translateY(-50%) translateX(50%)",
+                width: refCollapsed ? "32px" : "26px",
+                height: refCollapsed ? "96px" : "80px",
+                backgroundColor: refCollapsed ? "rgba(180,210,255,0.4)" : "rgba(192,200,216,0.22)",
+                border: `1px solid ${refCollapsed ? "rgba(180,210,255,0.55)" : "rgba(192,200,216,0.35)"}`,
+                borderRadius: refCollapsed ? "12px 0 0 12px" : "10px",
+                color: refCollapsed ? "rgba(180,210,255,1)" : SILVER,
+                fontSize: refCollapsed ? "22px" : "18px",
+                fontWeight: 700,
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
+                boxShadow: refCollapsed ? "-2px 2px 10px rgba(0,0,0,0.4)" : "0 2px 8px rgba(0,0,0,0.35)",
+                opacity: refCollapsed ? 0.8 : 0.55,
+                cursor: "pointer",
+              }}
+            >
+              {refCollapsed ? "‹" : "›"}
+            </button>
+            {/* 우측 패널 본체 — width 슬라이드 애니메이션 */}
+            <aside
+              className={`hidden md:block flex-shrink-0 overflow-y-auto transition-all duration-300 ease-in-out py-5 ${
+                refCollapsed ? "w-0 opacity-0 pointer-events-none px-0" : "w-[300px] opacity-100 px-4"
+              }`}
+              style={{ borderLeft: refCollapsed ? "none" : `1px solid ${SILVER_FAINT}`, scrollbarWidth: "thin" }}
+            >
+              <DocReferencePanel familyId={currentDoc.doc_family_id ?? currentDoc.id} />
+            </aside>
+          </>
         )}
       </div>
 
