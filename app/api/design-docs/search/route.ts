@@ -1,6 +1,6 @@
 // 기획서 검색 — 제목 + 본문(content_markdown)에서 키워드 검색
 // GET /api/design-docs/search?q=...&project_id=...
-// family별 최신 버전만, 매칭 위치 스니펫 포함.
+// ※ design_docs에는 doc_family_id 컬럼이 없으므로 사용하지 않음(각 행을 독립 기획서로 취급).
 
 import { supabase } from "@/lib/supabase";
 
@@ -10,7 +10,6 @@ interface Row {
   id: string;
   title: string;
   content_markdown: string;
-  doc_family_id: string | null;
   created_at: string;
 }
 
@@ -37,35 +36,25 @@ export async function GET(request: Request) {
     const pattern = `%${q}%`;
     const { data, error } = await supabase
       .from("design_docs")
-      .select("id, title, content_markdown, doc_family_id, created_at")
+      .select("id, title, content_markdown, created_at")
       .eq("project_id", projectId)
       .or(`title.ilike.${pattern},content_markdown.ilike.${pattern}`)
       .order("created_at", { ascending: false })
       .limit(200);
     if (error) {
       console.error("[doc-search] 실패:", error.message);
-      return Response.json({ results: [], _err: error.message });  // 임시 진단
+      return Response.json({ results: [] });
     }
 
-    // family별 최신 버전만 (created_at desc 정렬돼 있으니 먼저 만난 것 채택)
-    const seen = new Set<string>();
     const results: { id: string; title: string; snippet: string; inTitle: boolean }[] = [];
     for (const r of (data ?? []) as Row[]) {
-      const fam = r.doc_family_id ?? r.id;
-      if (seen.has(fam)) continue;
-      seen.add(fam);
       const inTitle = (r.title ?? "").toLowerCase().includes(q.toLowerCase());
-      results.push({
-        id: r.id,
-        title: r.title,
-        snippet: makeSnippet(r.content_markdown ?? "", q),
-        inTitle,
-      });
+      results.push({ id: r.id, title: r.title, snippet: makeSnippet(r.content_markdown ?? "", q), inTitle });
       if (results.length >= 30) break;
     }
     // 제목 매칭을 위로
     results.sort((a, b) => Number(b.inTitle) - Number(a.inTitle));
-    return Response.json({ results, _raw: (data ?? []).length });  // 임시 진단(_raw=DB 매칭 행수)
+    return Response.json({ results });
   } catch (err) {
     return Response.json({ results: [], error: String(err) });
   }
