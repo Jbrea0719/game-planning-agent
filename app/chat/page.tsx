@@ -20,6 +20,7 @@ import SketchWireframeModal from "@/components/SketchWireframeModal";
 import ReferenceGallery from "@/components/ReferenceGallery";
 import NotificationBell from "@/components/NotificationBell";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import GuideModal from "@/components/GuideModal";
 import { buildImageIntentPrefix } from "@/lib/image-intent";
 import { useDeviceMode, DEVICE_FRAMES } from "@/hooks/useIsMobile";
 import { useCrossTabSync } from "@/hooks/useCrossTabSync";
@@ -2660,103 +2661,7 @@ function DesktopChatPage() {
         </div>
       )}
 
-      {/* 가이드 팝업 — 조던 전체 기능 요약 */}
-      {showGuideModal && (
-        <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4" onClick={() => setShowGuideModal(false)}>
-          <div
-            className="rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl"
-            style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* 팝업 헤더 */}
-            <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
-              <div>
-                <p className="text-sm font-bold" style={{ color: SILVER }}>📖 조던 사용 가이드</p>
-                <p className="text-xs mt-0.5" style={{ color: SILVER_DIM }}>영웅수집형 게임 기획 전문가 에이전트의 모든 기능</p>
-              </div>
-              <button onClick={() => setShowGuideModal(false)} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>
-            </div>
-
-            {/* 팝업 내용 */}
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5" style={{ scrollbarWidth: "thin", scrollbarColor: `${SILVER_DIM} transparent` }}>
-
-              {/* 섹션 1 — 핵심 동작 */}
-              <section>
-                <p className="text-xs font-bold mb-2" style={{ color: "rgba(150,255,200,1)" }}>🤖 핵심 동작</p>
-                <div className="space-y-2 text-xs" style={{ color: "var(--text-dim)", lineHeight: 1.55 }}>
-                  <p><b style={{ color: SILVER }}>다단계 에이전트 파이프라인</b> — 분석 → 설계 → 검토 → 답변. 단순 챗봇이 아닌 디렉터급 의사결정 과정을 거쳐요.</p>
-                  <p><b style={{ color: SILVER }}>실시간 게임 데이터 분석</b> — 등록된 11개 게임의 신뢰 출처(공식·라운지·인벤·디시·나무위키 등)를 실시간 검색해 근거 기반 답변.</p>
-                  <p><b style={{ color: SILVER }}>스트리밍 응답</b> — 답변이 작성되는 과정을 실시간으로 표시.</p>
-                  <p><b style={{ color: SILVER }}>🖼️ 이미지 첨부 분석</b> — 입력창 <b>📎 버튼</b>으로 게임 UI 스크린샷·와이어프레임·경쟁작 화면을 첨부하면, 조던이 <b>이미지를 직접 보고</b> UX 평가·개선점·의견을 제시해요. (Opus 비전 — 이미지를 글처럼 이해)</p>
-                  <p><b style={{ color: SILVER }}>📑 참고 기획서</b> — 헤더 <b>📌 맥락 왼쪽의 📑 참고 기획서</b>로 기존 기획서를 체크해두면, 조던이 그 내용을 보고 답해요. <b>다른 기획과의 교차 참고·충돌 감지</b>에 활용 (예: "○○ 기획서는 5등급인데 지금은 7등급이라 충돌해요"). 대화방마다 따로 저장돼요.</p>
-                  <p><b style={{ color: SILVER }}>🛠️ 기획서 수정</b> — 헤더 <b>📄 기획서 작성 옆의 🛠️ 기획서 수정</b>으로, <b>맥락선 범위 대화</b>를 근거로 기존 기획서를 수정(추가·변경·삭제)해요. 적용 전 <b>색상 미리보기</b>(🟢추가/🟡수정/🔴삭제)로 확인하고 [적용]하면 깨끗한 본문으로 저장(수정 전 자동 백업). 기획서 뷰의 <b>🪄 수정 요청 → 대화를 통한 수정</b>으로도 진입할 수 있어요.</p>
-                </div>
-              </section>
-
-              {/* 섹션 2 — 헤더 도구 */}
-              <section>
-                <p className="text-xs font-bold mb-2" style={{ color: "var(--accent-2)" }}>🛠️ 헤더 도구 (좌 → 우)</p>
-                <div className="space-y-2 text-xs" style={{ color: "var(--text-dim)", lineHeight: 1.55 }}>
-                  <p><b style={{ color: SILVER }}>💬 대화방 (병렬 작업)</b> — 조던 이름 옆 <b>💬 버튼</b>으로 여러 대화방을 만들어 <b>주제별로 병렬 작업</b>. 카톡 채팅방처럼 [새 대화방 / 전환 / ✏️ 이름변경 / 🗑️ 삭제]. <b>방마다 대화·맥락이 독립</b>이라 서로 안 섞여요. 단, <b>기획 바이블·기획서는 전 방 공유</b>라 어느 방에서 작업해도 자산은 하나로 쌓여요. (기존 대화는 "기본 대화" 방에 그대로 보존)</p>
-                  <p><b style={{ color: SILVER }}>📌 맥락</b> — 클릭하면 현재 맥락선 위치로 스크롤 + 노란 하이라이트. 설정 안 돼 있으면 <i>"맥락선이 없습니다"</i> 토스트. 설정/해제는 본문 안에서.</p>
-                  <p><b style={{ color: SILVER }}>📚 기획 바이블 — 탭</b> — 바이블 패널 상단 <b>[전체] / [현재 맥락]</b> 탭. <b>전체</b>는 누적된 모든 결정, <b>현재 맥락</b>은 맥락선 이후 추가된 결정만 보여줘요. (옛 "📋 맥락 결정사항" 버튼이 이 탭으로 통합됨)</p>
-                  <p><b style={{ color: SILVER }}>📄 기획서 ▾ (드롭다운)</b> — 헤더의 한 버튼에 <b>[📂 리스트 이동 / ✍️ 현재 맥락으로 작성 / 🛠️ 현재 맥락으로 수정]</b>이 묶여 있어요. <b>작성</b>은 대화 선택 후 [✓ 작성 시작] → 백그라운드 생성 → <b>저장 전 미리보기</b>(제목 수정 가능·카테고리 위치·전체 요약 확인) → [저장]. <b>수정</b>은 맥락선 범위 대화로 기존 기획서를 색상 미리보기 후 적용. <b>리스트 이동</b>은 기획서 뷰 열기.</p>
-                  <p><b style={{ color: SILVER }}>📄 기획서</b> — 진입 시 좌측 <b>📚 기획서 리스트</b>가 기본 열림. 좁다 싶으면 헤더 <b>⇤</b> 버튼으로 사이드바 접고 본문 넓게 보기 (모바일·PC 공통, 설정 영속). <b>모바일에서는 좌→우 스와이프로 펼치기, 우→좌 스와이프로 접기</b>도 가능. 리스트는 <b>대 &gt; 중 &gt; 소 &gt; 기획서</b> 4단계 트리. 대(인게임/아웃게임…)는 진한 배경, 중(영웅/PVP…)는 옅은 배경, 소(영웅 등급/스킬…)는 좌측 보더, 기획서는 leaf. 각 단계마다 +/− 토글. 기획서 옆 ✏️로 이름 변경, 📂로 분류 변경. 리스트 헤더의 <b>⚙️</b>로 카테고리 관리 — 대/중/소 추가·수정·삭제는 물론, <b>각 카테고리 아래 최하위 기획서(📄)도 표시돼 🗑️로 삭제</b> 가능 (미분류·직속 기획서 포함). 안 본 기획서 옆에는 <b style={{ color: "rgba(255,150,150,1)" }}>빨간 점</b>(클릭하면 영구 해제). 뷰 안에서 <b>🪄 수정 요청</b>으로 자연어 지시 → 같은 기획서를 그 자리에서 갱신. 수정 전 원본은 <b>7일간 백업 폴더에 자동 보관</b>. <b>📥 내보내기</b>는 MD/TXT/HTML/PDF 4가지.</p>
-                  <p><b style={{ color: SILVER }}>📖 가이드</b> — 지금 보고 있는 이 화면. 조던의 모든 기능을 한눈에 정리. 기능이 바뀌면 자동 갱신.</p>
-                  <p><b style={{ color: SILVER }}>📱 모바일</b> — 같은 URL을 모바일에서 열면 자동으로 모바일 전용 뷰. 햄버거 메뉴(☰) 안에 모든 도구. 닉네임만 같으면 데이터·기획 바이블·기획서 자동 동기화. <i>?view=desktop</i> 쿼리로 PC 뷰 강제 가능.</p>
-                  <p><b style={{ color: SILVER }}>⚙️ 설정</b> — 출처 표시, 참고 게임 라이브러리, 관리 도구(큐레이션·관리자 전용), 답변 모델(관리자 전용)이 한곳에 모임. 비관리자는 뷰어 모드로 일부만 수정 가능.</p>
-                  <p><b style={{ color: SILVER }}>🎨 화면 설계</b> — 📄 기획서 뷰의 [🎨 화면 설계] 드롭다운에서 진입. <b>와이어프레임(직접 그리기)</b> 또는 <b>🪄 AI 시안 생성(자연어 → HTML)</b> 두 가지 모드. 작성 후 📎로 현재 기획서에 자동 첨부.</p>
-                  <p><b style={{ color: SILVER }}>📚 기획 바이블</b> — 누적된 모든 기획 결정 자산. 모든 기획서 작성에 자동 참조. 신규 항목 추가 시 빨간 점(클릭/2분 뒤 해제).</p>
-                </div>
-              </section>
-
-              {/* 섹션 3 — 답변별 도구 */}
-              <section>
-                <p className="text-xs font-bold mb-2" style={{ color: "rgba(255,220,150,1)" }}>💬 답변별 도구</p>
-                <div className="space-y-2 text-xs" style={{ color: "var(--text-dim)", lineHeight: 1.55 }}>
-                  <p><b style={{ color: SILVER }}>▼ 자세한 답변 보기</b> — 같은 질문에 대해 더 깊이 있는 확장 설명. <b>최고 품질 모델(Opus)</b>로 작성되고 글자가 흐르듯 실시간 표시돼요. <b>⚙️ 설정 → 답변 표시 → "자세한 답변 자동 표시"</b>를 켜면 매 답변마다 자동으로 펼쳐져요 (대신 답변마다 비용↑).</p>
-                  <p><b style={{ color: SILVER }}>📋 디렉터 검토 의견</b> — 검토 에이전트가 본 답변에 대해 짚은 보완점·우려 사항.</p>
-                  <p><b style={{ color: SILVER }}>👍 정확함 / 👎 부정확</b> — 피드백 저장. 부정확은 사유 입력 가능 → 차후 품질 개선에 활용.</p>
-                  <p><b style={{ color: SILVER }}>📌 호버 압정</b> — 답변 좌측에 호버 시 나타남. <b>모든 페어에 표시되며 언제든 다른 시점으로 변경 가능</b>. 해제는 본문 내 맥락선 ✕로.</p>
-                  <p><b style={{ color: SILVER }}>복사·삭제</b> — 답변 우상단 ⎘ 복사 / 호버 시 삭제. 삭제된 대화는 하단에서 복원 가능.</p>
-                </div>
-              </section>
-
-              {/* 섹션 — 조던 인터뷰 */}
-              <section>
-                <p className="text-xs font-bold mb-2" style={{ color: "rgba(255,210,160,1)" }}>🎤 조던 인터뷰 (능동 질문)</p>
-                <div className="space-y-2 text-xs" style={{ color: "var(--text-dim)", lineHeight: 1.55 }}>
-                  <p><b style={{ color: SILVER }}>답변 끝 후속 질문</b> — 모든 답변 끝에 조던이 다음 결정에 도움될 질문 1~2개를 자연스럽게 제안. 선택지 포함이라 답변 부담 ↓.</p>
-                  <p><b style={{ color: SILVER }}>🎤 조던에게 질문 받기</b> — (현재 버튼은 숨김 처리, 기능은 보존 — 필요 시 복구 가능) 조던이 바이블의 빈 영역을 자동 분석해 미결정 항목을 질문하던 기능.</p>
-                  <p>두 가지 모두 사용자가 주도하지 않아도 조던이 능동적으로 결정 영역을 채워나가도록 유도.</p>
-                </div>
-              </section>
-
-              {/* 섹션 4 — 자동 기능 */}
-              <section>
-                <p className="text-xs font-bold mb-2" style={{ color: "rgba(255,180,180,1)" }}>⚙️ 자동 기능</p>
-                <div className="space-y-2 text-xs" style={{ color: "var(--text-dim)", lineHeight: 1.55 }}>
-                  <p><b style={{ color: SILVER }}>기획 바이블 자동 추출</b> — 대화에서 결정·검토된 사항을 조던이 자동 추출해 바이블에 추가. 카테고리 자동 분류.</p>
-                  <p><b style={{ color: SILVER }}>충돌 항목 보류</b> — 조던이 반대·우려를 표한 결정은 자동 등록 보류. 사용자가 "그래도 등록해줘" 요청 시에만 등록.</p>
-                  <p><b style={{ color: SILVER }}>대화 기록 자동 저장</b> — Supabase에 저장. 새로고침·다른 기기에서도 복원.</p>
-                </div>
-              </section>
-
-              {/* 섹션 5 — 활용 팁 */}
-              <section>
-                <p className="text-xs font-bold mb-2" style={{ color: "rgba(200,180,255,1)" }}>💡 활용 팁</p>
-                <div className="space-y-2 text-xs" style={{ color: "var(--text-dim)", lineHeight: 1.55 }}>
-                  <p><b style={{ color: SILVER }}>긴 프로젝트일 때</b> — 주제 전환 시 맥락 시작점(📌) 설정해서 이전 맥락 제외. 핵심 결정은 바이블에 누적돼 있으니 손실 없음.</p>
-                  <p><b style={{ color: SILVER }}>기획서 만들기</b> — 충분히 대화로 발산 → 결정사항이 바이블에 쌓임 → 헤더 [📄 기획서 작성]으로 한 번에 정리.</p>
-                  <p><b style={{ color: SILVER }}>바이블 직접 편집</b> — 📚 클릭해서 패널 열고 +/✏️/🗑️로 수동 관리 가능. 자동 추출이 놓친 항목도 직접 추가.</p>
-                  <p><b style={{ color: SILVER }}>모바일</b> — 헤더 버튼 꾹 누르고 있으면 설명 팝업, 떼면 실행.</p>
-                </div>
-              </section>
-
-            </div>
-          </div>
-        </div>
-      )}
+      {showGuideModal && <GuideModal onClose={() => setShowGuideModal(false)} />}
 
       {/* 참고 게임 팝업 — 설정 모달 위에 띄울 수 있도록 z-[60] */}
       {showGameModal && (

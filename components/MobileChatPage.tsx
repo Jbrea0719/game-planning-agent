@@ -39,6 +39,7 @@ import SketchWireframeModal from "@/components/SketchWireframeModal";
 import ReferenceGallery from "@/components/ReferenceGallery";
 import NotificationBell from "@/components/NotificationBell";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import GuideModal from "@/components/GuideModal";
 import { buildImageIntentPrefix } from "@/lib/image-intent";
 
 // WireframeEditor·MockupGenerator는 DocumentView 안에서 호출 (📄 기획서 → 🎨 화면 설계)
@@ -2063,7 +2064,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       />
 
       {/* 가이드 모달 */}
-      {showGuide && <MobileGuide onClose={() => setShowGuide(false)} />}
+      {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
 
       {/* 화면 설계는 DocumentView 안으로 통합됨 */}
 
@@ -2422,70 +2423,3 @@ function MobileSettings({
   );
 }
 
-// ── 모바일 가이드 모달 ────────────────────────────────────────────
-function MobileGuide({ onClose }: { onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-end" onClick={onClose}>
-      <div
-        className="w-full max-h-[85dvh] flex flex-col rounded-t-2xl"
-        style={{ backgroundColor: "var(--surface)", border: `1px solid ${SILVER_FAINT}` }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
-          <p className="text-sm font-bold flex items-center gap-2" style={{ color: SILVER }}>📖 사용 가이드</p>
-          <button onClick={onClose} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-4 pt-4 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-3 text-xs" style={{ color: "var(--text-dim)", lineHeight: 1.55 }}>
-          <section>
-            <p className="font-bold mb-1.5" style={{ color: "rgba(150,255,200,1)" }}>🤖 조던이란?</p>
-            <p>영웅수집형 게임 디렉터 AI. 분석부터 기획까지 같이 풀어가자.</p>
-          </section>
-          <section>
-            <p className="font-bold mb-1.5" style={{ color: "rgba(100,210,255,1)" }}>💬 대화방 (병렬 작업)</p>
-            <p>상단 <b>조던 ▾</b>(또는 💬)을 탭하면 대화방 목록. <b>새 대화방</b>으로 주제별 병렬 작업 — 방마다 대화·맥락이 독립이라 안 섞여요. 단 <b>기획 바이블·기획서는 전 방 공유</b>. 이름변경·삭제 가능. (기존 대화는 "기본 대화" 방에 보존)</p>
-          </section>
-          <section>
-            <p className="font-bold mb-1.5" style={{ color: "rgba(150,255,200,1)" }}>🖼️ 이미지 첨부 분석</p>
-            <p>입력창 <b>📎</b>로 게임 UI 스크린샷·와이어프레임·경쟁작 화면을 첨부하면, 조던이 <b>직접 보고</b> UX 평가·개선점·의견을 줘요. (Opus 비전)</p>
-          </section>
-          <section>
-            <p className="font-bold mb-1.5" style={{ color: "rgba(150,255,200,1)" }}>📑 참고 기획서 / 🛠️ 기획서 수정</p>
-            <p>메뉴(≡)의 <b>📑 참고 기획서</b>로 기존 기획서를 체크하면 조던이 보고 답해요(교차 참고·충돌 감지). <b>🛠️ 기획서 수정</b>은 맥락선 범위 대화로 기존 기획서를 수정 — 색상 미리보기(🟢추가/🟡수정/🔴삭제) 확인 후 적용(자동 백업).</p>
-          </section>
-          <section>
-            <p className="font-bold mb-1.5" style={{ color: "var(--accent-2)" }}>📚 기획 바이블</p>
-            <p>대화하면서 결정한 내용을 자동으로 누적·저장. 모든 기획서 작성 시 참조됨. 패널 상단 <b>[전체]/[현재 맥락]</b> 탭으로 전체 또는 맥락선 이후 결정만 볼 수 있어요.</p>
-          </section>
-          <section>
-            <p className="font-bold mb-1.5" style={{ color: "var(--accent-2)" }}>📄 기획서</p>
-            <p>대화 기반·바이블 기반 기획서 생성. 자연어로 수정 요청 가능. MD/HTML/PDF 내보내기.</p>
-          </section>
-          <section>
-            <p className="font-bold mb-1.5" style={{ color: "rgba(255,220,150,1)" }}>📌 맥락선</p>
-            <p>메시지 옆 압정(📌) 탭 → 이 시점 이후만 조던에게 전달. 토큰 절약 + 새 주제 집중.</p>
-          </section>
-          <section>
-            <p className="font-bold mb-1.5" style={{ color: "rgba(200,180,255,1)" }}>⚙️ 설정</p>
-            <p>출처 표시 토글, 참고 게임 라이브러리, 게임 도메인 큐레이션(관리자), 답변 모델 정보 확인.</p>
-          </section>
-          <section>
-            <p className="font-bold mb-1.5" style={{ color: "var(--accent-2)" }}>🆕 최근 추가 (2026-06-15)</p>
-            <p><b style={{ color: "rgba(255,205,120,1)" }}>⚖️ 절대 규칙</b> — 📚 바이블 맨 위. 가로형·턴제 등 불변 규칙 등록 → 모든 답변·기획서가 준수.</p>
-            <p className="mt-1"><b>💬 기획서 댓글</b> — 📄 기획서 맨 아래 의견·답글(볼드·크기·색상 서식).</p>
-            <p className="mt-1"><b>🔔 알림</b> — 내 기획서/댓글에 반응이 오면 헤더 🔔, 눌러서 바로가기.</p>
-            <p className="mt-1"><b>🔍 검색 / ✍️ 작성 방향</b> — 기획서 리스트 상단 검색창, 대화 선택 작성 시 방향 입력.</p>
-            <p className="mt-1"><b>🕘 히스토리 팝업</b> — 설정의 “히스토리 열기”로 변경 이력을 별도 창에서.</p>
-            <p className="mt-1"><b>⚠️ 일관성 검사</b> — 답변이 기존 결정과 모순되면 경고창이 떠요.</p>
-            <p className="mt-1"><b>🖼️ 의도 태그·영역 표시</b> — 이미지 첨부 시 분석 관점·메모 + ✏️로 동그라미 표시.</p>
-            <p className="mt-1"><b>📐 스케치→와이어프레임</b> — 손그림 촬영 후 “📐 와이어프레임화”로 정돈된 시안+비평.</p>
-            <p className="mt-1"><b>🗂️ 레퍼런스 갤러리</b> — 입력창 🗂️. 참고 화면을 모아 “이 느낌으로” 첨부.</p>
-          </section>
-          <section>
-            <p className="font-bold mb-1.5" style={{ color: "rgba(150,255,200,1)" }}>💡 팁</p>
-            <p>모바일과 PC는 같은 데이터를 공유해요. 둘 다 같은 닉네임으로 입장하면 대화·바이블·기획서가 자동 동기화됩니다.</p>
-          </section>
-        </div>
-      </div>
-    </div>
-  );
-}
