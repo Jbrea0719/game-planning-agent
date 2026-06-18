@@ -1629,7 +1629,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                     {/* 자세한 답변 본문 */}
                     {pair.detail_shown && pair.detail_content && (
                       <div className="px-3 py-2 rounded-2xl text-sm prose prose-sm max-w-none mt-1.5"
-                        style={{ backgroundColor: "rgba(192,200,216,0.07)", border: `1px solid rgba(192,200,216,0.25)`, color: "var(--text)" }}>
+                        style={{ backgroundColor: "var(--surface-2)", border: `1px solid var(--card-border)`, color: "var(--text)" }}>
                         <MemoMarkdown text={pair.detail_content} />
                       </div>
                     )}

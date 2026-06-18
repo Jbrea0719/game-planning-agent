@@ -3228,8 +3228,8 @@ function DesktopChatPage() {
 
                   {/* 설계 피드백 요약 패널 — 피드백 색상: rgba(100,180,255,...) */}
                   {pair.feedback_summary_shown && pair.feedback_summary && (
-                    <div className="px-4 py-3 rounded-2xl text-sm prose prose-sm max-w-none" style={{ backgroundColor: "rgba(100,180,255,0.06)", border: "1px solid rgba(100,180,255,0.2)", color: "var(--text)" }}>
-                      <p className="text-xs font-semibold mb-2 not-prose" style={{ color: "rgba(100,180,255,0.85)" }}>📋 디렉터 검토 의견</p>
+                    <div className="px-4 py-3 rounded-2xl text-sm prose prose-sm max-w-none" style={{ backgroundColor: "var(--surface-2)", border: "1px solid var(--card-border)", color: "var(--text)" }}>
+                      <p className="text-xs font-semibold mb-2 not-prose" style={{ color: "var(--accent-2)" }}>📋 디렉터 검토 의견</p>
                       <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{pair.feedback_summary}</ReactMarkdown>
                     </div>
                   )}
@@ -3246,7 +3246,7 @@ function DesktopChatPage() {
                     const fullText = markerIdx !== -1 ? rawDetail.slice(markerIdx + MARKER.length).trim() : null;
                     return (
                       <div className="flex flex-col gap-2">
-                        <div className="px-4 py-3 rounded-2xl text-sm prose prose-sm max-w-none" style={{ backgroundColor: "rgba(192,200,216,0.07)", border: `1px solid rgba(192,200,216,0.25)`, color: "var(--text)" }}>
+                        <div className="px-4 py-3 rounded-2xl text-sm prose prose-sm max-w-none" style={{ backgroundColor: "var(--surface-2)", border: `1px solid var(--card-border)`, color: "var(--text)" }}>
                           <AssistantMarkdown text={bubbleText} />
                         </div>
                         {fullText && !pair.detail_loading && (
