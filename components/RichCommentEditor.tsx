@@ -10,7 +10,7 @@ import { sanitizeCommentHtml, FONT_SIZES, COMMENT_COLORS } from "@/lib/sanitize-
 const SILVER = "#c0c8d8";
 const SILVER_DIM = "rgba(192,200,216,0.5)";
 const SILVER_FAINT = "rgba(192,200,216,0.15)";
-const BLUE = "rgba(180,210,255,1)";
+const BLUE = "var(--accent-2)";
 
 interface Props {
   onSubmit: (html: string) => void | boolean | Promise<void | boolean>;  // false 반환 시 입력 유지(실패)

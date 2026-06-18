@@ -2063,7 +2063,7 @@ function DesktopChatPage() {
             <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
               <div>
                 <p className="text-sm font-bold" style={{ color: SILVER }}>✍️ 기획서 작성 방향</p>
-                <p className="text-[11px] mt-0.5" style={{ color: SILVER_DIM }}>선택한 <b style={{ color: "rgba(180,210,255,1)" }}>{selectedPairIds.size}개</b> 대화를 어떤 방향으로 정리할지 (선택 입력)</p>
+                <p className="text-[11px] mt-0.5" style={{ color: SILVER_DIM }}>선택한 <b style={{ color: "var(--accent-2)" }}>{selectedPairIds.size}개</b> 대화를 어떤 방향으로 정리할지 (선택 입력)</p>
               </div>
               <button onClick={() => setShowDocDirection(false)} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>
             </div>
@@ -2140,8 +2140,8 @@ function DesktopChatPage() {
       {generatingDoc && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>
           <div className="px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3" style={{ backgroundColor: "var(--surface)", border: "1px solid rgba(100,180,255,0.5)" }}>
-            <div className="w-5 h-5 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(100,180,255,0.3)", borderTopColor: "rgba(180,210,255,1)" }} />
-            <p className="text-sm" style={{ color: "rgba(180,210,255,1)" }}>
+            <div className="w-5 h-5 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(100,180,255,0.3)", borderTopColor: "var(--accent-2)" }} />
+            <p className="text-sm" style={{ color: "var(--accent-2)" }}>
               📄 기획서 생성 중... (10~30초 소요)
             </p>
           </div>
@@ -2155,7 +2155,7 @@ function DesktopChatPage() {
           style={{
             backgroundColor: "rgba(15,25,40,0.97)",
             border: "1px solid rgba(100,180,255,0.6)",
-            color: "rgba(180,210,255,1)",
+            color: "var(--accent-2)",
             backdropFilter: "blur(10px)",
             maxWidth: "min(560px, 92vw)",
           }}
@@ -2173,7 +2173,7 @@ function DesktopChatPage() {
               openDocumentView();
             }}
             className="text-xs px-3 py-1.5 rounded-lg ml-2 font-medium"
-            style={{ backgroundColor: "rgba(100,180,255,0.25)", border: "1px solid rgba(100,180,255,0.5)", color: "rgba(180,210,255,1)" }}
+            style={{ backgroundColor: "rgba(100,180,255,0.25)", border: "1px solid rgba(100,180,255,0.5)", color: "var(--accent-2)" }}
           >
             바로 보기 →
           </button>
@@ -2294,7 +2294,7 @@ function DesktopChatPage() {
               ))}
             </div>
             <div className="px-5 py-3 flex-shrink-0 flex justify-end gap-2" style={{ borderTop: "1px solid rgba(255,180,90,0.2)" }}>
-              <button onClick={() => { setBibleConflicts(null); setShowDecisionPanel(true); }} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: "rgba(100,180,255,0.15)", border: "1px solid rgba(100,180,255,0.4)", color: "rgba(180,210,255,1)" }}>바이블 확인 →</button>
+              <button onClick={() => { setBibleConflicts(null); setShowDecisionPanel(true); }} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: "rgba(100,180,255,0.15)", border: "1px solid rgba(100,180,255,0.4)", color: "var(--accent-2)" }}>바이블 확인 →</button>
               <button onClick={() => setBibleConflicts(null)} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: "rgba(255,200,100,0.18)", border: "1px solid rgba(255,200,100,0.4)", color: "rgba(255,220,150,1)" }}>의도한 변경임</button>
             </div>
           </div>
@@ -2335,7 +2335,7 @@ function DesktopChatPage() {
                     const confStyle =
                       conf === "decided" ? { bg: "rgba(100,220,160,0.15)", color: "rgba(150,255,200,1)", label: "✓" }
                       : conf === "review" ? { bg: "rgba(255,200,100,0.15)", color: "rgba(255,220,150,1)", label: "🔍" }
-                      : { bg: "rgba(150,180,255,0.15)", color: "rgba(180,210,255,1)", label: "⚪" };
+                      : { bg: "rgba(150,180,255,0.15)", color: "var(--accent-2)", label: "⚪" };
                     return (
                       <div key={d.id} className="px-3 py-2 rounded-lg flex items-start gap-2" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
                         <span className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5" style={{ backgroundColor: confStyle.bg, color: confStyle.color }}>
@@ -2437,12 +2437,12 @@ function DesktopChatPage() {
 
                 {/* 🕘 히스토리 — 변경 이력 (별도 팝업으로 열기) */}
                 <section>
-                  <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🕘 히스토리</p>
+                  <p className="text-xs font-bold mb-2" style={{ color: "var(--accent-2)" }}>🕘 히스토리</p>
                   <p className="text-[10px] mb-2" style={{ color: SILVER_DIM }}>결정사항·카테고리·기획서의 추가·수정·삭제 기록 (각 항목 수정·삭제 가능)</p>
                   <button
                     onClick={() => { setShowSettingsModal(false); setShowHistoryModal(true); }}
                     className="text-xs px-3 py-2 rounded-lg font-medium w-full"
-                    style={{ backgroundColor: "rgba(100,180,255,0.12)", border: "1px solid rgba(100,180,255,0.4)", color: "rgba(180,210,255,1)" }}
+                    style={{ backgroundColor: "rgba(100,180,255,0.12)", border: "1px solid rgba(100,180,255,0.4)", color: "var(--accent-2)" }}
                   >
                     🕘 히스토리 열기
                   </button>
@@ -2452,7 +2452,7 @@ function DesktopChatPage() {
 
                 {/* 2. 참고 게임 라이브러리 */}
                 <section>
-                  <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🎮 참고 게임</p>
+                  <p className="text-xs font-bold mb-2" style={{ color: "var(--accent-2)" }}>🎮 참고 게임</p>
                   <div className="px-3 py-2.5 rounded-lg flex items-center justify-between" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
                     <div className="flex-1">
                       <p className="text-xs font-medium" style={{ color: SILVER }}>등록된 게임 라이브러리</p>
@@ -2537,7 +2537,7 @@ function DesktopChatPage() {
                         <p className="text-xs font-medium" style={{ color: SILVER }}>내부 분석·검토</p>
                         <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>웹 검색·라우터·검토 등</p>
                       </div>
-                      <span className="text-xs px-2 py-1 rounded font-bold ml-2 flex-shrink-0" style={{ backgroundColor: "rgba(100,180,255,0.15)", border: "1px solid rgba(100,180,255,0.4)", color: "rgba(180,210,255,1)" }}>
+                      <span className="text-xs px-2 py-1 rounded font-bold ml-2 flex-shrink-0" style={{ backgroundColor: "rgba(100,180,255,0.15)", border: "1px solid rgba(100,180,255,0.4)", color: "var(--accent-2)" }}>
                         Sonnet 4.5
                       </span>
                     </div>
@@ -2549,7 +2549,7 @@ function DesktopChatPage() {
 
                 {/* 5. 화면 모드 전환 */}
                 <section>
-                  <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>📱 화면 모드 미리보기 (PC → 모바일)</p>
+                  <p className="text-xs font-bold mb-2" style={{ color: "var(--accent-2)" }}>📱 화면 모드 미리보기 (PC → 모바일)</p>
                   <div className="px-3 py-2.5 rounded-lg flex flex-col gap-2" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
                     <p className="text-[10px]" style={{ color: SILVER_DIM }}>
                       PC에서 모바일 사용감을 미리 보고 싶을 때. 디바이스 프레임 안에 모바일 UI가 렌더됩니다.
@@ -2558,7 +2558,7 @@ function DesktopChatPage() {
                       <button
                         onClick={() => { window.location.href = "/chat?view=mobile-ios"; }}
                         className="text-xs px-3 py-1.5 rounded-lg font-medium"
-                        style={{ backgroundColor: "rgba(100,180,255,0.18)", border: "1px solid rgba(100,180,255,0.5)", color: "rgba(180,210,255,1)" }}
+                        style={{ backgroundColor: "rgba(100,180,255,0.18)", border: "1px solid rgba(100,180,255,0.5)", color: "var(--accent-2)" }}
                       >
                         📱 iPhone 14 (390×844)
                       </button>
@@ -2582,7 +2582,7 @@ function DesktopChatPage() {
 
                 {/* 🆕 최근 추가 기능 (2026-06-15) */}
                 <section>
-                  <p className="text-sm font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🆕 최근 추가 (2026-06-15)</p>
+                  <p className="text-sm font-bold mb-2" style={{ color: "var(--accent-2)" }}>🆕 최근 추가 (2026-06-15)</p>
                   <div className="px-3 py-2.5 rounded-lg flex flex-col gap-2 text-[11px]" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}`, color: SILVER }}>
                     <p><b style={{ color: "rgba(255,205,120,1)" }}>⚖️ 절대 규칙(게임 헌법)</b> — 📚 기획 바이블 패널 맨 위. 가로형·턴제 같은 불변 규칙을 등록하면 모든 답변·기획서·시안이 반드시 준수해요(바이블보다 상위).</p>
                     <p><b style={{ color: SILVER }}>💬 기획서 댓글</b> — 📄 기획서 맨 아래에서 의견·답글(유튜브식). <b>볼드·글자크기·색상</b> 서식 지원.</p>
@@ -2695,7 +2695,7 @@ function DesktopChatPage() {
 
               {/* 섹션 2 — 헤더 도구 */}
               <section>
-                <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🛠️ 헤더 도구 (좌 → 우)</p>
+                <p className="text-xs font-bold mb-2" style={{ color: "var(--accent-2)" }}>🛠️ 헤더 도구 (좌 → 우)</p>
                 <div className="space-y-2 text-xs" style={{ color: "var(--text-dim)", lineHeight: 1.55 }}>
                   <p><b style={{ color: SILVER }}>💬 대화방 (병렬 작업)</b> — 조던 이름 옆 <b>💬 버튼</b>으로 여러 대화방을 만들어 <b>주제별로 병렬 작업</b>. 카톡 채팅방처럼 [새 대화방 / 전환 / ✏️ 이름변경 / 🗑️ 삭제]. <b>방마다 대화·맥락이 독립</b>이라 서로 안 섞여요. 단, <b>기획 바이블·기획서는 전 방 공유</b>라 어느 방에서 작업해도 자산은 하나로 쌓여요. (기존 대화는 "기본 대화" 방에 그대로 보존)</p>
                   <p><b style={{ color: SILVER }}>📌 맥락</b> — 클릭하면 현재 맥락선 위치로 스크롤 + 노란 하이라이트. 설정 안 돼 있으면 <i>"맥락선이 없습니다"</i> 토스트. 설정/해제는 본문 안에서.</p>
@@ -2806,7 +2806,7 @@ function DesktopChatPage() {
                           style={{
                             backgroundColor: "rgba(100,180,255,0.08)",
                             border: "1px solid rgba(100,180,255,0.25)",
-                            color: "rgba(180,210,255,0.9)",
+                            color: "var(--accent-2)",
                           }}
                         >
                           {src}
@@ -2846,7 +2846,7 @@ function DesktopChatPage() {
             <button
               onClick={() => setShowConvList(v => !v)}
               className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5"
-              style={{ backgroundColor: "rgba(100,180,255,0.15)", border: "1px solid rgba(100,180,255,0.45)", color: "rgba(180,210,255,1)" }}
+              style={{ backgroundColor: "rgba(100,180,255,0.15)", border: "1px solid rgba(100,180,255,0.45)", color: "var(--accent-2)" }}
               title="대화방 전환 — 여러 기획서를 병렬로 작업"
             >
               <span>💬</span>
@@ -2869,7 +2869,7 @@ function DesktopChatPage() {
                         style={{ backgroundColor: "var(--header-bg)", border: "1px solid rgba(100,180,255,0.5)", color: "var(--text)" }}
                       />
                     ) : (
-                      <button onClick={() => loadConversation(c.id)} className="flex-1 min-w-0 text-left text-xs px-1.5 py-1 truncate" style={{ color: c.id === currentConvId ? "rgba(180,210,255,1)" : "var(--text-dim)" }} title={c.title}>{c.title}</button>
+                      <button onClick={() => loadConversation(c.id)} className="flex-1 min-w-0 text-left text-xs px-1.5 py-1 truncate" style={{ color: c.id === currentConvId ? "var(--accent-2)" : "var(--text-dim)" }} title={c.title}>{c.title}</button>
                     )}
                     <button onClick={() => { setRenamingConvId(c.id); setConvRenameInput(c.title); }} className="text-xs px-1 rounded hover:bg-white/10 flex-shrink-0" style={{ color: SILVER_DIM }} title="이름 변경">✏️</button>
                     <button onClick={() => deleteConversation(c.id)} className="text-xs px-1 rounded hover:bg-white/10 flex-shrink-0" style={{ color: "rgba(255,160,160,0.7)" }} title="삭제">🗑️</button>
@@ -2887,7 +2887,7 @@ function DesktopChatPage() {
           {selectMode && (
             <>
               <span className="text-sm font-medium" style={{ color: SILVER }}>
-                <b style={{ color: "rgba(180,210,255,1)" }}>{selectedPairIds.size}개</b> 선택됨
+                <b style={{ color: "var(--accent-2)" }}>{selectedPairIds.size}개</b> 선택됨
               </span>
               <button
                 onClick={() => { if (selectedPairIds.size > 0) { setDocDirection(""); setShowDocDirection(true); } }}
@@ -2951,7 +2951,7 @@ function DesktopChatPage() {
               style={{
                 backgroundColor: refDocIds.length ? "rgba(100,180,255,0.2)" : "rgba(100,180,255,0.08)",
                 border: `1px solid ${refDocIds.length ? "rgba(100,180,255,0.55)" : "rgba(100,180,255,0.25)"}`,
-                color: refDocIds.length ? "rgba(180,210,255,1)" : "rgba(170,200,235,0.7)",
+                color: refDocIds.length ? "var(--accent-2)" : "rgba(170,200,235,0.7)",
               }}
             >
               📑 참고 기획서{refDocIds.length ? ` ${refDocIds.length}` : ""}
@@ -2995,11 +2995,11 @@ function DesktopChatPage() {
                 style={{
                   backgroundColor: showDocumentView ? "rgba(100,180,255,0.25)" : "rgba(100,180,255,0.12)",
                   border: `1px solid ${showDocumentView ? "rgba(100,180,255,0.6)" : "rgba(100,180,255,0.35)"}`,
-                  color: showDocumentView ? "rgba(180,210,255,1)" : "rgba(170,200,235,0.95)",
+                  color: showDocumentView ? "var(--accent-2)" : "rgba(170,200,235,0.95)",
                 }}
               >
                 {(docBackgroundGenerating || reviseGenLoading) && (
-                  <span className="inline-block w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(180,210,255,0.3)", borderTopColor: "rgba(180,210,255,1)" }} />
+                  <span className="inline-block w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(180,210,255,0.3)", borderTopColor: "var(--accent-2)" }} />
                 )}
                 📄 기획서 ▾
                 {docNewDot && (
@@ -3146,7 +3146,7 @@ function DesktopChatPage() {
                 <div className="text-3xl mb-3">💬</div>
                 <p className="text-sm font-medium" style={{ color: SILVER }}>작업할 대화방을 선택하세요</p>
                 <p className="text-xs mt-1" style={{ color: SILVER_DIM }}>탭마다 다른 방을 열어 병렬로 작업할 수 있어요</p>
-                <button onClick={() => setShowConvList(true)} className="text-xs mt-4 px-4 py-2 rounded-lg font-medium" style={{ backgroundColor: "rgba(100,180,255,0.15)", border: "1px solid rgba(100,180,255,0.45)", color: "rgba(180,210,255,1)" }}>💬 대화방 목록 열기</button>
+                <button onClick={() => setShowConvList(true)} className="text-xs mt-4 px-4 py-2 rounded-lg font-medium" style={{ backgroundColor: "rgba(100,180,255,0.15)", border: "1px solid rgba(100,180,255,0.45)", color: "var(--accent-2)" }}>💬 대화방 목록 열기</button>
               </div>
             ) : (
               <div className="text-center mt-20">
@@ -3346,13 +3346,13 @@ function DesktopChatPage() {
                         </div>
                         {fullText && !pair.detail_loading && (
                           <div className="flex flex-col gap-2 ml-1 px-3 py-2.5 rounded-xl" style={{ backgroundColor: "rgba(100,180,255,0.08)", border: "1px solid rgba(100,180,255,0.35)" }}>
-                            <p className="text-xs font-bold" style={{ color: "rgba(180,210,255,1)" }}>📎 전체 답변은 더 길어요 — 문서로 다운로드</p>
+                            <p className="text-xs font-bold" style={{ color: "var(--accent-2)" }}>📎 전체 답변은 더 길어요 — 문서로 다운로드</p>
                             <p className="text-[10px]" style={{ color: SILVER_DIM }}>
-                              위 요약: {bubbleText.length.toLocaleString()}자 · 전체: <b style={{ color: "rgba(180,210,255,1)" }}>{fullText.length.toLocaleString()}자</b>
+                              위 요약: {bubbleText.length.toLocaleString()}자 · 전체: <b style={{ color: "var(--accent-2)" }}>{fullText.length.toLocaleString()}자</b>
                             </p>
                             <div className="flex gap-2 mt-1 flex-wrap">
-                              <button onClick={() => downloadFile(fullText, "txt")} className="text-xs px-3 py-1.5 rounded-lg font-medium" style={{ backgroundColor: "rgba(100,180,255,0.22)", border: "1px solid rgba(100,180,255,0.55)", color: "rgba(180,210,255,1)" }}>📄 TXT 전체 다운로드</button>
-                              <button onClick={() => downloadFile(fullText, "md")} className="text-xs px-3 py-1.5 rounded-lg font-medium" style={{ backgroundColor: "rgba(100,180,255,0.22)", border: "1px solid rgba(100,180,255,0.55)", color: "rgba(180,210,255,1)" }}>📝 MD 전체 다운로드</button>
+                              <button onClick={() => downloadFile(fullText, "txt")} className="text-xs px-3 py-1.5 rounded-lg font-medium" style={{ backgroundColor: "rgba(100,180,255,0.22)", border: "1px solid rgba(100,180,255,0.55)", color: "var(--accent-2)" }}>📄 TXT 전체 다운로드</button>
+                              <button onClick={() => downloadFile(fullText, "md")} className="text-xs px-3 py-1.5 rounded-lg font-medium" style={{ backgroundColor: "rgba(100,180,255,0.22)", border: "1px solid rgba(100,180,255,0.55)", color: "var(--accent-2)" }}>📝 MD 전체 다운로드</button>
                             </div>
                           </div>
                         )}

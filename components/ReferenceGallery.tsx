@@ -160,7 +160,7 @@ export default function ReferenceGallery({ open, onClose, onPick }: Props) {
               style={{
                 backgroundColor: activeCat === c ? "rgba(100,180,255,0.2)" : "rgba(255,255,255,0.04)",
                 border: `1px solid ${activeCat === c ? "rgba(100,180,255,0.6)" : SILVER_FAINT}`,
-                color: activeCat === c ? "rgba(180,210,255,1)" : SILVER_DIM,
+                color: activeCat === c ? "var(--accent-2)" : SILVER_DIM,
               }}>
               {c}
             </button>
@@ -214,13 +214,13 @@ export default function ReferenceGallery({ open, onClose, onPick }: Props) {
                 <div key={s.id} className="rounded-xl overflow-hidden flex flex-col" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
                   <div className="relative">
                     <img src={s.url} alt={s.label} className="w-full object-cover" style={{ height: 130 }} />
-                    <span className="absolute top-1.5 left-1.5 text-[9px] px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(0,0,0,0.6)", color: "rgba(180,210,255,1)" }}>{s.category}</span>
+                    <span className="absolute top-1.5 left-1.5 text-[9px] px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(0,0,0,0.6)", color: "var(--accent-2)" }}>{s.category}</span>
                     <button onClick={() => removeShot(s.id)} className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px]" style={{ backgroundColor: "rgba(0,0,0,0.6)", color: "rgba(255,160,160,1)" }}>🗑️</button>
                   </div>
                   <div className="p-2 flex flex-col gap-1 flex-1">
                     <p className="text-[11px] font-bold truncate" style={{ color: SILVER }}>{s.game || "(게임 미지정)"}</p>
                     {s.label && <p className="text-[10px] truncate" style={{ color: SILVER_DIM }}>{s.label}</p>}
-                    <button onClick={() => pick(s)} className="mt-auto text-[10px] px-2 py-1 rounded-lg font-medium" style={{ backgroundColor: "rgba(100,180,255,0.18)", border: "1px solid rgba(100,180,255,0.5)", color: "rgba(180,210,255,1)" }}>
+                    <button onClick={() => pick(s)} className="mt-auto text-[10px] px-2 py-1 rounded-lg font-medium" style={{ backgroundColor: "rgba(100,180,255,0.18)", border: "1px solid rgba(100,180,255,0.5)", color: "var(--accent-2)" }}>
                       ✨ 이 느낌으로
                     </button>
                   </div>

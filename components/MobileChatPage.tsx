@@ -1348,7 +1348,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       {selectMode && (
         <header className="px-3 py-2.5 flex items-center gap-2 flex-shrink-0" style={{ backgroundColor: "var(--header-bg)", borderBottom: `1px solid rgba(100,180,255,0.4)` }}>
           <span className="text-xs font-medium flex-1" style={{ color: SILVER }}>
-            <b style={{ color: "rgba(180,210,255,1)" }}>{selectedPairIds.size}개</b> 선택됨
+            <b style={{ color: "var(--accent-2)" }}>{selectedPairIds.size}개</b> 선택됨
           </span>
           <button
             onClick={() => { if (selectedPairIds.size > 0) { setDocDirection(""); setShowDocDirection(true); } }}
@@ -1372,7 +1372,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         </div>
         <button onClick={() => setShowConvList(v => !v)} className="flex-1 min-w-0 text-left" title="대화방 전환">
           <p className="font-bold text-sm truncate flex items-center gap-1" style={{ color: SILVER }}>조던 <span style={{ fontSize: "9px", color: SILVER_DIM }}>▾</span></p>
-          <p className="text-[10px] truncate" style={{ color: "rgba(180,210,255,0.9)" }}>💬 {conversations.find(c => c.id === currentConvId)?.title ?? "대화방"}</p>
+          <p className="text-[10px] truncate" style={{ color: "var(--accent-2)" }}>💬 {conversations.find(c => c.id === currentConvId)?.title ?? "대화방"}</p>
         </button>
 
         {/* 스킨(테마) 전환 — 모바일은 이모지만(compact) */}
@@ -1414,9 +1414,9 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
             onClick={cancelDocGen}
             className="flex items-center justify-center px-2 h-9 rounded-lg flex-shrink-0 gap-1"
             title="기획서 작성 중 — 누르면 취소"
-            style={{ backgroundColor: "rgba(100,180,255,0.18)", border: "1px solid rgba(100,180,255,0.5)", color: "rgba(180,210,255,1)", fontSize: "10px" }}
+            style={{ backgroundColor: "rgba(100,180,255,0.18)", border: "1px solid rgba(100,180,255,0.5)", color: "var(--accent-2)", fontSize: "10px" }}
           >
-            <span className="inline-block w-2.5 h-2.5 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(180,210,255,0.3)", borderTopColor: "rgba(180,210,255,1)" }} />
+            <span className="inline-block w-2.5 h-2.5 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(180,210,255,0.3)", borderTopColor: "var(--accent-2)" }} />
             작성중
           </button>
         )}
@@ -1441,7 +1441,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                 {renamingConvId === c.id ? (
                   <input value={convRenameInput} onChange={e => setConvRenameInput(e.target.value)} onBlur={() => renameConversation(c.id, convRenameInput)} onKeyDown={e => { if (e.key === "Enter") renameConversation(c.id, convRenameInput); if (e.key === "Escape") { setRenamingConvId(null); setConvRenameInput(""); } }} autoFocus className="flex-1 min-w-0 text-sm px-2 py-1.5 rounded outline-none" style={{ backgroundColor: "var(--header-bg)", border: "1px solid rgba(100,180,255,0.5)", color: "var(--text)" }} />
                 ) : (
-                  <button onClick={() => loadConversation(c.id)} className="flex-1 min-w-0 text-left text-sm px-2 py-2 truncate" style={{ color: c.id === currentConvId ? "rgba(180,210,255,1)" : "var(--text-dim)" }}>{c.title}</button>
+                  <button onClick={() => loadConversation(c.id)} className="flex-1 min-w-0 text-left text-sm px-2 py-2 truncate" style={{ color: c.id === currentConvId ? "var(--accent-2)" : "var(--text-dim)" }}>{c.title}</button>
                 )}
                 <button onClick={() => { setRenamingConvId(c.id); setConvRenameInput(c.title); }} className="px-2 py-1 flex-shrink-0" style={{ color: SILVER_DIM, fontSize: "13px" }}>✏️</button>
                 <button onClick={() => deleteConversation(c.id)} className="px-2 py-1 flex-shrink-0" style={{ color: "rgba(255,160,160,0.7)", fontSize: "13px" }}>🗑️</button>
@@ -1644,7 +1644,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                   <button
                     onClick={retryStream}
                     className="text-[10px] px-2 py-1 rounded font-medium"
-                    style={{ backgroundColor: "rgba(100,180,255,0.15)", color: "rgba(180,210,255,1)", border: "1px solid rgba(100,180,255,0.45)" }}
+                    style={{ backgroundColor: "rgba(100,180,255,0.15)", color: "var(--accent-2)", border: "1px solid rgba(100,180,255,0.45)" }}
                   >↻ 재시도</button>
                 )}
                 <button
@@ -1920,7 +1920,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
             <div className="px-4 py-3 flex items-center justify-between flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
               <div>
                 <p className="text-sm font-bold" style={{ color: SILVER }}>✍️ 기획서 작성 방향</p>
-                <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>선택한 <b style={{ color: "rgba(180,210,255,1)" }}>{selectedPairIds.size}개</b> 대화를 어떤 방향으로 (선택)</p>
+                <p className="text-[10px] mt-0.5" style={{ color: SILVER_DIM }}>선택한 <b style={{ color: "var(--accent-2)" }}>{selectedPairIds.size}개</b> 대화를 어떤 방향으로 (선택)</p>
               </div>
               <button onClick={() => setShowDocDirection(false)} className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>
             </div>
@@ -2124,7 +2124,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       {/* 기획서 작성 완료 알림 */}
       {docCompletedNotice && (
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 text-sm max-w-[90vw]"
-          style={{ backgroundColor: "rgba(15,25,40,0.97)", border: "1px solid rgba(100,180,255,0.6)", color: "rgba(180,210,255,1)" }}>
+          style={{ backgroundColor: "rgba(15,25,40,0.97)", border: "1px solid rgba(100,180,255,0.6)", color: "var(--accent-2)" }}>
           <span style={{ fontSize: "16px" }}>📄</span>
           <div className="flex-1 min-w-0">
             <p className="font-bold text-xs">기획서 완료</p>
@@ -2133,7 +2133,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           <button
             onClick={() => { setDocCompletedNotice(null); setShowDocs(true); setDocNewDot(false); localStorage.removeItem("jordan_doc_new_dot"); }}
             className="text-[10px] px-2 py-1 rounded-lg font-medium"
-            style={{ backgroundColor: "rgba(100,180,255,0.25)", border: "1px solid rgba(100,180,255,0.5)", color: "rgba(180,210,255,1)" }}
+            style={{ backgroundColor: "rgba(100,180,255,0.25)", border: "1px solid rgba(100,180,255,0.5)", color: "var(--accent-2)" }}
           >바로 보기</button>
           <button onClick={() => setDocCompletedNotice(null)} className="text-[10px] px-1.5" style={{ color: "rgba(180,210,255,0.6)" }}>✕</button>
         </div>
@@ -2274,12 +2274,12 @@ function MobileSettings({
 
           {/* 🕘 히스토리 — 변경 이력 (별도 팝업으로 열기) */}
           <section>
-            <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🕘 히스토리</p>
+            <p className="text-xs font-bold mb-2" style={{ color: "var(--accent-2)" }}>🕘 히스토리</p>
             <p className="text-[10px] mb-2" style={{ color: SILVER_DIM }}>결정사항·카테고리·기획서의 추가·수정·삭제 기록</p>
             <button
               onClick={onOpenHistory}
               className="text-xs px-3 py-2.5 rounded-lg font-medium w-full"
-              style={{ backgroundColor: "rgba(100,180,255,0.12)", border: "1px solid rgba(100,180,255,0.4)", color: "rgba(180,210,255,1)" }}
+              style={{ backgroundColor: "rgba(100,180,255,0.12)", border: "1px solid rgba(100,180,255,0.4)", color: "var(--accent-2)" }}
             >
               🕘 히스토리 열기
             </button>
@@ -2287,7 +2287,7 @@ function MobileSettings({
 
           {/* 참고 게임 — 데스크톱과 동일(공용 REFERENCE_GAMES). 탭하면 라이브러리 모달 */}
           <section>
-            <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>🎮 참고 게임</p>
+            <p className="text-xs font-bold mb-2" style={{ color: "var(--accent-2)" }}>🎮 참고 게임</p>
             <div className="px-3 py-2.5 rounded-lg flex items-center justify-between" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium" style={{ color: SILVER }}>등록된 게임 라이브러리</p>
@@ -2333,7 +2333,7 @@ function MobileSettings({
 
           {/* 화면 모드 */}
           <section>
-            <p className="text-xs font-bold mb-2" style={{ color: "rgba(180,210,255,1)" }}>📱 화면 모드</p>
+            <p className="text-xs font-bold mb-2" style={{ color: "var(--accent-2)" }}>📱 화면 모드</p>
             <div className="px-3 py-2.5 rounded-lg flex items-center justify-between" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
               <div className="flex-1">
                 <p className="text-xs font-medium" style={{ color: SILVER }}>PC 뷰로 강제 전환</p>
@@ -2361,7 +2361,7 @@ function MobileSettings({
               </div>
               <div className="flex items-center justify-between">
                 <p className="text-xs" style={{ color: SILVER }}>내부 분석</p>
-                <span className="text-[10px] px-2 py-0.5 rounded font-bold" style={{ backgroundColor: "rgba(100,180,255,0.15)", color: "rgba(180,210,255,1)" }}>Sonnet 4.5</span>
+                <span className="text-[10px] px-2 py-0.5 rounded font-bold" style={{ backgroundColor: "rgba(100,180,255,0.15)", color: "var(--accent-2)" }}>Sonnet 4.5</span>
               </div>
             </div>
           </section>
@@ -2408,7 +2408,7 @@ function MobileSettings({
                   <p className="text-[10px] mb-1.5" style={{ color: SILVER_DIM }}>🔎 검색 신뢰 출처</p>
                   <div className="flex flex-wrap gap-1">
                     {game.sources.map((src) => (
-                      <span key={src} className="text-[10px] px-2 py-0.5 rounded" style={{ backgroundColor: "rgba(100,180,255,0.08)", border: "1px solid rgba(100,180,255,0.25)", color: "rgba(180,210,255,0.9)" }}>{src}</span>
+                      <span key={src} className="text-[10px] px-2 py-0.5 rounded" style={{ backgroundColor: "rgba(100,180,255,0.08)", border: "1px solid rgba(100,180,255,0.25)", color: "var(--accent-2)" }}>{src}</span>
                     ))}
                   </div>
                 </div>
@@ -2453,11 +2453,11 @@ function MobileGuide({ onClose }: { onClose: () => void }) {
             <p>메뉴(≡)의 <b>📑 참고 기획서</b>로 기존 기획서를 체크하면 조던이 보고 답해요(교차 참고·충돌 감지). <b>🛠️ 기획서 수정</b>은 맥락선 범위 대화로 기존 기획서를 수정 — 색상 미리보기(🟢추가/🟡수정/🔴삭제) 확인 후 적용(자동 백업).</p>
           </section>
           <section>
-            <p className="font-bold mb-1.5" style={{ color: "rgba(180,210,255,1)" }}>📚 기획 바이블</p>
+            <p className="font-bold mb-1.5" style={{ color: "var(--accent-2)" }}>📚 기획 바이블</p>
             <p>대화하면서 결정한 내용을 자동으로 누적·저장. 모든 기획서 작성 시 참조됨. 패널 상단 <b>[전체]/[현재 맥락]</b> 탭으로 전체 또는 맥락선 이후 결정만 볼 수 있어요.</p>
           </section>
           <section>
-            <p className="font-bold mb-1.5" style={{ color: "rgba(180,210,255,1)" }}>📄 기획서</p>
+            <p className="font-bold mb-1.5" style={{ color: "var(--accent-2)" }}>📄 기획서</p>
             <p>대화 기반·바이블 기반 기획서 생성. 자연어로 수정 요청 가능. MD/HTML/PDF 내보내기.</p>
           </section>
           <section>
@@ -2469,7 +2469,7 @@ function MobileGuide({ onClose }: { onClose: () => void }) {
             <p>출처 표시 토글, 참고 게임 라이브러리, 게임 도메인 큐레이션(관리자), 답변 모델 정보 확인.</p>
           </section>
           <section>
-            <p className="font-bold mb-1.5" style={{ color: "rgba(180,210,255,1)" }}>🆕 최근 추가 (2026-06-15)</p>
+            <p className="font-bold mb-1.5" style={{ color: "var(--accent-2)" }}>🆕 최근 추가 (2026-06-15)</p>
             <p><b style={{ color: "rgba(255,205,120,1)" }}>⚖️ 절대 규칙</b> — 📚 바이블 맨 위. 가로형·턴제 등 불변 규칙 등록 → 모든 답변·기획서가 준수.</p>
             <p className="mt-1"><b>💬 기획서 댓글</b> — 📄 기획서 맨 아래 의견·답글(볼드·크기·색상 서식).</p>
             <p className="mt-1"><b>🔔 알림</b> — 내 기획서/댓글에 반응이 오면 헤더 🔔, 눌러서 바로가기.</p>

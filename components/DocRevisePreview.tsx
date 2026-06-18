@@ -119,7 +119,7 @@ export default function DocRevisePreview({
         {/* 헤더 */}
         <div className="px-5 py-4 flex items-center justify-between gap-3" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
           <div className="min-w-0">
-            <p className="text-sm font-bold truncate" style={{ color: "rgba(180,210,255,1)" }}>🛠️ 수정 미리보기 — {preview.doc_title}</p>
+            <p className="text-sm font-bold truncate" style={{ color: "var(--accent-2)" }}>🛠️ 수정 미리보기 — {preview.doc_title}</p>
             <p className="text-xs mt-0.5" style={{ color: SILVER_DIM }}>
               아래 색상으로 바뀐 부분을 확인하고 [적용]하면 깨끗한 본문으로 저장돼요. (수정 전 자동 백업)
             </p>

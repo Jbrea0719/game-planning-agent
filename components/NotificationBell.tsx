@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 const SILVER = "#c0c8d8";
 const SILVER_DIM = "rgba(192,200,216,0.5)";
 const SILVER_FAINT = "rgba(192,200,216,0.15)";
-const BLUE = "rgba(180,210,255,1)";
+const BLUE = "var(--accent-2)";
 
 interface Notif {
   id: string;

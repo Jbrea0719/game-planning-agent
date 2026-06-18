@@ -93,7 +93,7 @@ export default function SketchWireframeModal({ imageBase64, mime, note, onClose 
               </div>
               {critique && (
                 <div className="rounded-xl px-3.5 py-3" style={{ backgroundColor: "rgba(100,180,255,0.06)", border: "1px solid rgba(100,180,255,0.25)" }}>
-                  <p className="text-xs font-bold mb-1.5" style={{ color: "rgba(180,210,255,1)" }}>🧐 조던의 비평</p>
+                  <p className="text-xs font-bold mb-1.5" style={{ color: "var(--accent-2)" }}>🧐 조던의 비평</p>
                   <p className="text-[12px] whitespace-pre-wrap leading-relaxed" style={{ color: SILVER }}>{critique}</p>
                 </div>
               )}

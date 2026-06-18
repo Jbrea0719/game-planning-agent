@@ -297,7 +297,7 @@ export default function DecisionPanel({
   function confidenceStyle(c: string) {
     if (c === "decided")  return { bg: "rgba(100,220,160,0.15)", color: "rgba(150,255,200,1)", label: "✓ 결정" };
     if (c === "review")   return { bg: "rgba(255,200,100,0.15)", color: "rgba(255,220,150,1)", label: "🔍 검토" };
-    if (c === "tentative")return { bg: "rgba(150,180,255,0.15)", color: "rgba(180,210,255,1)", label: "⚪ 미정" };
+    if (c === "tentative")return { bg: "rgba(150,180,255,0.15)", color: "var(--accent-2)", label: "⚪ 미정" };
     return { bg: "rgba(192,200,216,0.10)", color: SILVER_DIM, label: c };
   }
 
@@ -650,7 +650,7 @@ function DecisionCard({
         {isPending ? (
           <button onClick={onFinalize} title="결정으로 확정 (카테고리에 자동 등록)" className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: "rgba(100,220,160,0.18)", border: "1px solid rgba(100,220,160,0.5)", color: "rgba(150,255,200,1)" }}>✓ 결정</button>
         ) : (
-          <button onClick={onMarkPending} title="미정으로 보류" className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: "rgba(150,180,255,0.15)", border: "1px solid rgba(150,180,255,0.45)", color: "rgba(180,210,255,1)" }}>미정</button>
+          <button onClick={onMarkPending} title="미정으로 보류" className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: "rgba(150,180,255,0.15)", border: "1px solid rgba(150,180,255,0.45)", color: "var(--accent-2)" }}>미정</button>
         )}
         <button onClick={onEditStart} title="편집" className="text-xs" style={{ color: SILVER_DIM }}>✏️</button>
         <button onClick={onDelete} title="삭제" className="text-xs" style={{ color: "rgba(255,180,180,0.7)" }}>🗑️</button>

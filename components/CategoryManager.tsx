@@ -440,7 +440,7 @@ export default function CategoryManager({
                 <button
                   onClick={() => { setAdding({ type: "area", mainId: m.id }); setAddText(""); setAddExtra(""); }}
                   className="text-xs px-2 py-0.5 rounded font-medium"
-                  style={{ backgroundColor: "rgba(100,180,255,0.18)", border: "1px solid rgba(100,180,255,0.4)", color: "rgba(180,210,255,1)" }}
+                  style={{ backgroundColor: "rgba(100,180,255,0.18)", border: "1px solid rgba(100,180,255,0.4)", color: "var(--accent-2)" }}
                   title="중카테고리(영역) 추가"
                 >+ 중</button>
                 <button

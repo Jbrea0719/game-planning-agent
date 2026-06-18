@@ -86,7 +86,7 @@ export default function BulkReplaceModal({
         {/* 헤더 */}
         <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
           <div>
-            <p className="text-sm font-bold" style={{ color: "rgba(180,210,255,1)" }}>🔧 용어 일괄 변경</p>
+            <p className="text-sm font-bold" style={{ color: "var(--accent-2)" }}>🔧 용어 일괄 변경</p>
             <p className="text-xs mt-0.5" style={{ color: SILVER_DIM }}>여러 기획서의 단어를 한 번에 찾아 바꿉니다 (예: 재화 이름 변경)</p>
           </div>
           <button onClick={onClose} className="text-xs px-3 py-1.5 rounded-lg flex-shrink-0" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>
@@ -113,7 +113,7 @@ export default function BulkReplaceModal({
             ) : (
               <>
                 <div className="flex items-center justify-between">
-                  <p className="text-xs" style={{ color: SILVER }}><b style={{ color: "rgba(180,210,255,1)" }}>{matches.length}개</b> 기획서 · 총 <b>{total}곳</b> 발견</p>
+                  <p className="text-xs" style={{ color: SILVER }}><b style={{ color: "var(--accent-2)" }}>{matches.length}개</b> 기획서 · 총 <b>{total}곳</b> 발견</p>
                   <div className="flex gap-2">
                     <button onClick={() => setSelected(new Set(matches.map(m => m.family_id)))} className="text-[11px] px-2 py-1 rounded" style={{ backgroundColor: SILVER_FAINT, color: SILVER }}>전체 선택</button>
                     <button onClick={() => setSelected(new Set())} className="text-[11px] px-2 py-1 rounded" style={{ backgroundColor: SILVER_FAINT, color: SILVER }}>전체 해제</button>

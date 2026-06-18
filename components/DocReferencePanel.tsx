@@ -191,7 +191,7 @@ export default function DocReferencePanel({ familyId }: { familyId?: string | nu
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-bold" style={{ color: "rgba(180,210,255,1)" }}>📌 레퍼런스 이미지</p>
+        <p className="text-sm font-bold" style={{ color: "var(--accent-2)" }}>📌 레퍼런스 이미지</p>
         <span className="text-[10px]" style={{ color: SILVER_DIM }}>{images.length}장</span>
       </div>
       <p className="text-[11px]" style={{ color: SILVER_DIM }}>참고·예상결과 이미지를 모아두세요. 썸네일을 누르면 크게 볼 수 있어요.</p>
@@ -233,11 +233,11 @@ export default function DocReferencePanel({ familyId }: { familyId?: string | nu
                 <img src={im.url} alt={im.comment || "레퍼런스"} onClick={() => setViewerIdx(idx)} className="w-full cursor-zoom-in" style={{ maxHeight: 150, objectFit: "cover" }} />
                 {/* 순서 이동 ▲▼ */}
                 <div className="absolute top-1.5 left-1.5 flex flex-col gap-1">
-                  <button onClick={() => move(im.id, "up")} disabled={idx === 0} title="위로" className="w-6 h-6 rounded flex items-center justify-center text-[11px] disabled:opacity-25" style={{ backgroundColor: "rgba(0,0,0,0.6)", color: "rgba(180,210,255,1)" }}>▲</button>
-                  <button onClick={() => move(im.id, "down")} disabled={idx === images.length - 1} title="아래로" className="w-6 h-6 rounded flex items-center justify-center text-[11px] disabled:opacity-25" style={{ backgroundColor: "rgba(0,0,0,0.6)", color: "rgba(180,210,255,1)" }}>▼</button>
+                  <button onClick={() => move(im.id, "up")} disabled={idx === 0} title="위로" className="w-6 h-6 rounded flex items-center justify-center text-[11px] disabled:opacity-25" style={{ backgroundColor: "rgba(0,0,0,0.6)", color: "var(--accent-2)" }}>▲</button>
+                  <button onClick={() => move(im.id, "down")} disabled={idx === images.length - 1} title="아래로" className="w-6 h-6 rounded flex items-center justify-center text-[11px] disabled:opacity-25" style={{ backgroundColor: "rgba(0,0,0,0.6)", color: "var(--accent-2)" }}>▼</button>
                 </div>
                 <button onClick={() => remove(im.id)} className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center text-[11px]" style={{ backgroundColor: "rgba(0,0,0,0.6)", color: "rgba(255,160,160,1)" }}>🗑️</button>
-                <span className="absolute bottom-1.5 right-1.5 text-[9px] px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(0,0,0,0.6)", color: "rgba(180,210,255,1)" }}>🔍 크게</span>
+                <span className="absolute bottom-1.5 right-1.5 text-[9px] px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(0,0,0,0.6)", color: "var(--accent-2)" }}>🔍 크게</span>
               </div>
               <div className="p-2">
                 {editingId === im.id ? (

@@ -326,7 +326,7 @@ export default function MockupGenerator({
               onClick={downloadPng}
               disabled={capturingPng}
               className="text-xs px-3 py-1.5 rounded-lg font-medium disabled:opacity-40"
-              style={{ backgroundColor: "rgba(100,180,255,0.2)", border: "1px solid rgba(100,180,255,0.5)", color: "rgba(180,210,255,1)" }}
+              style={{ backgroundColor: "rgba(100,180,255,0.2)", border: "1px solid rgba(100,180,255,0.5)", color: "var(--accent-2)" }}
             >📥 PNG</button>
             <button
               onClick={downloadHtml}
@@ -421,7 +421,7 @@ export default function MockupGenerator({
                         style={{
                           backgroundColor: i === verIdx ? "rgba(100,180,255,0.22)" : "rgba(255,255,255,0.04)",
                           border: `1px solid ${i === verIdx ? "rgba(100,180,255,0.6)" : SILVER_FAINT}`,
-                          color: i === verIdx ? "rgba(180,210,255,1)" : SILVER_DIM,
+                          color: i === verIdx ? "var(--accent-2)" : SILVER_DIM,
                         }}>
                         {i === 0 ? "초안" : `${i}. ${v.label}`}
                       </button>
@@ -442,7 +442,7 @@ export default function MockupGenerator({
                   <button
                     onClick={() => setRefineMode(true)}
                     className="w-full text-sm py-2.5 rounded-lg font-medium"
-                    style={{ backgroundColor: "rgba(100,180,255,0.18)", border: "1px solid rgba(100,180,255,0.5)", color: "rgba(180,210,255,1)" }}
+                    style={{ backgroundColor: "rgba(100,180,255,0.18)", border: "1px solid rgba(100,180,255,0.5)", color: "var(--accent-2)" }}
                   >✏️ 수정 요청 시작</button>
                 ) : (
                   <>
@@ -465,7 +465,7 @@ export default function MockupGenerator({
                         onClick={() => generateMockup(true)}
                         disabled={generating || !refineInput.trim()}
                         className="flex-1 text-xs py-2 rounded-lg font-bold disabled:opacity-40"
-                        style={{ backgroundColor: "rgba(100,180,255,0.25)", border: "1px solid rgba(100,180,255,0.6)", color: "rgba(180,210,255,1)" }}
+                        style={{ backgroundColor: "rgba(100,180,255,0.25)", border: "1px solid rgba(100,180,255,0.6)", color: "var(--accent-2)" }}
                       >
                         {generating ? "수정 중..." : "🪄 적용"}
                       </button>
@@ -500,7 +500,7 @@ export default function MockupGenerator({
                 }}
               >
                 <p className="text-4xl mb-2" style={{ opacity: 0.5 }}>{currentPreset.icon}</p>
-                <p className="text-sm font-bold" style={{ color: "rgba(180,210,255,0.9)" }}>
+                <p className="text-sm font-bold" style={{ color: "var(--accent-2)" }}>
                   {currentPreset.width} × {currentPreset.height}
                 </p>
                 <p className="text-xs mt-1" style={{ color: SILVER_DIM }}>{currentPreset.label.replace(/\s*\([^)]+\)/, "")}</p>

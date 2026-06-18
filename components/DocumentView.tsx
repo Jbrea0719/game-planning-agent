@@ -862,7 +862,7 @@ export default function DocumentView({
               border: `1px solid ${sidebarCollapsed ? "rgba(100,180,255,0.55)" : "rgba(192,200,216,0.35)"}`,
               borderRadius: sidebarCollapsed ? "0 12px 12px 0" : "10px",
               borderLeft: sidebarCollapsed ? "none" : `1px solid rgba(192,200,216,0.35)`,
-              color: sidebarCollapsed ? "rgba(180,210,255,1)" : SILVER,
+              color: sidebarCollapsed ? "var(--accent-2)" : SILVER,
               fontSize: sidebarCollapsed ? "22px" : "18px",
               fontWeight: 700,
               backdropFilter: "blur(8px)",
@@ -893,7 +893,7 @@ export default function DocumentView({
                 style={{
                   backgroundColor: showDocList ? "rgba(100,180,255,0.18)" : SILVER_FAINT,
                   border: `1px solid ${showDocList ? "rgba(100,180,255,0.6)" : SILVER_DIM}`,
-                  color: showDocList ? "rgba(180,210,255,1)" : SILVER,
+                  color: showDocList ? "var(--accent-2)" : SILVER,
                 }}
               >
                 <span>📚 기획서 리스트</span>
@@ -1100,7 +1100,7 @@ export default function DocumentView({
                 backgroundColor: refCollapsed ? "rgba(180,210,255,0.4)" : "rgba(192,200,216,0.22)",
                 border: `1px solid ${refCollapsed ? "rgba(180,210,255,0.55)" : "rgba(192,200,216,0.35)"}`,
                 borderRadius: refCollapsed ? "12px 0 0 12px" : "10px",
-                color: refCollapsed ? "rgba(180,210,255,1)" : SILVER,
+                color: refCollapsed ? "var(--accent-2)" : SILVER,
                 fontSize: refCollapsed ? "22px" : "18px",
                 fontWeight: 700,
                 backdropFilter: "blur(8px)",
@@ -1215,7 +1215,7 @@ export default function DocumentView({
                 disabled={catSuggesting}
                 title="AI가 기획서 내용을 보고 적합한 카테고리를 제안해요 (적용은 직접 확인 후)"
                 className="text-xs px-3 py-2 rounded-lg font-medium disabled:opacity-50"
-                style={{ backgroundColor: "rgba(100,180,255,0.15)", border: "1px solid rgba(100,180,255,0.45)", color: "rgba(180,210,255,1)" }}
+                style={{ backgroundColor: "rgba(100,180,255,0.15)", border: "1px solid rgba(100,180,255,0.45)", color: "var(--accent-2)" }}
               >
                 {catSuggesting ? "⏳ AI가 분류 중..." : "🤖 AI 추천 받기"}
               </button>
@@ -1326,7 +1326,7 @@ export default function DocumentView({
             <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
               <span style={{ fontSize: "18px" }}>🪄</span>
               <div className="flex-1">
-                <p className="text-sm font-bold" style={{ color: "rgba(180,210,255,1)" }}>기획서 수정 요청</p>
+                <p className="text-sm font-bold" style={{ color: "var(--accent-2)" }}>기획서 수정 요청</p>
                 <p className="text-xs mt-0.5" style={{ color: SILVER_DIM }}>
                   자연어로 어떻게 바꾸고 싶은지 알려주세요. 조던이 새 버전을 만들어요.
                 </p>
@@ -1368,12 +1368,12 @@ export default function DocumentView({
                   style={{
                     backgroundColor: "rgba(100,180,255,0.25)",
                     border: "1px solid rgba(100,180,255,0.6)",
-                    color: "rgba(180,210,255,1)",
+                    color: "var(--accent-2)",
                   }}
                 >
                   {revising ? (
                     <>
-                      <span className="inline-block w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(180,210,255,0.3)", borderTopColor: "rgba(180,210,255,1)" }} />
+                      <span className="inline-block w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(180,210,255,0.3)", borderTopColor: "var(--accent-2)" }} />
                       수정 중...
                     </>
                   ) : (

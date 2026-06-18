@@ -35,7 +35,7 @@ export default function ImageIntentBar({ tags, setTags, memo, setMemo, onAnnotat
               style={{
                 backgroundColor: on ? "rgba(100,180,255,0.2)" : "rgba(255,255,255,0.04)",
                 border: `1px solid ${on ? "rgba(100,180,255,0.6)" : SILVER_FAINT}`,
-                color: on ? "rgba(180,210,255,1)" : SILVER_DIM,
+                color: on ? "var(--accent-2)" : SILVER_DIM,
               }}>
               {t.label}
             </button>

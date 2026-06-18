@@ -120,7 +120,7 @@ export default function DocPickerModal({
                     {checked ? "✓" : ""}
                   </span>
                 )}
-                <span className="text-sm flex-1 truncate" style={{ color: checked ? "rgba(180,210,255,1)" : "#d0d8e4" }}>{d.title || "(제목 없음)"}</span>
+                <span className="text-sm flex-1 truncate" style={{ color: checked ? "var(--accent-2)" : "#d0d8e4" }}>{d.title || "(제목 없음)"}</span>
               </button>
             );
           })}

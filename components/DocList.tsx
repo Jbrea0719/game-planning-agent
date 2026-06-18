@@ -717,7 +717,7 @@ export default function DocList({
     >
       {/* 헤더 */}
       <div className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 gap-2" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
-        <p className="text-xs font-bold flex-1 min-w-0" style={{ color: "rgba(180,210,255,1)" }}>📚 기획서 리스트</p>
+        <p className="text-xs font-bold flex-1 min-w-0" style={{ color: "var(--accent-2)" }}>📚 기획서 리스트</p>
         <button
           onClick={onOpenCategoryManager}
           title="카테고리 관리 — 대/중/소 카테고리 추가·수정·삭제"
@@ -762,7 +762,7 @@ export default function DocList({
                   onClick={() => { onLoadDoc(r.id); setSearchQ(""); }}
                   className="block w-full text-left px-2.5 py-2 rounded-lg mb-1 hover:bg-white/5"
                   style={{ border: `1px solid ${SILVER_FAINT}` }}>
-                  <span className="text-[12px] font-bold block truncate" style={{ color: r.id === currentDoc?.id ? "rgba(180,210,255,1)" : SILVER }}>
+                  <span className="text-[12px] font-bold block truncate" style={{ color: r.id === currentDoc?.id ? "var(--accent-2)" : SILVER }}>
                     {r.inTitle ? "📄 " : "📝 "}{r.title}
                   </span>
                   {r.snippet && <span className="text-[10px] block mt-0.5 line-clamp-2" style={{ color: SILVER_DIM }}>{r.snippet}</span>}
@@ -777,7 +777,7 @@ export default function DocList({
       <div className="px-3 py-2 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}`, display: searchQ.trim() ? "none" : undefined }}>
         <div className="flex items-center justify-between mb-1">
           <span className="text-[11px]" style={{ color: SILVER_DIM }}>전체 채움</span>
-          <span className="text-[11px] font-bold" style={{ color: "rgba(180,210,255,1)" }}>
+          <span className="text-[11px] font-bold" style={{ color: "var(--accent-2)" }}>
             {overallDone}/{overallTotal} ({overallPct}%)
           </span>
         </div>
@@ -796,7 +796,7 @@ export default function DocList({
                 style={{
                   backgroundColor: on ? "rgba(100,180,255,0.25)" : "rgba(255,255,255,0.04)",
                   border: on ? "1px solid rgba(100,180,255,0.6)" : `1px solid ${SILVER_FAINT}`,
-                  color: on ? "rgba(180,210,255,1)" : SILVER_DIM,
+                  color: on ? "var(--accent-2)" : SILVER_DIM,
                   fontWeight: on ? 700 : 400,
                 }}
               >{label}</button>

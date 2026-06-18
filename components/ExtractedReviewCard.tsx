@@ -97,7 +97,7 @@ export default function ExtractedReviewCard({
           const confStyle =
             item.confidence === "decided" ? { bg: "rgba(100,220,160,0.15)", color: "rgba(150,255,200,1)", label: "✓ 결정" }
             : item.confidence === "review" ? { bg: "rgba(255,200,100,0.15)", color: "rgba(255,220,150,1)", label: "🔍 검토" }
-            : { bg: "rgba(150,180,255,0.15)", color: "rgba(180,210,255,1)", label: "⚪ 미정" };
+            : { bg: "rgba(150,180,255,0.15)", color: "var(--accent-2)", label: "⚪ 미정" };
           return (
             <div
               key={item.id}
@@ -128,7 +128,7 @@ export default function ExtractedReviewCard({
                 {isEditing ? (
                   <>
                     <button onClick={() => setEditingId(null)} className="text-[10px] px-2 py-1 rounded" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>취소</button>
-                    <button onClick={() => saveEdit(item.id)} disabled={busy} className="text-[10px] px-2 py-1 rounded font-bold" style={{ backgroundColor: "rgba(100,180,255,0.25)", color: "rgba(180,210,255,1)" }}>저장</button>
+                    <button onClick={() => saveEdit(item.id)} disabled={busy} className="text-[10px] px-2 py-1 rounded font-bold" style={{ backgroundColor: "rgba(100,180,255,0.25)", color: "var(--accent-2)" }}>저장</button>
                   </>
                 ) : (
                   <>

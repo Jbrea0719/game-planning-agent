@@ -95,7 +95,7 @@ export default function DocGenPreview({
         {/* 헤더 */}
         <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${SILVER_FAINT}` }}>
           <div>
-            <p className="text-sm font-bold" style={{ color: "rgba(180,210,255,1)" }}>📄 기획서 미리보기</p>
+            <p className="text-sm font-bold" style={{ color: "var(--accent-2)" }}>📄 기획서 미리보기</p>
             <p className="text-xs mt-0.5" style={{ color: SILVER_DIM }}>제목을 확인·수정하고 [저장]하면 기획서 리스트에 추가돼요.</p>
           </div>
           <button onClick={onClose} className="text-xs px-3 py-1.5 rounded-lg flex-shrink-0" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>닫기</button>
