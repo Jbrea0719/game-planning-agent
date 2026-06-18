@@ -3493,9 +3493,9 @@ function DesktopChatPage() {
             title="켜면 답변마다 자세한 답변까지 자동으로 펼쳐요 (답변마다 비용↑)"
             className="text-xs px-2.5 py-1 rounded-full flex items-center gap-1.5"
             style={{
-              backgroundColor: autoDetail ? "rgba(100,220,160,0.18)" : "var(--surface-input)",
-              border: `1px solid ${autoDetail ? "rgba(100,220,160,0.55)" : SILVER_FAINT}`,
-              color: autoDetail ? "rgba(150,255,200,1)" : SILVER_DIM,
+              backgroundColor: autoDetail ? "rgba(40,185,120,0.18)" : "var(--surface-input)",
+              border: `1px solid ${autoDetail ? "rgba(40,185,120,0.55)" : SILVER_FAINT}`,
+              color: autoDetail ? "var(--text)" : "var(--text-dim)",
             }}
           >
             {autoDetail ? "☑" : "☐"} 자세한 답변 기본 보기

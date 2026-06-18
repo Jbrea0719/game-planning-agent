@@ -74,34 +74,34 @@
   --surface-2: #f3f6fc;
   --surface-input: #ffffff;
 
-  --accent: #3b6ef5;
-  --accent-dim: rgba(59,110,245,0.5);
-  --accent-faint: rgba(40,60,110,0.16);
+  --accent: #3257d8;
+  --accent-dim: rgba(50,87,216,0.55);
+  --accent-faint: rgba(40,60,110,0.24);
   --on-accent: #ffffff;
   --accent-2: #1d4ed8;
-  --accent-2-soft: rgba(59,110,245,0.16);
+  --accent-2-soft: rgba(59,110,245,0.18);
 
-  --text: #161e2c;
-  --text-dim: #3a4660;
-  --text-mute: #5a6678;
+  --text: #141b29;
+  --text-dim: #36435c;
+  --text-mute: #586579;
 
   --ai-bubble-bg: #ffffff;
-  --ai-bubble-border: rgba(40,60,110,0.2);
+  --ai-bubble-border: rgba(40,60,110,0.28);
 
-  --prose-heading: #101a2c;
-  --prose-body: #1e2a3f;
-  --prose-strong: #1746c8;
-  --prose-em: #4a5568;
+  --prose-heading: #0d1626;
+  --prose-body: #1a2538;
+  --prose-strong: #1442c0;
+  --prose-em: #45526a;
   --prose-code: #b03060;
   --prose-code-bg: rgba(40,60,110,0.08);
-  --prose-quote: #4a5568;
-  --prose-quote-border: rgba(40,60,110,0.3);
+  --prose-quote: #45526a;
+  --prose-quote-border: rgba(40,60,110,0.4);
   --prose-link: #1d4ed8;
-  --prose-table-border: rgba(40,60,110,0.2);
+  --prose-table-border: rgba(40,60,110,0.28);
 
-  --header-bg: rgba(255,255,255,0.78);
-  --card-border: rgba(40,60,110,0.16);
-  --card-shadow: 0 2px 16px rgba(40,60,110,0.12);
+  --header-bg: rgba(255,255,255,0.82);
+  --card-border: rgba(40,60,110,0.26);
+  --card-shadow: 0 2px 16px rgba(40,60,110,0.14);
   --statusbar: #dde4f0;
 }
 
@@ -115,34 +115,34 @@
   --surface-2: #f0e7d4;
   --surface-input: #fdfaf2;
 
-  --accent: #9a5f2c;
-  --accent-dim: rgba(154,95,44,0.5);
-  --accent-faint: rgba(110,80,45,0.2);
+  --accent: #905329;
+  --accent-dim: rgba(144,83,41,0.55);
+  --accent-faint: rgba(95,68,38,0.3);
   --on-accent: #fdfaf2;
-  --accent-2: #8a4f22;
-  --accent-2-soft: rgba(154,95,44,0.16);
+  --accent-2: #7d4420;
+  --accent-2-soft: rgba(144,83,41,0.18);
 
-  --text: #332618;
-  --text-dim: #5e4e36;
-  --text-mute: #7e6e52;
+  --text: #2b2012;
+  --text-dim: #574731;
+  --text-mute: #79694e;
 
   --ai-bubble-bg: #faf5ea;
-  --ai-bubble-border: rgba(110,80,45,0.24);
+  --ai-bubble-border: rgba(95,68,38,0.34);
 
-  --prose-heading: #2e2010;
-  --prose-body: #3c2d1a;
-  --prose-strong: #8a4f22;
-  --prose-em: #5e4e36;
-  --prose-code: #7a3e20;
-  --prose-code-bg: rgba(110,80,45,0.13);
-  --prose-quote: #5e4e36;
-  --prose-quote-border: rgba(110,80,45,0.4);
-  --prose-link: #8a4f22;
-  --prose-table-border: rgba(110,80,45,0.28);
+  --prose-heading: #261a0c;
+  --prose-body: #352712;
+  --prose-strong: #7d4420;
+  --prose-em: #574731;
+  --prose-code: #6e3418;
+  --prose-code-bg: rgba(95,68,38,0.14);
+  --prose-quote: #574731;
+  --prose-quote-border: rgba(95,68,38,0.45);
+  --prose-link: #7d4420;
+  --prose-table-border: rgba(95,68,38,0.36);
 
-  --header-bg: rgba(250,245,234,0.82);
-  --card-border: rgba(110,80,45,0.24);
-  --card-shadow: 0 2px 16px rgba(110,80,45,0.16);
+  --header-bg: rgba(250,245,234,0.85);
+  --card-border: rgba(95,68,38,0.34);
+  --card-shadow: 0 2px 16px rgba(95,68,38,0.18);
   --statusbar: #d8c9a9;
 }
 
@@ -237,8 +237,9 @@ body {
 .prose li > ul, .prose li > ol { margin-top: 0.2rem; margin-bottom: 0.2rem; }
 .prose blockquote { border-left: 3px solid; padding-left: 0.8rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
 .prose code { font-size: 0.82rem; padding: 0.1rem 0.32rem; border-radius: 0.25rem; }
-.prose pre { padding: 0.8rem; border-radius: 0.5rem; overflow-x: auto; margin-top: 0.5rem; margin-bottom: 0.5rem; }
-.prose pre code { background: transparent; padding: 0; }
+/* 코드블록(ASCII UI 프레임 등) — 표면색 카드 + 테두리 + 고대비 본문색(분홍 인라인색 미적용) */
+.prose pre { padding: 0.8rem; border-radius: 0.5rem; overflow-x: auto; margin-top: 0.5rem; margin-bottom: 0.5rem; background: var(--surface-2); border: 1px solid var(--card-border); color: var(--text); line-height: 1.5; }
+.prose pre code { background: transparent; padding: 0; color: inherit; font-size: 0.8rem; }
 .prose hr { margin-top: 0.8rem; margin-bottom: 0.8rem; border-color: var(--prose-table-border); }
 .prose table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; margin-bottom: 0.5rem; }
 .prose td, .prose th { padding: 0.35rem 0.55rem; border: 1px solid var(--prose-table-border); }
