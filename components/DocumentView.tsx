@@ -1028,7 +1028,17 @@ export default function DocumentView({
             </div>
           )}
           {currentDoc && currentDoc.status !== "planned" && !editing && (
-            <article className="prose prose-sm max-w-3xl mx-auto" style={{ color: "var(--text)" }}>
+            <article
+              className="prose prose-sm max-w-3xl mx-auto p-5 md:p-7"
+              style={{
+                color: "var(--text)",
+                // 배경과 또렷이 분리되는 콘텐츠 카드 (테두리 + 은은한 그림자)
+                backgroundColor: "var(--surface)",
+                border: "1px solid var(--card-border)",
+                borderRadius: 14,
+                boxShadow: "var(--card-shadow)",
+              }}
+            >
               <ReactMarkdown
                 remarkPlugins={[[remarkGfm, { singleTilde: false }]]}
                 components={{
@@ -1041,12 +1051,12 @@ export default function DocumentView({
                   },
                   // 표 — 좁은 화면에서 칸 뭉개짐 방지(가로 스크롤 + 내용 폭)
                   table: ({ children, ...props }) => (
-                    <div style={{ overflowX: "auto", margin: "0.6rem 0", border: "1px solid rgba(192,200,216,0.18)", borderRadius: 8 }}>
+                    <div style={{ overflowX: "auto", margin: "0.6rem 0", border: "1px solid var(--prose-table-border)", borderRadius: 8 }}>
                       <table {...props} style={{ borderCollapse: "collapse", width: "auto", fontSize: "13px", lineHeight: 1.5 }}>{children}</table>
                     </div>
                   ),
-                  th: ({ children, ...props }) => <th {...props} style={{ border: "1px solid rgba(192,200,216,0.22)", padding: "6px 10px", textAlign: "left", whiteSpace: "nowrap", backgroundColor: "var(--surface-input)", fontWeight: 700 }}>{children}</th>,
-                  td: ({ children, ...props }) => <td {...props} style={{ border: "1px solid rgba(192,200,216,0.15)", padding: "6px 10px", verticalAlign: "top", minWidth: 56 }}>{children}</td>,
+                  th: ({ children, ...props }) => <th {...props} style={{ border: "1px solid var(--prose-table-border)", padding: "6px 10px", textAlign: "left", whiteSpace: "nowrap", backgroundColor: "var(--surface-2)", fontWeight: 700 }}>{children}</th>,
+                  td: ({ children, ...props }) => <td {...props} style={{ border: "1px solid var(--prose-table-border)", padding: "6px 10px", verticalAlign: "top", minWidth: 56 }}>{children}</td>,
                 }}
               >{currentDoc.content_markdown}</ReactMarkdown>
             </article>

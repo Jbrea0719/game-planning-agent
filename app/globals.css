@@ -56,86 +56,94 @@
   /* 헤더 막대 바탕(반투명) */
   --header-bg: rgba(0,0,0,0.4);
 
+  /* 콘텐츠 카드(기획서 본문·말풍선 등) — 배경과 분리용 테두리·그림자 */
+  --card-border: rgba(192,200,216,0.18);
+  --card-shadow: 0 2px 18px rgba(0,0,0,0.30);
+
   /* 상태바(모바일 PWA) 색 — 테마 스크립트가 동기화 */
   --statusbar: #0a0e1a;
 }
 
-/* ── 라이트 (밝고 깔끔) ── */
+/* ── 라이트 (밝고 깔끔) ── 배경은 한 톤 깊게, 콘텐츠(흰 카드)는 또렷이 분리 ── */
 [data-theme="light"] {
-  --background: #f3f6fc;
-  --foreground: #1b2433;
-  --bg-gradient: linear-gradient(160deg, #f7f9fd 0%, #eef2f9 50%, #f3f6fc 100%);
-  --sidebar-bg: #eaf0f8;
+  --background: #e4eaf4;
+  --foreground: #161e2c;
+  --bg-gradient: linear-gradient(160deg, #e8edf6 0%, #dfe6f1 50%, #e4eaf4 100%);
+  --sidebar-bg: #dde4f0;
   --surface: #ffffff;
-  --surface-2: #f1f4fa;
+  --surface-2: #f3f6fc;
   --surface-input: #ffffff;
 
   --accent: #3b6ef5;
   --accent-dim: rgba(59,110,245,0.5);
-  --accent-faint: rgba(40,60,110,0.12);
+  --accent-faint: rgba(40,60,110,0.16);
   --on-accent: #ffffff;
-  --accent-2: #2563eb;
-  --accent-2-soft: rgba(59,110,245,0.14);
+  --accent-2: #1d4ed8;
+  --accent-2-soft: rgba(59,110,245,0.16);
 
-  --text: #1b2433;
-  --text-dim: #46566b;
-  --text-mute: #6b7585;
+  --text: #161e2c;
+  --text-dim: #3a4660;
+  --text-mute: #5a6678;
 
   --ai-bubble-bg: #ffffff;
-  --ai-bubble-border: rgba(40,60,110,0.14);
+  --ai-bubble-border: rgba(40,60,110,0.2);
 
-  --prose-heading: #15233a;
-  --prose-body: #28344a;
-  --prose-strong: #1d4ed8;
-  --prose-em: #5a6678;
+  --prose-heading: #101a2c;
+  --prose-body: #1e2a3f;
+  --prose-strong: #1746c8;
+  --prose-em: #4a5568;
   --prose-code: #b03060;
-  --prose-code-bg: rgba(40,60,110,0.07);
-  --prose-quote: #5a6678;
-  --prose-quote-border: rgba(40,60,110,0.25);
-  --prose-link: #2563eb;
-  --prose-table-border: rgba(40,60,110,0.18);
+  --prose-code-bg: rgba(40,60,110,0.08);
+  --prose-quote: #4a5568;
+  --prose-quote-border: rgba(40,60,110,0.3);
+  --prose-link: #1d4ed8;
+  --prose-table-border: rgba(40,60,110,0.2);
 
-  --header-bg: rgba(255,255,255,0.72);
-  --statusbar: #eaf0f8;
+  --header-bg: rgba(255,255,255,0.78);
+  --card-border: rgba(40,60,110,0.16);
+  --card-shadow: 0 2px 16px rgba(40,60,110,0.12);
+  --statusbar: #dde4f0;
 }
 
-/* ── 세피아 (눈 편한 종이톤) ── */
+/* ── 세피아 (눈 편한 종이톤) ── 배경은 깊은 크림, 콘텐츠는 밝은 종이로 분리 ── */
 [data-theme="sepia"] {
-  --background: #efe6d4;
-  --foreground: #3a2f23;
-  --bg-gradient: linear-gradient(160deg, #f3ebda 0%, #ece1cc 50%, #efe6d4 100%);
-  --sidebar-bg: #e7dcc4;
-  --surface: #f6efe0;
-  --surface-2: #ede2cc;
-  --surface-input: #fbf6ea;
+  --background: #e0d2b5;
+  --foreground: #332618;
+  --bg-gradient: linear-gradient(160deg, #e6d9be 0%, #ddcfb2 50%, #e0d2b5 100%);
+  --sidebar-bg: #d8c9a9;
+  --surface: #faf5ea;
+  --surface-2: #f0e7d4;
+  --surface-input: #fdfaf2;
 
-  --accent: #a9703b;
-  --accent-dim: rgba(169,112,59,0.5);
-  --accent-faint: rgba(120,90,55,0.18);
-  --on-accent: #fbf6ea;
-  --accent-2: #9a5b2c;
-  --accent-2-soft: rgba(169,112,59,0.16);
+  --accent: #9a5f2c;
+  --accent-dim: rgba(154,95,44,0.5);
+  --accent-faint: rgba(110,80,45,0.2);
+  --on-accent: #fdfaf2;
+  --accent-2: #8a4f22;
+  --accent-2-soft: rgba(154,95,44,0.16);
 
-  --text: #3a2f23;
-  --text-dim: #6a5a44;
-  --text-mute: #8a7a60;
+  --text: #332618;
+  --text-dim: #5e4e36;
+  --text-mute: #7e6e52;
 
-  --ai-bubble-bg: #f6efe0;
-  --ai-bubble-border: rgba(120,90,55,0.2);
+  --ai-bubble-bg: #faf5ea;
+  --ai-bubble-border: rgba(110,80,45,0.24);
 
-  --prose-heading: #3a2a18;
-  --prose-body: #463826;
-  --prose-strong: #9a5b2c;
-  --prose-em: #6a5a44;
-  --prose-code: #8a4a2c;
-  --prose-code-bg: rgba(120,90,55,0.12);
-  --prose-quote: #6a5a44;
-  --prose-quote-border: rgba(120,90,55,0.35);
-  --prose-link: #9a5b2c;
-  --prose-table-border: rgba(120,90,55,0.25);
+  --prose-heading: #2e2010;
+  --prose-body: #3c2d1a;
+  --prose-strong: #8a4f22;
+  --prose-em: #5e4e36;
+  --prose-code: #7a3e20;
+  --prose-code-bg: rgba(110,80,45,0.13);
+  --prose-quote: #5e4e36;
+  --prose-quote-border: rgba(110,80,45,0.4);
+  --prose-link: #8a4f22;
+  --prose-table-border: rgba(110,80,45,0.28);
 
-  --header-bg: rgba(247,240,225,0.78);
-  --statusbar: #e7dcc4;
+  --header-bg: rgba(250,245,234,0.82);
+  --card-border: rgba(110,80,45,0.24);
+  --card-shadow: 0 2px 16px rgba(110,80,45,0.16);
+  --statusbar: #d8c9a9;
 }
 
 /* ── 딥오션 (진한 청록 다크, 시안 강조) ── */
@@ -174,6 +182,8 @@
   --prose-table-border: rgba(120,220,235,0.2);
 
   --header-bg: rgba(0,0,0,0.35);
+  --card-border: rgba(120,220,235,0.18);
+  --card-shadow: 0 2px 18px rgba(0,0,0,0.35);
   --statusbar: #06161d;
 }
 
