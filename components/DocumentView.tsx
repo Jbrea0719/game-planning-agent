@@ -11,6 +11,7 @@ import DocList from "./DocList";
 
 const WireframeEditor = dynamic(() => import("./WireframeEditor"), { ssr: false });
 const MockupGenerator = dynamic(() => import("./MockupGenerator"), { ssr: false });
+const ScreenshotFrameModal = dynamic(() => import("./ScreenshotFrameModal"), { ssr: false });
 import {
   downloadMD as exportMD,
   downloadTXT as exportTXT,
@@ -148,7 +149,7 @@ export default function DocumentView({
   // 화면 설계 메뉴 (와이어프레임 / AI 시안)
   const [showScreenDesignMenu, setShowScreenDesignMenu] = useState(false);
   const [showReviseMenu, setShowReviseMenu] = useState(false);  // 수정 요청 → [직접수정 / 대화를 통한 수정]
-  const [screenDesignOpen, setScreenDesignOpen] = useState<"wireframe" | "mockup" | null>(null);
+  const [screenDesignOpen, setScreenDesignOpen] = useState<"wireframe" | "mockup" | "frame" | null>(null);
   // 카테고리 관리 모달
   const [showCatManager, setShowCatManager] = useState(false);
   // AI 재분류 검토 모달 — 카테고리 삭제로 미분류된 결정사항 id 목록 (null이면 닫힘)
@@ -758,8 +759,15 @@ export default function DocumentView({
                     >
                       🪄 AI 시안 생성 (자연어 → HTML)
                     </button>
+                    <button
+                      onClick={() => { setShowScreenDesignMenu(false); setScreenDesignOpen("frame"); }}
+                      className="block w-full text-left text-xs px-3 py-2 hover:bg-white/5"
+                      style={{ color: SILVER, borderTop: `1px solid ${SILVER_FAINT}` }}
+                    >
+                      📐 스크린샷 → 텍스트 UI 프레임
+                    </button>
                     <div className="px-3 py-1.5 text-[10px]" style={{ color: SILVER_DIM, borderTop: `1px solid ${SILVER_FAINT}` }}>
-                      💡 만든 후 📎로 이 기획서에 자동 첨부
+                      💡 와이어/시안은 📎로 첨부 · 텍스트 프레임은 본문에 추가
                     </div>
                   </div>
                 )}
@@ -1190,6 +1198,14 @@ export default function DocumentView({
         open={screenDesignOpen === "mockup"}
         onClose={() => { setScreenDesignOpen(null); void loadVersions(); }}
         nickname={nickname}
+      />
+      <ScreenshotFrameModal
+        open={screenDesignOpen === "frame"}
+        onClose={() => setScreenDesignOpen(null)}
+        docId={currentDoc?.id}
+        currentMarkdown={currentDoc?.content_markdown}
+        nickname={nickname}
+        onInserted={() => { if (currentDoc) void loadDoc(currentDoc.id); }}
       />
 
       {/* 카테고리 변경 모달 */}
