@@ -671,8 +671,8 @@ export default function DocumentView({
               <button
                 onClick={startEdit}
                 disabled={!currentDoc}
-                className="text-xs px-3 py-1.5 rounded-lg"
-                style={{ backgroundColor: SILVER_FAINT, color: SILVER, opacity: currentDoc ? 1 : 0.5 }}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                style={{ backgroundColor: "var(--surface-2)", border: "1px solid var(--card-border)", color: "var(--text)", opacity: currentDoc ? 1 : 0.5 }}
               >
                 ✏️ 편집
               </button>
@@ -684,9 +684,9 @@ export default function DocumentView({
                   title="수정 요청 — 직접수정(지시문) 또는 대화를 통한 수정"
                   className="text-xs px-3 py-1.5 rounded-lg font-medium"
                   style={{
-                    backgroundColor: "rgba(100,180,255,0.18)",
-                    border: "1px solid rgba(100,180,255,0.5)",
-                    color: "rgba(180,210,255,1)",
+                    backgroundColor: "rgba(80,150,240,0.16)",
+                    border: "1px solid rgba(80,150,240,0.45)",
+                    color: "var(--text)",
                     opacity: currentDoc ? 1 : 0.5,
                   }}
                 >
@@ -734,9 +734,9 @@ export default function DocumentView({
                   title="화면 설계 — 와이어프레임 직접 그리기 또는 AI로 시안 자동 생성"
                   className="text-xs px-3 py-1.5 rounded-lg font-medium"
                   style={{
-                    backgroundColor: "rgba(200,180,255,0.18)",
-                    border: "1px solid rgba(200,180,255,0.5)",
-                    color: "rgba(220,200,255,1)",
+                    backgroundColor: "rgba(150,110,235,0.16)",
+                    border: "1px solid rgba(150,110,235,0.45)",
+                    color: "var(--text)",
                     opacity: currentDoc ? 1 : 0.5,
                   }}
                 >
@@ -771,9 +771,9 @@ export default function DocumentView({
                 title="기획서를 분석해 필요한 다이어그램·UI 이미지를 미리보기로 제안 — 확인 후 적용"
                 className="text-xs px-3 py-1.5 rounded-lg font-medium"
                 style={{
-                  backgroundColor: "rgba(125,211,252,0.18)",
-                  border: "1px solid rgba(125,211,252,0.5)",
-                  color: "rgba(180,225,255,1)",
+                  backgroundColor: "rgba(20,170,210,0.16)",
+                  border: "1px solid rgba(20,170,210,0.5)",
+                  color: "var(--text)",
                   opacity: currentDoc ? 1 : 0.5,
                 }}
               >
@@ -783,8 +783,8 @@ export default function DocumentView({
                 <button
                   onClick={() => setShowExportMenu(v => !v)}
                   disabled={!currentDoc}
-                  className="text-xs px-3 py-1.5 rounded-lg"
-                  style={{ backgroundColor: SILVER_FAINT, color: SILVER, opacity: currentDoc ? 1 : 0.5 }}
+                  className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                  style={{ backgroundColor: "var(--surface-2)", border: "1px solid var(--card-border)", color: "var(--text)", opacity: currentDoc ? 1 : 0.5 }}
                 >
                   📥 내보내기 ▾
                 </button>
@@ -822,10 +822,10 @@ export default function DocumentView({
             title="조던 채팅 화면으로 돌아가기"
             className="text-xs px-4 py-2 rounded-lg font-bold flex items-center gap-1.5 transition-transform hover:scale-105"
             style={{
-              backgroundColor: "rgba(100,220,160,0.22)",
-              border: "1.5px solid rgba(100,220,160,0.7)",
-              color: "rgba(150,255,200,1)",
-              boxShadow: "0 2px 10px rgba(100,220,160,0.25)",
+              backgroundColor: "rgba(40,185,120,0.18)",
+              border: "1.5px solid rgba(40,185,120,0.6)",
+              color: "var(--text)",
+              boxShadow: "0 2px 10px rgba(40,185,120,0.2)",
             }}
           >
             ← 조던으로 돌아가기
