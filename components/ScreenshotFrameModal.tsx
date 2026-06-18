@@ -189,7 +189,7 @@ export default function ScreenshotFrameModal({
                   backgroundColor: "var(--surface-2)",
                   border: "1px solid var(--card-border)",
                   color: "var(--text)",
-                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                  fontFamily: '"Nanum Gothic Coding", "D2Coding", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
                   lineHeight: 1.5,
                   whiteSpace: "pre",
                 }}

@@ -237,9 +237,10 @@ body {
 .prose li > ul, .prose li > ol { margin-top: 0.2rem; margin-bottom: 0.2rem; }
 .prose blockquote { border-left: 3px solid; padding-left: 0.8rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
 .prose code { font-size: 0.82rem; padding: 0.1rem 0.32rem; border-radius: 0.25rem; }
-/* 코드블록(ASCII UI 프레임 등) — 표면색 카드 + 테두리 + 고대비 본문색(분홍 인라인색 미적용) */
-.prose pre { padding: 0.8rem; border-radius: 0.5rem; overflow-x: auto; margin-top: 0.5rem; margin-bottom: 0.5rem; background: var(--surface-2); border: 1px solid var(--card-border); color: var(--text); line-height: 1.5; }
-.prose pre code { background: transparent; padding: 0; color: inherit; font-size: 0.8rem; }
+/* 코드블록(ASCII UI 프레임 등) — 표면색 카드 + 테두리 + 고대비 본문색(분홍 인라인색 미적용)
+   한글 고정폭 글꼴(Nanum Gothic Coding): 한글=영문 2칸 → 박스 드로잉 세로줄이 정렬됨 */
+.prose pre { padding: 0.8rem; border-radius: 0.5rem; overflow-x: auto; margin-top: 0.5rem; margin-bottom: 0.5rem; background: var(--surface-2); border: 1px solid var(--card-border); color: var(--text); line-height: 1.5; font-family: "Nanum Gothic Coding", "D2Coding", ui-monospace, SFMono-Regular, Consolas, monospace; }
+.prose pre code { background: transparent; padding: 0; color: inherit; font-size: 0.8rem; font-family: inherit; }
 .prose hr { margin-top: 0.8rem; margin-bottom: 0.8rem; border-color: var(--prose-table-border); }
 .prose table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; margin-bottom: 0.5rem; }
 .prose td, .prose th { padding: 0.35rem 0.55rem; border: 1px solid var(--prose-table-border); }
