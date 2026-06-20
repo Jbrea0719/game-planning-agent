@@ -52,6 +52,8 @@ export default function PersonaManager({
           <p className="text-[13px] font-bold" style={{ color: "var(--text)" }}>{p.name}</p>
           <p className="text-xs mt-0.5" style={{ color: "var(--text-mute)" }}>{p.identity}</p>
           <p className="text-xs mt-1" style={{ color: "var(--text-dim)", lineHeight: 1.55 }}>{p.perspective}</p>
+          {p.focus?.length > 0 && <p className="text-[11px] mt-1" style={{ color: "var(--text-dim)" }}>✅ {p.focus.join(" · ")}</p>}
+          {p.avoid?.length > 0 && <p className="text-[11px] mt-0.5" style={{ color: "var(--text-mute)" }}>🚫 {p.avoid.join(" · ")}</p>}
           <p className="text-[11px] mt-1.5" style={{ color: "var(--text-mute)" }}>
             엄격도 {p.strictness}/5 · 근거 {[p.knowledge.bible && "바이블", p.knowledge.rules && "규칙", p.knowledge.refgames && "참고게임"].filter(Boolean).join("·") || "없음"}
           </p>

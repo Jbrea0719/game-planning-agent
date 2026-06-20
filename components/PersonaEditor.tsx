@@ -25,6 +25,8 @@ export default function PersonaEditor({
   const [kRules, setKRules] = useState(initial?.knowledge?.rules ?? true);
   const [kRef, setKRef] = useState(initial?.knowledge?.refgames ?? true);
   const [expertise, setExpertise] = useState(initial?.knowledge?.expertise ?? "");
+  const [focus, setFocus] = useState<string[]>(initial?.focus ?? []);
+  const [avoid, setAvoid] = useState<string[]>(initial?.avoid ?? []);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
@@ -38,6 +40,8 @@ export default function PersonaEditor({
         id: editingId ?? undefined,
         name: name.trim(), emoji, identity, perspective, tone, strictness,
         knowledge: { bible: kBible, rules: kRules, refgames: kRef, expertise },
+        focus: focus.map((s) => s.trim()).filter(Boolean),
+        avoid: avoid.map((s) => s.trim()).filter(Boolean),
         nickname,
       };
       const res = await fetch("/api/review-personas", {
@@ -60,6 +64,25 @@ export default function PersonaEditor({
   const fieldStyle = { backgroundColor: "var(--surface-input)", border: "1px solid var(--card-border)", color: "var(--text)" } as const;
   const label = "text-xs font-bold mb-1.5 block";
   const labelStyle = { color: "var(--text-dim)" } as const;
+
+  // 항목 리스트 편집기 (추가·수정·삭제)
+  const listEditor = (items: string[], setItems: (v: string[]) => void, placeholder: string) => (
+    <div className="space-y-1.5">
+      {items.map((v, i) => (
+        <div key={i} className="flex items-center gap-1.5">
+          <input
+            value={v}
+            onChange={(e) => setItems(items.map((x, j) => (j === i ? e.target.value : x)))}
+            placeholder={placeholder}
+            className="flex-1 px-3 py-2 rounded-lg text-sm outline-none"
+            style={fieldStyle}
+          />
+          <button onClick={() => setItems(items.filter((_, j) => j !== i))} className="w-8 h-8 rounded-lg flex-shrink-0 text-xs" style={{ border: "1px solid var(--card-border)", color: "var(--text-mute)" }} aria-label="삭제">✕</button>
+        </div>
+      ))}
+      <button onClick={() => setItems([...items, ""])} className="text-xs px-2.5 py-1.5 rounded-lg" style={{ backgroundColor: "var(--surface-2)", border: "1px solid var(--card-border)", color: "var(--text-dim)" }}>+ 항목 추가</button>
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.7)" }} onClick={onClose}>
@@ -100,6 +123,16 @@ export default function PersonaEditor({
               <label className={label} style={labelStyle}>엄격도 {strictness}/5</label>
               <input type="range" min={1} max={5} step={1} value={strictness} onChange={(e) => setStrictness(Number(e.target.value))} className="w-full" style={{ accentColor: "var(--accent)" }} />
             </div>
+          </div>
+
+          <div>
+            <label className={label} style={labelStyle}>✅ 특히 신경 쓸 것 (이 관점을 우선 점검)</label>
+            {listEditor(focus, setFocus, "예: 개발 대비 효과, 우선순위, 과잉설계")}
+          </div>
+
+          <div>
+            <label className={label} style={labelStyle}>🚫 신경 쓰지 말 것 (지적하지 않을 부분)</label>
+            {listEditor(avoid, setAvoid, "예: 사소한 워딩, 아트 취향")}
           </div>
 
           <div>

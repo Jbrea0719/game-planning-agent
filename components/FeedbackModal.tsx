@@ -10,7 +10,7 @@ import DocRevisePreview, { type RevisePreview } from "./DocRevisePreview";
 
 interface FeedbackItem {
   title: string; type: string; severity: string;
-  rationale: string; suggestion: string; suggested_mode: string; section?: string;
+  rationale: string; impact?: string; suggestion: string; suggested_mode: string; section?: string;
 }
 interface ReviewerResult {
   persona: { id: string; name: string; emoji: string };
@@ -222,8 +222,9 @@ export default function FeedbackModal({
                             {panelMode && <span className="text-[11px]" style={{ color: "var(--text-mute)" }}>{it.reviewer.emoji} {it.reviewer.name}</span>}
                             <span className="text-[13px] font-bold" style={{ color: "var(--text)" }}>{it.title}</span>
                           </div>
-                          <p className="text-xs" style={{ color: "var(--text-dim)", lineHeight: 1.55 }}>근거: {it.rationale}</p>
-                          <p className="text-xs mt-1" style={{ color: "var(--accent-2)", lineHeight: 1.55 }}>→ {it.suggestion}</p>
+                          <p className="text-xs" style={{ color: "var(--text-dim)", lineHeight: 1.6 }}>근거: {it.rationale}</p>
+                          {it.impact && <p className="text-xs mt-1" style={{ color: "var(--text-dim)", lineHeight: 1.6 }}>이대로면: {it.impact}</p>}
+                          <p className="text-xs mt-1" style={{ color: "var(--accent-2)", lineHeight: 1.6 }}>→ {it.suggestion}</p>
 
                           {st.checked && (
                             <div className="mt-2.5">

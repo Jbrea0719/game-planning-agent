@@ -18,6 +18,8 @@ interface PersonaBody {
   tone?: string;
   strictness?: number;
   knowledge?: { bible: boolean; rules: boolean; refgames: boolean; expertise: string };
+  focus?: string[];
+  avoid?: string[];
   nickname?: string;
   project_id?: string;
 }
@@ -50,6 +52,8 @@ export async function POST(request: Request) {
         tone: b.tone ?? "",
         strictness: typeof b.strictness === "number" ? b.strictness : 3,
         knowledge: b.knowledge ?? { bible: true, rules: true, refgames: true, expertise: "" },
+        focus_points: Array.isArray(b.focus) ? b.focus : [],
+        avoid_points: Array.isArray(b.avoid) ? b.avoid : [],
         created_by_nickname: b.nickname ?? null,
       })
       .select()
@@ -69,6 +73,8 @@ export async function PATCH(request: Request) {
     for (const k of ["name", "emoji", "identity", "perspective", "tone", "strictness", "knowledge"] as const) {
       if (b[k] !== undefined) patch[k] = b[k];
     }
+    if (b.focus !== undefined) patch.focus_points = Array.isArray(b.focus) ? b.focus : [];
+    if (b.avoid !== undefined) patch.avoid_points = Array.isArray(b.avoid) ? b.avoid : [];
     const { data, error } = await supabase
       .from("review_personas")
       .update(patch)

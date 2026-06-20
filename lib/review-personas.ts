@@ -19,6 +19,8 @@ export interface Persona {
   tone: string;        // 말투·성격
   strictness: number;  // 1(살살) ~ 5(빡세게)
   knowledge: PersonaKnowledge;
+  focus: string[];     // 특히 신경 쓸 것 (항목 리스트)
+  avoid: string[];     // 신경 쓰지 말 것 / 지적하지 말 것 (항목 리스트)
   isPreset: boolean;
 }
 
@@ -55,6 +57,8 @@ export const PRESET_PERSONAS: Persona[] = [
     tone: "냉정·논리형. 직설적이되 근거로 설득.",
     strictness: 4,
     knowledge: K(true, true, true, "라이브·콘솔·모바일 다수 프로젝트에서 스코프 관리와 출시 우선순위 결정을 해온 디렉터."),
+    focus: ["개발 사이즈 대비 효과(ROI)", "지금 단계에 꼭 필요한지(우선순위)", "과잉설계·오버엔지니어링", "좋아보이지만 효과 약한 스펙"],
+    avoid: ["사소한 워딩·오타 지적", "취향 차원의 디테일 트집"],
     isPreset: true,
   },
   {
@@ -68,6 +72,8 @@ export const PRESET_PERSONAS: Persona[] = [
     tone: "꼼꼼·구조적. 구현 관점에서 질문이 많음.",
     strictness: 4,
     knowledge: K(true, true, false, "전투·성장·재화 시스템 설계와 구현 협업 경험."),
+    focus: ["구현 난이도·개발 공수", "시스템 간 의존성·충돌", "예외 케이스 정의 여부", "서버/클라 처리 책임 모호"],
+    avoid: ["아트·연출 취향", "마케팅·BM 판단"],
     isPreset: true,
   },
   {
@@ -81,6 +87,8 @@ export const PRESET_PERSONAS: Persona[] = [
     tone: "현실적·경험 기반. 운영 사례를 인용.",
     strictness: 3,
     knowledge: K(true, true, true, "수집형 RPG 장기 라이브 운영·CS·악용 대응 경험."),
+    focus: ["장기 운영 지속성", "운영자 수동 부담", "악용·매크로·환불 분쟁 소지", "콘텐츠 소진 속도"],
+    avoid: ["출시 첫날만 보는 단기 관점", "구현 난이도 세부"],
     isPreset: true,
   },
   {
@@ -94,6 +102,8 @@ export const PRESET_PERSONAS: Persona[] = [
     tone: "직설·까다로움. 유저 커뮤니티 화법.",
     strictness: 4,
     knowledge: K(false, false, true, "여러 수집형 RPG를 엔드까지 플레이한 코어 유저 관점."),
+    focus: ["깊이·엔드 콘텐츠", "과금/무과금 공정성", "파워크리프", "돈 쓴 보람(가치 체감)"],
+    avoid: ["개발 비용 고려", "라이트 유저 편의"],
     isPreset: true,
   },
   {
@@ -107,6 +117,8 @@ export const PRESET_PERSONAS: Persona[] = [
     tone: "솔직·부담 호소형. 쉬운 말.",
     strictness: 2,
     knowledge: K(false, false, false, "복잡한 게임은 금방 접는 캐주얼 유저 관점."),
+    focus: ["진입 부담·첫인상", "이해 난이도·복잡함", "강제되는 숙제·피로도", "이탈 지점"],
+    avoid: ["엔드 콘텐츠 깊이", "하드코어 밸런스"],
     isPreset: true,
   },
 ];
@@ -122,6 +134,7 @@ export function rowToPersona(r: {
   id: string; name: string; emoji?: string | null; identity?: string | null;
   perspective?: string | null; tone?: string | null; strictness?: number | null;
   knowledge?: PersonaKnowledge | null;
+  focus_points?: string[] | null; avoid_points?: string[] | null;
 }): Persona {
   return {
     id: r.id,
@@ -132,6 +145,8 @@ export function rowToPersona(r: {
     tone: r.tone || "",
     strictness: typeof r.strictness === "number" ? r.strictness : 3,
     knowledge: r.knowledge || K(true, true, true, ""),
+    focus: Array.isArray(r.focus_points) ? r.focus_points : [],
+    avoid: Array.isArray(r.avoid_points) ? r.avoid_points : [],
     isPreset: false,
   };
 }

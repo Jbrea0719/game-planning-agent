@@ -20,6 +20,12 @@
 2. Supabase URL이 `cgplll…`(조던)인지 확인. `gnryzm…`(코비)면 잘못된 위치.
 3. `HANDOFF.md` 읽고 이어가기.
 
+## UI 디자인 원칙
+UI 화면·컴포넌트를 새로 만들거나 수정할 때는 아래 가이드라인을 기본으로 적용한다.
+별도 디자인 지시가 있으면 그쪽을 우선한다.
+
+@C:/Users/Admin/.claude/skills/frontend-design/SKILL.md
+
 ## 작업 규칙 (요약 — 상세는 HANDOFF.md)
 - **한국어로 답변**, 상급자께 보고하듯 격식 존댓말. 비전문가 PD 대상이라 기술 용어는 괄호로 풀이.
 - **빌드 통과 시 master에 바로 커밋·푸시**(Vercel 자동 배포). 단, 삭제·force-push 등 되돌리기 어려운 작업만 사전 확인.
