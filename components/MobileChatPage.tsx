@@ -950,7 +950,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
   }
 
   // DocumentView "대화를 통한 수정" 진입 → 수정 대상 지정 + 기획서 뷰 닫기
-  async function enterReviseViaChat(docId: string, docTitle: string) {
+  async function enterReviseViaChat(docId: string, docTitle: string, seed?: string) {
     if (interviewLoading) return;
     setInterviewLoading(true);
     try {
@@ -977,8 +977,10 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       setShowDocs(false);
 
       const pairId = crypto.randomUUID();
-      const userMsg = `🛠️ "${docTitle}" 기획서 수정 시작`;
-      const intro = `**🛠️ 기획서 수정 — \`${docTitle}\`**\n\n이 기획서를 어떻게 바꿀지 말씀해주세요. 바꿀 내용을 대화로 정리한 뒤, **[🛠️ 이 대화로 기획서 수정]** 을 누르면 반영됩니다.`;
+      const userMsg = seed ? `💬 "${docTitle}" 검토 항목 상의` : `🛠️ "${docTitle}" 기획서 수정 시작`;
+      const intro = seed
+        ? `**💬 검토 피드백 상의 — \`${docTitle}\`**\n\n${seed}\n\n_정리되면 **[🛠️ 이 대화로 기획서 수정]** 으로 반영하세요._`
+        : `**🛠️ 기획서 수정 — \`${docTitle}\`**\n\n이 기획서를 어떻게 바꿀지 말씀해주세요. 바꿀 내용을 대화로 정리한 뒤, **[🛠️ 이 대화로 기획서 수정]** 을 누르면 반영됩니다.`;
       await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1883,7 +1885,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
         onDecisionsChanged={() => bumpDecisions()}
         onStartWriting={(subId, label) => startInterviewForCategory(subId, label)}
         onStartWritingDoc={(docId, title) => startInterviewForDoc(docId, title)}
-        onReviseViaChat={(docId, docTitle) => enterReviseViaChat(docId, docTitle)}
+        onReviseViaChat={(docId, docTitle, seed) => enterReviseViaChat(docId, docTitle, seed)}
         openTarget={docOpenTarget}
       />
 

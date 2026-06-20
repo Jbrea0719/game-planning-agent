@@ -12,6 +12,7 @@ import DocList from "./DocList";
 const WireframeEditor = dynamic(() => import("./WireframeEditor"), { ssr: false });
 const MockupGenerator = dynamic(() => import("./MockupGenerator"), { ssr: false });
 const ScreenshotFrameModal = dynamic(() => import("./ScreenshotFrameModal"), { ssr: false });
+const FeedbackModal = dynamic(() => import("./FeedbackModal"), { ssr: false });
 import {
   downloadMD as exportMD,
   downloadTXT as exportTXT,
@@ -96,7 +97,7 @@ export default function DocumentView({
   onDecisionsChanged?: () => void;   // 결정사항 변경 시 부모에 알림 (AI 재분류 적용 후 바이블 새로고침용)
   onStartWriting?: (subCategoryId: string, label: string) => void;  // 빈 (진짜)소분류 '작성하기' → 그 소에 새 기획서 작성
   onStartWritingDoc?: (docId: string, title: string) => void;  // planned 기획서 '작성하기' → 인터뷰 결과가 이 기획서를 채움
-  onReviseViaChat?: (docId: string, docTitle: string) => void;  // '대화를 통한 수정' → 채팅으로 이동해 이 기획서를 수정 대상으로 지정
+  onReviseViaChat?: (docId: string, docTitle: string, seed?: string) => void;  // '대화를 통한 수정' → 채팅으로 이동해 이 기획서를 수정 대상으로 지정 (seed: 시작 메시지)
   openTarget?: { docId: string | null; commentId: string | null } | null;  // 알림 바로가기 — 이 기획서를 열고 댓글로 스크롤
 }) {
   const [versions, setVersions] = useState<DocMeta[]>([]);
@@ -150,6 +151,7 @@ export default function DocumentView({
   const [showScreenDesignMenu, setShowScreenDesignMenu] = useState(false);
   const [showReviseMenu, setShowReviseMenu] = useState(false);  // 수정 요청 → [직접수정 / 대화를 통한 수정]
   const [screenDesignOpen, setScreenDesignOpen] = useState<"wireframe" | "mockup" | "frame" | null>(null);
+  const [showFeedback, setShowFeedback] = useState(false);
   // 카테고리 관리 모달
   const [showCatManager, setShowCatManager] = useState(false);
   // AI 재분류 검토 모달 — 카테고리 삭제로 미분류된 결정사항 id 목록 (null이면 닫힘)
@@ -727,6 +729,16 @@ export default function DocumentView({
                   </div>
                 )}
               </div>
+              {/* 피드백 받기 — 검토자(페르소나) 시선으로 과잉·저효과 스펙 솎아내기 */}
+              <button
+                onClick={() => setShowFeedback(true)}
+                disabled={!currentDoc}
+                title="검토자에게 피드백 받기 — 과잉·저효과 스펙 솎아내고 우선순위 정리"
+                className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                style={{ backgroundColor: "rgba(120,90,235,0.16)", border: "1px solid rgba(120,90,235,0.45)", color: "var(--text)", opacity: currentDoc ? 1 : 0.5 }}
+              >
+                🧐 피드백 받기
+              </button>
               {/* 화면 설계 — 와이어프레임 또는 AI 시안 */}
               <div className="relative">
                 <button
@@ -1206,6 +1218,16 @@ export default function DocumentView({
         currentMarkdown={currentDoc?.content_markdown}
         nickname={nickname}
         onInserted={() => { if (currentDoc) void loadDoc(currentDoc.id); }}
+      />
+      <FeedbackModal
+        open={showFeedback}
+        onClose={() => setShowFeedback(false)}
+        docId={currentDoc?.id}
+        docTitle={currentDoc?.title}
+        currentMarkdown={currentDoc?.content_markdown}
+        nickname={nickname}
+        onApplied={() => { if (currentDoc) void loadDoc(currentDoc.id); }}
+        onDiscuss={(seed) => { if (currentDoc) onReviseViaChat?.(currentDoc.id, currentDoc.title, seed); }}
       />
 
       {/* 카테고리 변경 모달 */}
