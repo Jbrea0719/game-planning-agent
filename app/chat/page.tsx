@@ -1039,6 +1039,8 @@ function DesktopChatPage() {
         body: JSON.stringify({
           project_id: DEFAULT_PROJECT_ID,
           ...(opts.targetSubCategoryId ? { target_sub_category_id: opts.targetSubCategoryId } : {}),
+          // 소분류 id가 없는 작성 예정 기획서도 항목 이름으로 질문 초점을 고정 (엉뚱한 질문 방지)
+          target_topic: label,
         }),
       });
       const data = await res.json();

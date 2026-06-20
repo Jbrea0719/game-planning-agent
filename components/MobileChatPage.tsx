@@ -364,7 +364,7 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       const res = await fetch("/api/jordan-interview/next-question", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project_id: DEFAULT_PROJECT_ID, ...(opts.targetSubCategoryId ? { target_sub_category_id: opts.targetSubCategoryId } : {}) }),
+        body: JSON.stringify({ project_id: DEFAULT_PROJECT_ID, ...(opts.targetSubCategoryId ? { target_sub_category_id: opts.targetSubCategoryId } : {}), target_topic: opts.label }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) { alert(`기획서 작성 질문 생성 실패: ${data.error ?? "오류"}`); return; }
