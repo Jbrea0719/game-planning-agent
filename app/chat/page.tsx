@@ -3042,8 +3042,8 @@ function DesktopChatPage() {
       </header>
 
       {/* 대화 영역 */}
-      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-6" style={{ scrollbarWidth: "thin", scrollbarColor: `${SILVER_DIM} transparent` }}>
-        <div className={`max-w-2xl mx-auto space-y-6 ${selectMode ? "pl-8" : ""}`}>
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 lg:px-8 py-6" style={{ scrollbarWidth: "thin", scrollbarColor: `${SILVER_DIM} transparent` }}>
+        <div className={`w-full max-w-[1120px] 2xl:max-w-[1320px] mx-auto space-y-6 ${selectMode ? "pl-8" : ""}`}>
 
           {/* 빈 상태 */}
           {activePairs.length === 0 && !streamingPair && (
@@ -3161,7 +3161,7 @@ function DesktopChatPage() {
               {/* AI 답변 */}
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ border: `1px solid ${SILVER_DIM}` }}><img src="/avatar.jpg" alt="조던" className="w-full h-full object-cover" /></div>
-                <div className="flex flex-col gap-1 max-w-[75%]">
+                <div className="flex flex-col gap-1 max-w-[85%]">
                   <p className="text-xs ml-1" style={{ color: SILVER }}>조던</p>
                   <div className="relative">
                     <button
@@ -3305,7 +3305,7 @@ function DesktopChatPage() {
               </div>
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ border: `1px solid ${SILVER_DIM}` }}><img src="/avatar.jpg" alt="조던" className="w-full h-full object-cover" /></div>
-                <div className="flex flex-col gap-1 max-w-[75%]">
+                <div className="flex flex-col gap-1 max-w-[85%]">
                   <p className="text-xs ml-1" style={{ color: SILVER }}>조던</p>
                   <div className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm prose prose-sm max-w-none" style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)" }}>
                     {streamingPair.assistant
@@ -3360,7 +3360,7 @@ function DesktopChatPage() {
                       </div>
                       <div className="flex items-start gap-3">
                         <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ border: `1px solid ${SILVER_DIM}` }}><img src="/avatar.jpg" alt="조던" className="w-full h-full object-cover" /></div>
-                        <div className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm max-w-[75%]" style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)" }}>
+                        <div className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm max-w-[85%]" style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)" }}>
                           {pair.assistant.content}
                         </div>
                       </div>
@@ -3391,8 +3391,9 @@ function DesktopChatPage() {
           style={{ backgroundColor: SILVER, color: "var(--on-accent)", boxShadow: `0 4px 15px rgba(192,200,216,0.4)` }}>↓</button>
       )}
 
-      {/* 입력창 */}
+      {/* 입력창 — 대화 칼럼과 같은 폭으로 가운데 정렬 (넓은 화면에서 정렬 통일) */}
       <div style={{ backgroundColor: "var(--header-bg)", borderTop: `1px solid ${SILVER_FAINT}` }}>
+        <div className="w-full max-w-[1120px] 2xl:max-w-[1320px] mx-auto">
         {/* 자세한 답변 기본 보기 토글 (⚙️ 설정과 연동) */}
         <div className="px-4 pt-2">
           <button
@@ -3493,6 +3494,7 @@ function DesktopChatPage() {
           >
             ➤
           </button>
+        </div>
         </div>
       </div>
     </div>
