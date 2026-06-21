@@ -1528,6 +1528,8 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
             const myIdx = pairs.findIndex(p => p.pair_id === pair.pair_id);
             const isBeforeAnchor = anchorIdx >= 0 && myIdx < anchorIdx;
             const isSelected = selectedPairIds.has(pair.pair_id);
+            // '자세한 답변 기본 보기'가 켜진 상태 → 기본 답변은 숨기고 자세한 답변만 주력으로 표시
+            const detailPrimary = autoDetail && !!pair.detail_shown;
             return (
               <div
                 key={pair.pair_id}
@@ -1594,19 +1596,23 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                     <img src="/avatar.jpg" alt="조던" className="w-full h-full object-cover" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="px-3 py-2 rounded-2xl rounded-tl-sm text-sm prose prose-sm max-w-none"
-                      style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)" }}>
-                      <MemoMarkdown text={pair.assistant.content} />
-                    </div>
+                    {!detailPrimary && (
+                      <div className="px-3 py-2 rounded-2xl rounded-tl-sm text-sm prose prose-sm max-w-none"
+                        style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)" }}>
+                        <MemoMarkdown text={pair.assistant.content} />
+                      </div>
+                    )}
                     {/* 답변 도구 — 자세한 답변 + 피드백 */}
                     <div className="flex items-center gap-3 mt-1.5 ml-1">
-                      <button
-                        onClick={() => loadDetail(pair.pair_id)}
-                        className="text-[10px]"
-                        style={{ color: pair.detail_failed ? "rgba(255,180,180,0.95)" : SILVER_DIM }}
-                      >
-                        {pair.detail_loading ? "⏳ 불러오는 중" : pair.detail_failed ? "⚠️ 자세히 실패 — ↻ 재시도" : pair.detail_shown ? "▲ 접기" : "▼ 자세히"}
-                      </button>
+                      {(!detailPrimary || pair.detail_failed) && (
+                        <button
+                          onClick={() => loadDetail(pair.pair_id)}
+                          className="text-[10px]"
+                          style={{ color: pair.detail_failed ? "rgba(255,180,180,0.95)" : SILVER_DIM }}
+                        >
+                          {pair.detail_loading ? "⏳ 불러오는 중" : pair.detail_failed ? "⚠️ 자세히 실패 — ↻ 재시도" : pair.detail_shown ? "▲ 접기" : "▼ 자세히"}
+                        </button>
+                      )}
                       <div className="ml-auto flex items-center gap-1.5">
                         <button
                           onClick={() => submitFeedback(pair.pair_id, "accurate")}
@@ -1628,6 +1634,12 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
                         >👎</button>
                       </div>
                     </div>
+                    {/* autoDetail 모드: 기본 답변을 숨겼으므로 자세한 답변 작성 동안 로딩 표시 */}
+                    {detailPrimary && pair.detail_loading && !pair.detail_content && (
+                      <div className="px-3 py-2 rounded-2xl text-sm mt-1.5" style={{ backgroundColor: "var(--surface-2)", border: "1px solid var(--card-border)", color: "var(--text-dim)" }}>
+                        <span className="animate-pulse">✍️ 자세한 답변을 작성하고 있어요…</span>
+                      </div>
+                    )}
                     {/* 자세한 답변 본문 */}
                     {pair.detail_shown && pair.detail_content && (
                       <div className="px-3 py-2 rounded-2xl text-sm prose prose-sm max-w-none mt-1.5"

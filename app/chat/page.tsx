@@ -3077,6 +3077,8 @@ function DesktopChatPage() {
             return activePairs.map((pair, idx) => {
               const isAnchor = pair.pair_id === contextAnchorPairId;
               const isBeforeAnchor = anchorIdx >= 0 && idx < anchorIdx;
+              // '자세한 답변 기본 보기'가 켜진 상태 → 기본 답변은 숨기고 자세한 답변만 주력으로 표시
+              const detailPrimary = autoDetail && !!pair.detail_shown;
               return (
             <div
               key={pair.pair_id}
@@ -3165,6 +3167,7 @@ function DesktopChatPage() {
                 <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ border: `1px solid ${SILVER_DIM}` }}><img src="/avatar.jpg" alt="조던" className="w-full h-full object-cover" /></div>
                 <div className="flex flex-col gap-1 max-w-[85%]">
                   <p className="text-xs ml-1" style={{ color: SILVER }}>조던</p>
+                  {!detailPrimary && (<>
                   <div className="relative">
                     <button
                       onClick={(e) => { e.stopPropagation(); copyMessage(pair.assistant.content, `${pair.pair_id}-assistant`); }}
@@ -3189,12 +3192,15 @@ function DesktopChatPage() {
                       <span className="text-[10px]" style={{ color: SILVER_DIM }}>· {pair.assistant.content.length.toLocaleString()}자</span>
                     </div>
                   )}
+                  </>)}
 
                   {/* 버튼 행: 자세한 답변 보기 + 설계 피드백 내용 + 피드백 평가 */}
                   <div className="flex items-center gap-4 ml-1 mt-1 flex-wrap">
-                    <button onClick={() => loadDetail(pair.pair_id)} className="text-xs flex items-center gap-1 w-fit" style={{ color: SILVER_DIM }}>
-                      {pair.detail_loading ? "⏳ 불러오는 중..." : pair.detail_shown ? "▲ 접기" : "▼ 자세한 답변 보기"}
-                    </button>
+                    {!detailPrimary && (
+                      <button onClick={() => loadDetail(pair.pair_id)} className="text-xs flex items-center gap-1 w-fit" style={{ color: SILVER_DIM }}>
+                        {pair.detail_loading ? "⏳ 불러오는 중..." : pair.detail_shown ? "▲ 접기" : "▼ 자세한 답변 보기"}
+                      </button>
+                    )}
                     {/* 설계 피드백 버튼 — critic_history가 있을 때만 표시 */}
                     {pair.critic_history && pair.critic_history.length > 0 && (
                       <button onClick={() => loadFeedbackSummary(pair.pair_id)} className="text-xs flex items-center gap-1 w-fit" style={{ color: "rgba(100,180,255,0.7)" }}>
@@ -3238,6 +3244,13 @@ function DesktopChatPage() {
                     </div>
                   )}
 
+                  {/* autoDetail 모드: 기본 답변을 숨겼으므로 자세한 답변 작성 동안 로딩 표시 */}
+                  {detailPrimary && pair.detail_loading && !pair.detail_content && (
+                    <div className="px-4 py-3 rounded-2xl text-sm" style={{ backgroundColor: "var(--surface-2)", border: "1px solid var(--card-border)", color: "var(--text-dim)" }}>
+                      <span className="animate-pulse">✍️ 자세한 답변을 작성하고 있어요…</span>
+                    </div>
+                  )}
+
                   {/* 자세한 답변 패널 */}
                   {pair.detail_shown && pair.detail_content && (() => {
                     // 남아있을 수 있는 에이전트 마커 제거
@@ -3250,8 +3263,20 @@ function DesktopChatPage() {
                     const fullText = markerIdx !== -1 ? rawDetail.slice(markerIdx + MARKER.length).trim() : null;
                     return (
                       <div className="flex flex-col gap-2">
-                        <div className="px-4 py-3 rounded-2xl text-sm prose prose-sm max-w-none" style={{ backgroundColor: "var(--surface-2)", border: `1px solid var(--card-border)`, color: "var(--text)" }}>
-                          <AssistantMarkdown text={bubbleText} />
+                        <div className="relative">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); copyMessage(fullText ?? bubbleText, `${pair.pair_id}-detail`); }}
+                            className="absolute -top-2 -right-2 w-6 h-6 rounded-full items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 flex"
+                            style={{ backgroundColor: copiedId === `${pair.pair_id}-detail` ? "rgba(100,200,100,0.9)" : "rgba(30,40,60,0.9)", border: `1px solid ${SILVER_FAINT}` }}
+                            title="복사"
+                          >
+                            <span style={{ fontSize: "10px", color: copiedId === `${pair.pair_id}-detail` ? "#fff" : SILVER }}>
+                              {copiedId === `${pair.pair_id}-detail` ? "✓" : "⎘"}
+                            </span>
+                          </button>
+                          <div className="px-4 py-3 rounded-2xl text-sm prose prose-sm max-w-none" style={{ backgroundColor: "var(--surface-2)", border: `1px solid var(--card-border)`, color: "var(--text)" }}>
+                            <AssistantMarkdown text={bubbleText} />
+                          </div>
                         </div>
                         {fullText && !pair.detail_loading && (
                           <div className="flex flex-col gap-2 ml-1 px-3 py-2.5 rounded-xl" style={{ backgroundColor: "rgba(100,180,255,0.08)", border: "1px solid rgba(100,180,255,0.35)" }}>
