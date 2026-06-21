@@ -2,7 +2,7 @@
 
 // 검토자 생성·수정 폼 (모달). 프리셋 '복제' 시 editingId=null로 들어와 새로 저장됨.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Persona } from "@/lib/review-personas";
 
 export default function PersonaEditor({
@@ -29,6 +29,26 @@ export default function PersonaEditor({
   const [avoid, setAvoid] = useState<string[]>(initial?.avoid ?? []);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+
+  // 열릴 때마다 initial(복제·수정 대상)로 폼을 채움.
+  // useState 초기값은 최초 마운트 1회만 적용돼서, 이게 없으면 복제·수정해도 빈 폼이 뜸.
+  useEffect(() => {
+    if (!open) return;
+    setEmoji(initial?.emoji ?? "🧐");
+    setName(initial?.name ?? "");
+    setIdentity(initial?.identity ?? "");
+    setPerspective(initial?.perspective ?? "");
+    setTone(initial?.tone ?? "");
+    setStrictness(initial?.strictness ?? 3);
+    setKBible(initial?.knowledge?.bible ?? true);
+    setKRules(initial?.knowledge?.rules ?? true);
+    setKRef(initial?.knowledge?.refgames ?? true);
+    setExpertise(initial?.knowledge?.expertise ?? "");
+    setFocus(initial?.focus ?? []);
+    setAvoid(initial?.avoid ?? []);
+    setErr("");
+    setBusy(false);
+  }, [open, initial]);
 
   if (!open) return null;
 
