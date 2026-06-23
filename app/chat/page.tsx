@@ -679,9 +679,14 @@ function DesktopChatPage() {
       let disp = g.raw.replace(/\n__JORDAN_CRITIC_START__[\s\S]*?__JORDAN_CRITIC_END__$/, "");
       const i = disp.indexOf("__JORDAN_ANSWER_START__");
       if (i !== -1) disp = disp.slice(i + "__JORDAN_ANSWER_START__".length).trimStart();
+      disp = disp
+        .replace(/__DECISIONS_EXTRACTED__\d+/g, "").replace(/__DECISIONS_HELD__\d+/g, "")
+        .replace(/__DECISIONS_DATA__[\s\S]*?__END__/g, "").replace(/__BIBLE_CONFLICTS__[\s\S]*?__END__/g, "")
+        .replace(/__(?:DECISIONS_DATA|DECISIONS_HELD|DECISIONS_EXTRACTED|BIBLE_CONFLICTS)__[\s\S]*$/, "")
+        .replace("__TRUNCATED__", "").trimEnd();
       streamingRawRef.current = g.raw;
       streamingConvIdRef.current = convId;
-      setStreamingPair({ user: g.user, assistant: disp.replace("__TRUNCATED__", ""), userImageId: g.imageId });
+      setStreamingPair({ user: g.user, assistant: disp, userImageId: g.imageId });
     } else {
       streamingRawRef.current = "";
       streamingConvIdRef.current = null;
@@ -1253,6 +1258,16 @@ function DesktopChatPage() {
             displayText = displayText.slice(dispAnswerIdx + "__JORDAN_ANSWER_START__".length).trimStart();
           }
           displayText = displayText.replace("__TRUNCATED__", "");
+          // 후처리 메타 마커(결정 추출·일관성 충돌 등)가 답변 뒤에 raw로 보이지 않게 제거.
+          //  - 완성된 블록 제거 + 아직 __END__ 안 온 부분 수신 마커는 그 지점부터 끝까지 숨김
+          //  (이게 없으면 충돌 검사 도는 동안 답변 뒤에 JSON 덩어리가 붙어 '리셋된 듯' 보였음)
+          displayText = displayText
+            .replace(/__DECISIONS_EXTRACTED__\d+/g, "")
+            .replace(/__DECISIONS_HELD__\d+/g, "")
+            .replace(/__DECISIONS_DATA__[\s\S]*?__END__/g, "")
+            .replace(/__BIBLE_CONFLICTS__[\s\S]*?__END__/g, "")
+            .replace(/__(?:DECISIONS_DATA|DECISIONS_HELD|DECISIONS_EXTRACTED|BIBLE_CONFLICTS)__[\s\S]*$/, "")
+            .trimEnd();
           streamingRawRef.current = assistantText;
           setStreamingPair({ user: question, assistant: displayText, userImageId: uploadedImageId ?? undefined });
         }

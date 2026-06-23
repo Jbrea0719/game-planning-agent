@@ -699,7 +699,11 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
       let disp = g.raw;
       const i = disp.indexOf("__JORDAN_ANSWER_START__");
       if (i !== -1) disp = disp.slice(i + "__JORDAN_ANSWER_START__".length).trimStart();
-      disp = disp.replace(/\n__JORDAN_CRITIC_START__[\s\S]*?__JORDAN_CRITIC_END__$/, "").replace(/__DECISIONS_(EXTRACTED|HELD)__\d+/g, "").replace("__TRUNCATED__", "");
+      disp = disp.replace(/\n__JORDAN_CRITIC_START__[\s\S]*?__JORDAN_CRITIC_END__$/, "")
+        .replace(/__DECISIONS_EXTRACTED__\d+/g, "").replace(/__DECISIONS_HELD__\d+/g, "")
+        .replace(/__DECISIONS_DATA__[\s\S]*?__END__/g, "").replace(/__BIBLE_CONFLICTS__[\s\S]*?__END__/g, "")
+        .replace(/__(?:DECISIONS_DATA|DECISIONS_HELD|DECISIONS_EXTRACTED|BIBLE_CONFLICTS)__[\s\S]*$/, "")
+        .replace("__TRUNCATED__", "").trimEnd();
       streamingConvIdRef.current = convId;
       setStreaming({ user: g.user, assistant: disp, userImageId: g.imageId });
     } else {
@@ -1103,9 +1107,15 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
           const idx = display.indexOf("__JORDAN_ANSWER_START__");
           if (idx !== -1) display = display.slice(idx + "__JORDAN_ANSWER_START__".length).trimStart();
           display = display.replace(/\n__JORDAN_CRITIC_START__[\s\S]*?__JORDAN_CRITIC_END__$/, "");
-          display = display.replace(/__DECISIONS_(EXTRACTED|HELD)__\d+/g, "");
-          display = display.replace(/__BIBLE_CONFLICTS__[\s\S]+?__END__/, "");
-          display = display.replace("__TRUNCATED__", "");
+          // 후처리 메타 마커(결정 추출 JSON·일관성 충돌 등) raw 노출 방지 — 완성 블록 + 부분 수신 모두 숨김
+          display = display
+            .replace(/__DECISIONS_EXTRACTED__\d+/g, "")
+            .replace(/__DECISIONS_HELD__\d+/g, "")
+            .replace(/__DECISIONS_DATA__[\s\S]*?__END__/g, "")
+            .replace(/__BIBLE_CONFLICTS__[\s\S]*?__END__/g, "")
+            .replace(/__(?:DECISIONS_DATA|DECISIONS_HELD|DECISIONS_EXTRACTED|BIBLE_CONFLICTS)__[\s\S]*$/, "")
+            .replace("__TRUNCATED__", "")
+            .trimEnd();
           setStreaming({ user: userText, assistant: display, userImageId: imageId });
         }
       }
