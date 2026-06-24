@@ -64,7 +64,7 @@ export default function DecisionPanel({
   contextAnchorTimestamp?: string | null;  // 맥락선 시점 — '현재 맥락' 탭에서 이 이후 결정만 표시
 }) {
   // 1차 탭(상태): 전체 / 결정 대기 / 미정·검토 / 이번 대화(맥락선 이후)
-  const [tab, setTab] = useState<"all" | "pending" | "tentative" | "context">("all");
+  const [tab, setTab] = useState<"all" | "done" | "pending" | "tentative" | "context">("all");
   // 2차 탭(분류 필터): "all" 또는 대카테고리 id — 상태 탭을 바꿔도 유지(sticky)
   const [catFilter, setCatFilter] = useState<string>("all");
   const [categories, setCategories] = useState<MainCategoryItem[]>([]);
@@ -255,23 +255,29 @@ export default function DecisionPanel({
     }
   }
 
-  // ── 탭에 따른 표시 대상 결정 ──────────────────────────────────────
-  // '현재 맥락' 탭: 맥락선(anchor) 시점 이후 created_at 결정만. 맥락선 없으면 안내 후 빈 목록.
-  const viewDecisions = (tab === "context")
-    ? (contextAnchorTimestamp ? decisions.filter(d => d.created_at >= contextAnchorTimestamp) : [])
+  // ── 탭에 따른 트리 표시 대상 결정 ────────────────────────────────
+  //  전체=결정·미정 모두 / 완료=확정(decided)만 / 이번 대화=맥락선 이후
+  const treeDecisions =
+    tab === "context"
+      ? (contextAnchorTimestamp ? decisions.filter(d => d.created_at >= contextAnchorTimestamp) : [])
+    : tab === "done"
+      ? decisions.filter(d => d.confidence === "decided")
     : decisions;
 
-  // ── 카테고리별 결정사항 그룹핑 (전체/이번 대화 탭의 트리) ──
-  // 전체 탭은 결정·미정 모두 카테고리 트리로 표시 (DecisionCard가 상태 배지로 구분)
+  // 탭 배지 카운트 (현재 탭과 무관하게 항상 정확하게 산출)
+  const doneCount = decisions.filter(d => d.confidence === "decided").length;
+  const contextCount = contextAnchorTimestamp ? decisions.filter(d => d.created_at >= contextAnchorTimestamp).length : 0;
+
+  // ── 카테고리별 결정사항 그룹핑 (전체/완료/이번 대화 탭의 트리) ──
   const subIdToDecisions = new Map<string, Decision[]>();
-  for (const d of viewDecisions) {
+  for (const d of treeDecisions) {
     const key = d.sub_category_id ?? "_uncategorized";
     if (!subIdToDecisions.has(key)) subIdToDecisions.set(key, []);
     subIdToDecisions.get(key)!.push(d);
   }
 
-  // 미정·검토(확정 안 된) 결정 — '미정·검토' 탭
-  const pendingDecisions = viewDecisions.filter(d => d.confidence !== "decided");
+  // 미정·검토(확정 안 된) 결정 — '미정·검토' 탭 (전체 기준, 탭 무관)
+  const pendingDecisions = decisions.filter(d => d.confidence !== "decided");
 
   // sub_category_id → 대카테고리 id (2차 분류 칩 필터·카운트용)
   const subToMain = new Map<string, string>();
@@ -286,7 +292,7 @@ export default function DecisionPanel({
   const chipSubIds: (string | null)[] =
     tab === "pending" ? pendingItems.map(p => p.sub_category_id)
     : tab === "tentative" ? pendingDecisions.map(d => d.sub_category_id)
-    : viewDecisions.map(d => d.sub_category_id);  // all / context
+    : treeDecisions.map(d => d.sub_category_id);  // all / done / context
   const chipMainCount = new Map<string, number>();
   for (const sid of chipSubIds) { const mid = sid ? subToMain.get(sid) : null; if (mid) chipMainCount.set(mid, (chipMainCount.get(mid) ?? 0) + 1); }
   const chipTotal = chipSubIds.length;
@@ -379,10 +385,11 @@ export default function DecisionPanel({
       {/* 1차 탭 — 상태 */}
       <div className="flex flex-wrap gap-1 px-4 pt-2 flex-shrink-0">
         {([
-          { key: "all", label: "📚 전체", count: decisions.length, c: "100,220,160" },
-          { key: "pending", label: "🕒 결정 대기", count: pendingItems.length, c: "255,200,100" },
+          { key: "all", label: "📚 전체", count: decisions.length, c: "120,200,200" },
+          { key: "done", label: "✅ 완료", count: doneCount, c: "100,220,160" },
+          { key: "pending", label: "🕒 대기", count: pendingItems.length, c: "255,200,100" },
           { key: "tentative", label: "🔍 미정·검토", count: pendingDecisions.length, c: "150,180,255" },
-          { key: "context", label: "📌 이번 대화", count: contextAnchorTimestamp ? viewDecisions.length : null, c: "192,200,216" },
+          { key: "context", label: "📌 이번 대화", count: contextCount, c: "192,200,216" },
         ] as const).map(t => {
           const active = tab === t.key;
           return (
@@ -473,7 +480,7 @@ export default function DecisionPanel({
       {/* 결정사항 트리 */}
       <div className="flex-1 overflow-y-auto px-3 py-3" style={{ scrollbarWidth: "thin", scrollbarColor: `${SILVER_DIM} transparent` }}>
         {/* ⚖️ 절대 규칙 — 바이블 상위. 전체·이번 대화 탭에서만 노출 */}
-        {(tab === "all" || tab === "context") && <AbsoluteRulesSection nickname={nickname} />}
+        {(tab === "all" || tab === "done" || tab === "context") && <AbsoluteRulesSection nickname={nickname} />}
 
         {/* 🕒 결정 대기 탭 — 등록해야 바이블 반영 */}
         {tab === "pending" && (
@@ -501,7 +508,7 @@ export default function DecisionPanel({
             그 이후 추가된 결정사항만 여기에 모여요.
           </p>
         )}
-        {tab === "context" && contextAnchorTimestamp && viewDecisions.length === 0 && (
+        {tab === "context" && contextAnchorTimestamp && treeDecisions.length === 0 && (
           <p className="text-xs text-center mt-6 leading-relaxed" style={{ color: SILVER_DIM }}>
             맥락선 이후 추가된 결정사항이 아직 없어요.
           </p>
@@ -538,7 +545,7 @@ export default function DecisionPanel({
           )
         )}
 
-        {(tab === "all" || tab === "context") && visibleCategories.map(m => {
+        {(tab === "all" || tab === "done" || tab === "context") && visibleCategories.map(m => {
           const mainCount = mainCounts.get(m.id) ?? 0;
           if (mainCount === 0) return null; // 결정사항 있는 대카테고리만 표시
 
@@ -614,7 +621,7 @@ export default function DecisionPanel({
         })}
 
         {/* 카테고리 없는 (sub_category_id null) 결정사항 — 전체·이번 대화 탭, 분류 미선택 시만 */}
-        {(tab === "all" || tab === "context") && catFilter === "all" && (subIdToDecisions.get("_uncategorized")?.length ?? 0) > 0 && (
+        {(tab === "all" || tab === "done" || tab === "context") && catFilter === "all" && (subIdToDecisions.get("_uncategorized")?.length ?? 0) > 0 && (
           <div className="mb-3">
             <p className="text-xs px-2 py-1.5 rounded font-bold" style={{ backgroundColor: SILVER_FAINT, color: SILVER }}>
               📌 카테고리 미지정 ({subIdToDecisions.get("_uncategorized")!.length}개)
