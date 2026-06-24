@@ -62,8 +62,10 @@ export default function DecisionPanel({
   onGenerateDoc?: () => void;   // 기획서 제작 버튼 클릭 시 호출 (부모가 실제 생성 처리)
   contextAnchorTimestamp?: string | null;  // 맥락선 시점 — '현재 맥락' 탭에서 이 이후 결정만 표시
 }) {
-  // 탭: 전체 바이블 / 현재 맥락(맥락선 이후 결정만)
-  const [tab, setTab] = useState<"all" | "context">("all");
+  // 1차 탭(상태): 전체 / 결정 대기 / 미정·검토 / 이번 대화(맥락선 이후)
+  const [tab, setTab] = useState<"all" | "pending" | "tentative" | "context">("all");
+  // 2차 탭(분류 필터): "all" 또는 대카테고리 id — 상태 탭을 바꿔도 유지(sticky)
+  const [catFilter, setCatFilter] = useState<string>("all");
   const [categories, setCategories] = useState<MainCategoryItem[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [loading, setLoading] = useState(false);
@@ -79,7 +81,6 @@ export default function DecisionPanel({
   // 접기/펼치기 상태 (대카테고리·영역별)
   const [collapsedMains, setCollapsedMains] = useState<Set<string>>(new Set());
   const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
-  const [pendingCollapsed, setPendingCollapsed] = useState(false); // 상단 '미정·보류' 섹션 접힘
 
   // ── 카테고리 로드 ────────────────────────────────────────────────────
   const loadCategories = useCallback(() => {
@@ -258,18 +259,39 @@ export default function DecisionPanel({
     ? (contextAnchorTimestamp ? decisions.filter(d => d.created_at >= contextAnchorTimestamp) : [])
     : decisions;
 
-  // ── 카테고리별 결정사항 그룹핑 ────────────────────────────────────
-  // sub_category_id → 결정사항들 (확정된 것만 카테고리 트리에 표시. 미정·보류는 상단 섹션으로)
+  // ── 카테고리별 결정사항 그룹핑 (전체/이번 대화 탭의 트리) ──
+  // 전체 탭은 결정·미정 모두 카테고리 트리로 표시 (DecisionCard가 상태 배지로 구분)
   const subIdToDecisions = new Map<string, Decision[]>();
   for (const d of viewDecisions) {
-    if (d.confidence !== "decided") continue;
     const key = d.sub_category_id ?? "_uncategorized";
     if (!subIdToDecisions.has(key)) subIdToDecisions.set(key, []);
     subIdToDecisions.get(key)!.push(d);
   }
 
-  // 미정·보류(확정 안 된) 결정 — 상단에 모아 표시
+  // 미정·검토(확정 안 된) 결정 — '미정·검토' 탭
   const pendingDecisions = viewDecisions.filter(d => d.confidence !== "decided");
+
+  // sub_category_id → 대카테고리 id (2차 분류 칩 필터·카운트용)
+  const subToMain = new Map<string, string>();
+  for (const m of categories) {
+    if (m.areas) for (const a of m.areas) for (const s of a.sub_categories) subToMain.set(s.id, m.id);
+    if (m.sub_categories) for (const s of m.sub_categories) subToMain.set(s.id, m.id);
+  }
+  const catPass = (subId: string | null) => catFilter === "all" || (subId ? subToMain.get(subId) === catFilter : false);
+  const visibleCategories = catFilter === "all" ? categories : categories.filter(m => m.id === catFilter);
+
+  // 현재 1차 탭 데이터로 2차 칩 카운트 (분류 필터 적용 전 — 어디에 몇 개인지 보고 고르도록)
+  const chipSubIds: (string | null)[] =
+    tab === "pending" ? pendingItems.map(p => p.sub_category_id)
+    : tab === "tentative" ? pendingDecisions.map(d => d.sub_category_id)
+    : viewDecisions.map(d => d.sub_category_id);  // all / context
+  const chipMainCount = new Map<string, number>();
+  for (const sid of chipSubIds) { const mid = sid ? subToMain.get(sid) : null; if (mid) chipMainCount.set(mid, (chipMainCount.get(mid) ?? 0) + 1); }
+  const chipTotal = chipSubIds.length;
+
+  // 분류 필터 적용된 목록 (미정·검토 / 결정 대기 탭)
+  const tentativeFiltered = pendingDecisions.filter(d => catPass(d.sub_category_id));
+  const pendingFiltered = pendingItems.filter(p => catPass(p.sub_category_id));
 
   // sub_category_id → 사람이 읽는 이름 (미정 섹션의 카드에 소속 카테고리 표시용)
   function subLabelOf(subId: string | null): string {
@@ -352,32 +374,50 @@ export default function DecisionPanel({
         </button>
       </div>
 
-      {/* 탭 — 전체 / 현재 맥락 결정사항 */}
-      <div className="flex gap-1 px-4 pt-2 flex-shrink-0">
-        <button
-          onClick={() => setTab("all")}
-          className="text-xs px-3 py-1.5 rounded-t-lg font-medium"
-          style={{
-            backgroundColor: tab === "all" ? "rgba(100,220,160,0.18)" : "transparent",
-            border: `1px solid ${tab === "all" ? "rgba(100,220,160,0.5)" : SILVER_FAINT}`,
-            borderBottom: tab === "all" ? "none" : `1px solid ${SILVER_FAINT}`,
-            color: tab === "all" ? "rgba(150,255,200,1)" : SILVER_DIM,
-          }}
-        >
-          📚 전체 ({decisions.length})
-        </button>
-        <button
-          onClick={() => setTab("context")}
-          className="text-xs px-3 py-1.5 rounded-t-lg font-medium"
-          style={{
-            backgroundColor: tab === "context" ? "rgba(255,200,100,0.18)" : "transparent",
-            border: `1px solid ${tab === "context" ? "rgba(255,200,100,0.5)" : SILVER_FAINT}`,
-            borderBottom: tab === "context" ? "none" : `1px solid ${SILVER_FAINT}`,
-            color: tab === "context" ? "rgba(255,220,150,1)" : SILVER_DIM,
-          }}
-        >
-          📌 현재 맥락{contextAnchorTimestamp ? ` (${viewDecisions.length})` : ""}
-        </button>
+      {/* 1차 탭 — 상태 */}
+      <div className="flex flex-wrap gap-1 px-4 pt-2 flex-shrink-0">
+        {([
+          { key: "all", label: "📚 전체", count: decisions.length, c: "100,220,160" },
+          { key: "pending", label: "🕒 결정 대기", count: pendingItems.length, c: "255,200,100" },
+          { key: "tentative", label: "🔍 미정·검토", count: pendingDecisions.length, c: "150,180,255" },
+          { key: "context", label: "📌 이번 대화", count: contextAnchorTimestamp ? viewDecisions.length : null, c: "192,200,216" },
+        ] as const).map(t => {
+          const active = tab === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className="text-[11px] px-2.5 py-1.5 rounded-t-lg font-medium"
+              style={{
+                backgroundColor: active ? `rgba(${t.c},0.18)` : "transparent",
+                border: `1px solid ${active ? `rgba(${t.c},0.5)` : SILVER_FAINT}`,
+                borderBottom: active ? "none" : `1px solid ${SILVER_FAINT}`,
+                color: active ? `rgba(${t.c},1)` : SILVER_DIM,
+              }}
+            >
+              {t.label}{t.count !== null ? ` (${t.count})` : ""}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 2차 탭 — 분류 칩 (줄바꿈 · 모든 상태 탭에 적용 · sticky) */}
+      <div className="flex flex-wrap gap-1.5 px-4 py-2 flex-shrink-0" style={{ borderBottom: `1px solid ${SILVER_FAINT}`, backgroundColor: "rgba(255,255,255,0.02)" }}>
+        {[{ id: "all", icon: "", name_ko: "전체", n: chipTotal }, ...categories.map(m => ({ id: m.id, icon: m.icon ?? "", name_ko: m.name_ko, n: chipMainCount.get(m.id) ?? 0 }))].map(chip => {
+          const active = catFilter === chip.id;
+          return (
+            <button
+              key={chip.id}
+              onClick={() => setCatFilter(active ? "all" : chip.id)}
+              className="text-[11px] px-2.5 py-1 rounded-full font-medium"
+              style={active
+                ? { backgroundColor: "rgba(100,180,255,0.25)", color: "var(--accent-2)", border: "1px solid rgba(100,180,255,0.5)" }
+                : { backgroundColor: "transparent", color: SILVER_DIM, border: `1px solid ${SILVER_FAINT}` }}
+            >
+              {chip.icon} {chip.name_ko} <span style={{ opacity: 0.7 }}>{chip.n}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* 액션 바 */}
@@ -430,26 +470,26 @@ export default function DecisionPanel({
 
       {/* 결정사항 트리 */}
       <div className="flex-1 overflow-y-auto px-3 py-3" style={{ scrollbarWidth: "thin", scrollbarColor: `${SILVER_DIM} transparent` }}>
-        {/* ⚖️ 절대 규칙 — 바이블보다 상위, 항상 최상단 노출 */}
-        <AbsoluteRulesSection nickname={nickname} />
+        {/* ⚖️ 절대 규칙 — 바이블 상위. 전체·이번 대화 탭에서만 노출 */}
+        {(tab === "all" || tab === "context") && <AbsoluteRulesSection nickname={nickname} />}
 
-        {/* 🕒 결정 대기함 — 자동 추출 후 아직 등록 안 한 항목. 등록해야 바이블 반영 */}
-        {pendingItems.length > 0 && (
-          <div
-            className="mb-3 rounded-xl p-3"
-            style={{ backgroundColor: "rgba(255,200,100,0.06)", border: "1px solid rgba(255,200,100,0.4)" }}
-          >
-            <div className="flex items-center gap-1.5 mb-2">
-              <span className="text-xs font-bold" style={{ color: "rgba(255,220,150,1)" }}>🕒 결정 대기 ({pendingItems.length})</span>
-              <span className="text-[10px]" style={{ color: SILVER_DIM }}>· 등록해야 바이블에 반영돼요</span>
-            </div>
-            <PendingReviewList
-              items={pendingItems}
-              categories={categories}
-              nickname={nickname}
-              onChanged={() => { void loadPending(); void loadDecisions(); }}
-            />
-          </div>
+        {/* 🕒 결정 대기 탭 — 등록해야 바이블 반영 */}
+        {tab === "pending" && (
+          pendingFiltered.length > 0 ? (
+            <>
+              <p className="text-[11px] mb-2" style={{ color: SILVER_DIM }}>다듬은 뒤 <b style={{ color: "rgba(150,255,200,0.9)" }}>등록</b>해야 바이블에 반영돼요.</p>
+              <PendingReviewList
+                items={pendingFiltered}
+                categories={categories}
+                nickname={nickname}
+                onChanged={() => { void loadPending(); void loadDecisions(); }}
+              />
+            </>
+          ) : (
+            <p className="text-xs text-center mt-6" style={{ color: SILVER_DIM }}>
+              {catFilter === "all" ? "검토할 결정 대기 항목이 없어요." : "이 분류에 결정 대기 항목이 없어요."}
+            </p>
+          )
         )}
 
         {tab === "context" && !contextAnchorTimestamp && (
@@ -471,38 +511,32 @@ export default function DecisionPanel({
           </p>
         )}
 
-        {/* ── 미정·보류 모아보기 (최상단) ── 아직 확정 전이지만 결국 정해야 하는 항목 ── */}
-        {pendingDecisions.length > 0 && (
-          <div className="mb-3">
-            <button
-              onClick={() => setPendingCollapsed(v => !v)}
-              className="w-full text-left text-xs font-bold px-2 py-1.5 rounded flex items-center justify-between"
-              style={{ backgroundColor: "rgba(150,180,255,0.18)", border: "1px solid rgba(150,180,255,0.45)", color: "rgba(190,215,255,1)" }}
-            >
-              <span>{pendingCollapsed ? "▶" : "▼"} ⚪ 미정 · 보류</span>
-              <span style={{ color: "rgba(180,210,255,0.8)" }}>{pendingDecisions.length}개</span>
-            </button>
-            {!pendingCollapsed && (
-              <div className="ml-2 mt-2 flex flex-col gap-1.5">
-                {pendingDecisions.map(d => (
-                  <DecisionCard key={d.id} d={d} subName={subLabelOf(d.sub_category_id)}
-                    editing={editingId === d.id}
-                    onEditStart={() => setEditingId(d.id)}
-                    onEditCancel={() => setEditingId(null)}
-                    onEditSave={(c, sid) => saveEdit(d.id, c, sid)}
-                    onDelete={() => deleteDecision(d.id)}
-                    onMarkPending={() => markPending(d.id)}
-                    onFinalize={() => finalize(d.id)}
-                    categories={categories}
-                    confStyle={confidenceStyle(d.confidence)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+        {/* 🔍 미정·검토 탭 — 아직 확정 전이지만 결국 정해야 하는 항목 */}
+        {tab === "tentative" && (
+          tentativeFiltered.length > 0 ? (
+            <div className="flex flex-col gap-1.5">
+              {tentativeFiltered.map(d => (
+                <DecisionCard key={d.id} d={d} subName={subLabelOf(d.sub_category_id)}
+                  editing={editingId === d.id}
+                  onEditStart={() => setEditingId(d.id)}
+                  onEditCancel={() => setEditingId(null)}
+                  onEditSave={(c, sid) => saveEdit(d.id, c, sid)}
+                  onDelete={() => deleteDecision(d.id)}
+                  onMarkPending={() => markPending(d.id)}
+                  onFinalize={() => finalize(d.id)}
+                  categories={categories}
+                  confStyle={confidenceStyle(d.confidence)}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-center mt-6" style={{ color: SILVER_DIM }}>
+              {catFilter === "all" ? "미정·검토 중인 항목이 없어요." : "이 분류에 미정·검토 항목이 없어요."}
+            </p>
+          )
         )}
 
-        {categories.map(m => {
+        {(tab === "all" || tab === "context") && visibleCategories.map(m => {
           const mainCount = mainCounts.get(m.id) ?? 0;
           if (mainCount === 0) return null; // 결정사항 있는 대카테고리만 표시
 
@@ -577,8 +611,8 @@ export default function DecisionPanel({
           );
         })}
 
-        {/* 카테고리 없는 (sub_category_id null) 결정사항 */}
-        {(subIdToDecisions.get("_uncategorized")?.length ?? 0) > 0 && (
+        {/* 카테고리 없는 (sub_category_id null) 결정사항 — 전체·이번 대화 탭, 분류 미선택 시만 */}
+        {(tab === "all" || tab === "context") && catFilter === "all" && (subIdToDecisions.get("_uncategorized")?.length ?? 0) > 0 && (
           <div className="mb-3">
             <p className="text-xs px-2 py-1.5 rounded font-bold" style={{ backgroundColor: SILVER_FAINT, color: SILVER }}>
               📌 카테고리 미지정 ({subIdToDecisions.get("_uncategorized")!.length}개)
