@@ -251,6 +251,18 @@ body {
 .toastui-editor-contents pre, .toastui-editor-contents code { font-family: "Nanum Gothic Coding", "D2Coding", ui-monospace, monospace; }
 .toastui-editor-md-container .ProseMirror, .toastui-editor-md-preview .toastui-editor-contents code, .toastui-editor-md-preview .toastui-editor-contents pre { font-family: "Nanum Gothic Coding", "D2Coding", ui-monospace, monospace; }
 
+/* 편집기 툴바 표 행/열 버튼 (＋행/－행/＋열/－열) — 앱 테마 토큰을 따라감 */
+.tui-tablebtn {
+  height: 28px; padding: 0 9px; margin: 0 1px;
+  font-size: 12px; font-weight: 700; line-height: 1;
+  border-radius: 6px; cursor: pointer; white-space: nowrap;
+  background: transparent; color: var(--prose-body);
+  border: 1px solid var(--prose-table-border);
+}
+.tui-tablebtn:hover { background: var(--prose-table-border); }
+.tui-tablebtn--danger { color: #ef6b6b; border-color: rgba(239,107,107,0.5); }
+.tui-tablebtn--danger:hover { background: rgba(239,107,107,0.14); }
+
 /* 색 — 토큰 참조 (테마 연동) */
 .prose h1, .prose h2, .prose h3, .prose h4 { color: var(--prose-heading); }
 .prose p, .prose li, .prose td, .prose th { color: var(--prose-body); }

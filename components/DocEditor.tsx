@@ -32,6 +32,24 @@ export default function DocEditor({
     const theme = document.documentElement.getAttribute("data-theme");
     const isLight = theme === "light" || theme === "sepia";
 
+    // 표 행/열 추가·삭제 버튼 — 셀에 커서가 있을 때 동작 (기본 셀-모서리 메뉴가 모달에서 잘 안 떠서 툴바에 직접 노출)
+    const tableCmds: Array<{ label: string; title: string; cmd: string; danger?: boolean }> = [
+      { label: "＋행", title: "행 추가 (현재 행 아래)", cmd: "addRowToDown" },
+      { label: "－행", title: "현재 행 삭제", cmd: "removeRow", danger: true },
+      { label: "＋열", title: "열 추가 (현재 열 오른쪽)", cmd: "addColumnToRight" },
+      { label: "－열", title: "현재 열 삭제", cmd: "removeColumn", danger: true },
+    ];
+    const tableButtons = tableCmds.map(({ label, title, cmd, danger }) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = label;
+      b.title = title;
+      b.className = "tui-tablebtn" + (danger ? " tui-tablebtn--danger" : "");
+      // mousedown 기본동작을 막아 표 셀 선택(커서)이 유지되도록 — 안 그러면 어느 행/열인지 잃음
+      b.addEventListener("mousedown", (e) => e.preventDefault());
+      return { b, cmd };
+    });
+
     const editor = new Editor({
       el: elRef.current,
       height,
@@ -46,9 +64,19 @@ export default function DocEditor({
         ["hr", "quote"],
         ["ul", "ol", "task", "indent", "outdent"],
         ["table", "image", "link"],
+        tableButtons.map(({ b, cmd }) => ({ name: `tbl-${cmd}`, el: b })),  // 표 행/열 그룹
         ["code", "codeblock"],
       ],
     });
+
+    // 표 버튼 클릭 → 해당 명령 실행 (WYSIWYG·표 안일 때만; 표 밖이면 조용히 무시)
+    for (const { b, cmd } of tableButtons) {
+      b.addEventListener("click", () => {
+        try {
+          if (editor.isWysiwygMode()) editor.exec(cmd);
+        } catch { /* 표 밖에서 누르면 무시 */ }
+      });
+    }
 
     registerGetter(() => editor.getMarkdown());
 
