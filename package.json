@@ -16,6 +16,7 @@
     "@supabase/supabase-js": "^2.105.4",
     "@tailwindcss/typography": "^0.5.19",
     "@tavily/core": "^0.5.0",
+    "@toast-ui/editor": "^3.2.2",
     "@types/diff": "^7.0.2",
     "diff": "^9.0.0",
     "html2canvas": "^1.4.1",

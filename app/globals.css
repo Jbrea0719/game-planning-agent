@@ -246,6 +246,11 @@ body {
 .prose td, .prose th { padding: 0.35rem 0.55rem; border: 1px solid var(--prose-table-border); }
 .prose strong { font-weight: 700; }
 
+/* WYSIWYG 편집기(Toast UI) — 본문 글꼴 통일 + 코드블록·마크다운 모드는 한글 고정폭(프레임 정렬) */
+.toastui-editor-contents { font-family: "Twemoji", "Pretendard Variable", Pretendard, -apple-system, sans-serif; }
+.toastui-editor-contents pre, .toastui-editor-contents code { font-family: "Nanum Gothic Coding", "D2Coding", ui-monospace, monospace; }
+.toastui-editor-md-container .ProseMirror, .toastui-editor-md-preview .toastui-editor-contents code, .toastui-editor-md-preview .toastui-editor-contents pre { font-family: "Nanum Gothic Coding", "D2Coding", ui-monospace, monospace; }
+
 /* 색 — 토큰 참조 (테마 연동) */
 .prose h1, .prose h2, .prose h3, .prose h4 { color: var(--prose-heading); }
 .prose p, .prose li, .prose td, .prose th { color: var(--prose-body); }

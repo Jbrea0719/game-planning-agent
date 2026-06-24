@@ -13,6 +13,7 @@ const WireframeEditor = dynamic(() => import("./WireframeEditor"), { ssr: false 
 const MockupGenerator = dynamic(() => import("./MockupGenerator"), { ssr: false });
 const ScreenshotFrameModal = dynamic(() => import("./ScreenshotFrameModal"), { ssr: false });
 const FeedbackModal = dynamic(() => import("./FeedbackModal"), { ssr: false });
+const DocEditor = dynamic(() => import("./DocEditor"), { ssr: false });
 import {
   downloadMD as exportMD,
   downloadTXT as exportTXT,
@@ -105,6 +106,8 @@ export default function DocumentView({
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState("");
+  // WYSIWYG 편집기에서 현재 마크다운을 가져오는 함수 (저장 시 사용)
+  const getEditMarkdownRef = useRef<() => string>(() => editText);
   const [showExportMenu, setShowExportMenu] = useState(false);
   // 수정 요청 모달 상태
   const [showReviseModal, setShowReviseModal] = useState(false);
@@ -480,10 +483,11 @@ export default function DocumentView({
   async function saveEdit() {
     if (!currentDoc) return;
     try {
+      const md = getEditMarkdownRef.current?.() ?? editText;
       await fetch(`/api/design-docs/${currentDoc.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content_markdown: editText, nickname }),
+        body: JSON.stringify({ content_markdown: md, nickname }),
       });
       await loadDoc(currentDoc.id);
       setEditing(false);
@@ -1088,13 +1092,16 @@ export default function DocumentView({
             </div>
           )}
           {currentDoc && editing && (
-            <textarea
-              value={editText}
-              onChange={e => setEditText(e.target.value)}
-              className="w-full h-full px-4 py-3 rounded text-sm outline-none resize-none font-mono"
-              style={{ backgroundColor: "var(--surface-input)", border: `1px solid ${SILVER_FAINT}`, color: "var(--text)", minHeight: "60vh" }}
-              autoFocus
-            />
+            <div className="max-w-3xl mx-auto doc-wysiwyg">
+              <p className="text-[11px] mb-2" style={{ color: "var(--text-mute)" }}>
+                💡 뷰어처럼 보면서 바로 수정하세요. 표·정렬이 중요한 부분은 하단 <b>Markdown</b> 탭에서 원문으로 고치면 안전해요.
+              </p>
+              <DocEditor
+                initialValue={editText}
+                registerGetter={(fn) => { getEditMarkdownRef.current = fn; }}
+                height="68vh"
+              />
+            </div>
           )}
           {/* 모바일: 레퍼런스 이미지 — 본문 아래 (md 미만에서만) */}
           {currentDoc && !editing && (
