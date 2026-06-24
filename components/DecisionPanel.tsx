@@ -731,17 +731,19 @@ function DecisionCard({
           {d.created_by_nickname && <span className="ml-1.5">— {d.created_by_nickname}</span>}
         </p>
       </div>
-      {/* 액션 — 모바일에선 hover가 없으므로 항상 표시. 줄바꿈 허용 */}
-      <div className="flex-shrink-0 flex flex-wrap gap-1 items-start justify-end" style={{ maxWidth: 92 }}>
+      {/* 액션 — 상태 배지(위) + 아이콘 2×2 그리드 (상세·이동 / 삭제·수정) */}
+      <div className="flex-shrink-0 flex flex-col gap-1 items-end">
         {isPending ? (
           <button onClick={onFinalize} title="결정으로 확정 (카테고리에 자동 등록)" className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: "rgba(100,220,160,0.18)", border: "1px solid rgba(100,220,160,0.5)", color: "rgba(150,255,200,1)" }}>✓ 결정</button>
         ) : (
           <button onClick={onMarkPending} title="미정으로 보류" className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: "rgba(150,180,255,0.15)", border: "1px solid rgba(150,180,255,0.45)", color: "var(--accent-2)" }}>미정</button>
         )}
-        <button onClick={() => setShowDetail(true)} title="상세 — 어떤 대화에서 결정됐는지 보기" className="text-xs" style={{ color: SILVER_DIM }}>🔍</button>
-        <button onClick={() => { setMoveSubId(d.sub_category_id ?? ""); setMoving(true); }} title="카테고리 이동" className="text-xs" style={{ color: SILVER_DIM }}>📂</button>
-        <button onClick={onEditStart} title="편집" className="text-xs" style={{ color: SILVER_DIM }}>✏️</button>
-        <button onClick={onDelete} title="삭제" className="text-xs" style={{ color: "rgba(255,180,180,0.7)" }}>🗑️</button>
+        <div className="grid grid-cols-2 gap-1">
+          <button onClick={() => setShowDetail(true)} title="상세 — 어떤 대화에서 결정됐는지 보기" className="text-sm w-6 h-6 flex items-center justify-center rounded hover:bg-white/5" style={{ color: SILVER_DIM }}>🔍</button>
+          <button onClick={() => { setMoveSubId(d.sub_category_id ?? ""); setMoving(true); }} title="카테고리 이동" className="text-sm w-6 h-6 flex items-center justify-center rounded hover:bg-white/5" style={{ color: SILVER_DIM }}>📂</button>
+          <button onClick={onDelete} title="삭제" className="text-sm w-6 h-6 flex items-center justify-center rounded hover:bg-white/5" style={{ color: "rgba(255,180,180,0.7)" }}>🗑️</button>
+          <button onClick={onEditStart} title="편집" className="text-sm w-6 h-6 flex items-center justify-center rounded hover:bg-white/5" style={{ color: SILVER_DIM }}>✏️</button>
+        </div>
       </div>
     </div>
 
