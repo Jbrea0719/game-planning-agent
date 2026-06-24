@@ -395,8 +395,8 @@ function DesktopChatPage() {
   const [decisionReloadKey, setDecisionReloadKey] = useState(0);
   // 자동 추출 알림 (사용자에게 잠시 노출)
   const [extractedNotice, setExtractedNotice] = useState<number | null>(null);
-  // 추출된 결정사항 검토 모달
-  type ExtractedItem = { id: string; content: string; confidence: string; sub_category_label: string | null };
+  // 추출된 결정사항 검토(결정 대기) 카드
+  type ExtractedItem = { id: string; content: string; confidence: string; sub_category_id: string | null; sub_category_label: string | null; jordan_agreement?: string };
   const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
   const [showExtractedReview, setShowExtractedReview] = useState(false);
   // 보류된 결정 알림 (조던이 반대·우려)
@@ -2207,10 +2207,11 @@ function DesktopChatPage() {
         </div>
       )}
 
-      {/* 자동 추출 결정사항 검토 모달 — 우상단 카드 */}
+      {/* 결정 대기 검토 카드 — 우상단 */}
       {showExtractedReview && extractedItems.length > 0 && (
         <ExtractedReviewCard
           items={extractedItems}
+          nickname={sessionId?.replace(/^agent:/, "") ?? undefined}
           onClose={() => { setShowExtractedReview(false); setExtractedItems([]); }}
           onChanged={() => bumpDecisions()}
         />
@@ -2243,14 +2244,14 @@ function DesktopChatPage() {
             backdropFilter: "blur(10px)",
           }}
         >
-          <span>🤖</span>
-          <span><b>{extractedNotice}개</b> 항목이 기획 바이블에 자동 추가됐어요</span>
+          <span>🕒</span>
+          <span><b>{extractedNotice}개</b>가 <b>결정 대기</b>에 담겼어요 (등록해야 바이블 반영)</span>
           <button
             onClick={() => { setExtractedNotice(null); setShowDecisionPanel(true); }}
             className="ml-2 text-xs px-2 py-0.5 rounded"
             style={{ backgroundColor: "rgba(100,220,160,0.2)", border: "1px solid rgba(100,220,160,0.5)" }}
           >
-            확인하기 →
+            검토하기 →
           </button>
         </div>
       )}

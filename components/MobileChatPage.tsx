@@ -2092,10 +2092,11 @@ function MobileChat({ sessionId, nickname, simulateKeyboard }: { sessionId: stri
 
       {/* 화면 설계는 DocumentView 안으로 통합됨 */}
 
-      {/* 자동 추출 검토 카드 */}
+      {/* 결정 대기 검토 카드 */}
       {showExtractedReview && extractedItems.length > 0 && (
         <ExtractedReviewCard
           items={extractedItems}
+          nickname={nickname}
           onClose={() => { setShowExtractedReview(false); setExtractedItems([]); }}
           onChanged={() => bumpDecisions()}
         />

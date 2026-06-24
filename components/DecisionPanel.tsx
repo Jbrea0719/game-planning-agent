@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import AbsoluteRulesSection from "@/components/AbsoluteRulesSection";
+import PendingReviewList, { type PendingItem } from "@/components/PendingReviewList";
 
 const SILVER = "#c0c8d8";
 const SILVER_DIM = "rgba(192,200,216,0.5)";
@@ -119,6 +120,24 @@ export default function DecisionPanel({
   useEffect(() => {
     if (reloadKey !== undefined && reloadKey > 0) void loadDecisions();
   }, [reloadKey, loadDecisions]);
+
+  // ── 결정 대기 로드 ────────────────────────────────────────────────
+  const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
+  const loadPending = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const res = await fetch(`/api/decisions/pending?project_id=${projectId}`);
+      const data = await res.json();
+      setPendingItems((data.pending ?? []) as PendingItem[]);
+    } catch (err) {
+      console.error("[panel] 결정 대기 로드 실패:", err);
+    }
+  }, [projectId]);
+  useEffect(() => { void loadPending(); }, [loadPending]);
+  useEffect(() => { if (open) void loadPending(); }, [open, loadPending]);
+  useEffect(() => {
+    if (reloadKey !== undefined && reloadKey > 0) void loadPending();
+  }, [reloadKey, loadPending]);
 
   // ESC 키로 닫기
   useEffect(() => {
@@ -413,6 +432,26 @@ export default function DecisionPanel({
       <div className="flex-1 overflow-y-auto px-3 py-3" style={{ scrollbarWidth: "thin", scrollbarColor: `${SILVER_DIM} transparent` }}>
         {/* ⚖️ 절대 규칙 — 바이블보다 상위, 항상 최상단 노출 */}
         <AbsoluteRulesSection nickname={nickname} />
+
+        {/* 🕒 결정 대기함 — 자동 추출 후 아직 등록 안 한 항목. 등록해야 바이블 반영 */}
+        {pendingItems.length > 0 && (
+          <div
+            className="mb-3 rounded-xl p-3"
+            style={{ backgroundColor: "rgba(255,200,100,0.06)", border: "1px solid rgba(255,200,100,0.4)" }}
+          >
+            <div className="flex items-center gap-1.5 mb-2">
+              <span className="text-xs font-bold" style={{ color: "rgba(255,220,150,1)" }}>🕒 결정 대기 ({pendingItems.length})</span>
+              <span className="text-[10px]" style={{ color: SILVER_DIM }}>· 등록해야 바이블에 반영돼요</span>
+            </div>
+            <PendingReviewList
+              items={pendingItems}
+              categories={categories}
+              nickname={nickname}
+              onChanged={() => { void loadPending(); void loadDecisions(); }}
+            />
+          </div>
+        )}
+
         {tab === "context" && !contextAnchorTimestamp && (
           <p className="text-xs text-center mt-6 leading-relaxed" style={{ color: SILVER_DIM }}>
             📌 맥락선이 설정되어 있지 않아요.<br />

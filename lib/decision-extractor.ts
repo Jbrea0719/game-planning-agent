@@ -205,15 +205,17 @@ export function shouldRegisterDecision(d: ExtractedDecision): boolean {
   return true;
 }
 
-// ── 자동 저장 함수 ───────────────────────────────────────────────────
-// 반환: { saved: 실제 등록된 개수, held: 조던 반대·우려로 등록 보류된 개수 }
-// 저장된 결정사항 메타 (UI 검토용)
+// ── 자동 저장(결정 대기) 함수 ─────────────────────────────────────────
+// 추출된 결정사항을 바이블(decisions)에 바로 넣지 않고 pending_decisions(대기)에 저장.
+// 사용자가 카드/대기함에서 검토 후 '최종 등록'해야 바이블에 반영된다.
+// 반환: { saved: 대기에 담긴 개수, held: (호환용, 항상 0), savedItems: 검토 카드용 항목 }
 export interface SavedDecisionMeta {
   id: string;
   content: string;
   confidence: "decided" | "review" | "tentative" | string;
   sub_category_id: string | null;
   sub_category_label: string | null;
+  jordan_agreement: "agreed" | "opposed" | "concerned" | "neutral";  // 검토 시 조던 입장 배지
 }
 
 export async function extractAndSaveDecisions(opts: {
@@ -226,35 +228,28 @@ export async function extractAndSaveDecisions(opts: {
   const decisions = await extractDecisions(opts.userQuery, opts.jordanAnswer);
   if (decisions.length === 0) return { saved: 0, held: 0, savedItems: [] };
 
-  // 등록 자격 필터링
-  const toSave = decisions.filter(shouldRegisterDecision);
-  const held = decisions.length - toSave.length;
-
-  if (toSave.length === 0) {
-    if (held > 0) {
-      console.log(`[decision-extractor] ${held}개 보류 (조던 반대·우려, 사용자 강제 요청 없음)`);
-    }
-    return { saved: 0, held, savedItems: [] };
-  }
-
-  const rows = toSave.map(d => ({
+  // 추출된 건 전부 '대기'로 — 등록 여부는 사용자가 검토 후 결정 (조던 반대·우려는 배지로만 표시)
+  const rows = decisions.map(d => ({
     project_id: DEFAULT_PROJECT_ID,
     sub_category_id: d.sub_category_id,
     content: d.content,
     context: d.reasoning,
     confidence: d.confidence,
+    jordan_agreement: d.jordan_agreement,
     source_message_pair_id: opts.pairId ?? null,
     source_session_id: opts.sessionId ?? null,
-    is_auto_extracted: true,
     created_by_nickname: opts.nickname ?? null,
   }));
 
-  const { data: insertedData, error } = await supabase.from("decisions").insert(rows).select("id, content, confidence, sub_category_id");
+  const { data: insertedData, error } = await supabase
+    .from("pending_decisions")
+    .insert(rows)
+    .select("id, content, confidence, sub_category_id, jordan_agreement");
   if (error) {
-    console.error("[decision-extractor] 저장 실패:", error.message);
-    return { saved: 0, held, savedItems: [] };
+    console.error("[decision-extractor] 대기 저장 실패:", error.message);
+    return { saved: 0, held: 0, savedItems: [] };
   }
-  console.log(`[decision-extractor] ${toSave.length}개 등록 / ${held}개 보류`);
+  console.log(`[decision-extractor] ${decisions.length}개 결정 대기 등록`);
 
   // 카테고리 라벨 매핑
   const subs = await getCachedCategories();
@@ -268,9 +263,10 @@ export async function extractAndSaveDecisions(opts: {
     confidence: d.confidence as string,
     sub_category_id: d.sub_category_id as string | null,
     sub_category_label: d.sub_category_id ? (subMap.get(d.sub_category_id as string) ?? null) : null,
+    jordan_agreement: (d.jordan_agreement as SavedDecisionMeta["jordan_agreement"]) ?? "neutral",
   }));
 
-  return { saved: toSave.length, held, savedItems };
+  return { saved: insertedData?.length ?? 0, held: 0, savedItems };
 }
 
 // ── 헬퍼: 대카테고리 ID → 한국어 이름 ─────────────────────────────────
