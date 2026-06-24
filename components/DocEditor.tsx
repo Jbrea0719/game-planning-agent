@@ -14,10 +14,12 @@ import Editor from "@toast-ui/editor";
 export default function DocEditor({
   initialValue,
   registerGetter,
+  scrollToText,
   height = "70vh",
 }: {
   initialValue: string;
   registerGetter: (fn: () => string) => void;
+  scrollToText?: string | null;   // 이 제목이 보이도록 스크롤 (보던 위치에서 편집)
   height?: string;
 }) {
   const elRef = useRef<HTMLDivElement>(null);
@@ -47,6 +49,22 @@ export default function DocEditor({
     });
 
     registerGetter(() => editor.getMarkdown());
+
+    // 보던 위치로 이동 — WYSIWYG 본문에서 같은 제목을 찾아 스크롤
+    if (scrollToText && scrollToText.trim()) {
+      const target = scrollToText.trim();
+      const key = target.slice(0, 14);
+      setTimeout(() => {
+        const root = elRef.current;
+        if (!root) return;
+        const heads = Array.from(
+          root.querySelectorAll(".toastui-editor-ww-container h1, .toastui-editor-ww-container h2, .toastui-editor-ww-container h3, .toastui-editor-ww-container h4"),
+        ) as HTMLElement[];
+        const hit = heads.find((h) => (h.textContent || "").trim() === target)
+          ?? heads.find((h) => (h.textContent || "").trim().startsWith(key));
+        if (hit) hit.scrollIntoView({ block: "start" });
+      }, 180);
+    }
 
     return () => {
       editor.destroy();

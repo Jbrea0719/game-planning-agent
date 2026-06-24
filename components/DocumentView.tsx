@@ -108,6 +108,8 @@ export default function DocumentView({
   const [editText, setEditText] = useState("");
   // WYSIWYG 편집기에서 현재 마크다운을 가져오는 함수 (저장 시 사용)
   const getEditMarkdownRef = useRef<() => string>(() => editText);
+  // 편집 시작 시 '보고 있던 위치'(상단 제목)를 기억 → 편집기에서 그 위치로 이동
+  const [editAnchorText, setEditAnchorText] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   // 수정 요청 모달 상태
   const [showReviseModal, setShowReviseModal] = useState(false);
@@ -477,6 +479,23 @@ export default function DocumentView({
   // ── 편집 시작·저장·취소 ─────────────────────────────────────────
   function startEdit() {
     if (!currentDoc) return;
+    // 보고 있던 위치 기억 — 화면 상단에 보이는 제목을 잡아 편집기에서 그 위치로 이동
+    let anchor: string | null = null;
+    try {
+      const article = document.querySelector("article");
+      if (article) {
+        // 본문 스크롤 컨테이너의 상단을 기준 — 그 지점에 보이는 제목을 잡음
+        let sc: HTMLElement | null = article.parentElement;
+        while (sc) { const oy = getComputedStyle(sc).overflowY; if (oy === "auto" || oy === "scroll") break; sc = sc.parentElement; }
+        const top = (sc ? sc.getBoundingClientRect().top : 0) - 8;
+        const heads = Array.from(article.querySelectorAll("h1,h2,h3,h4")) as HTMLElement[];
+        for (const h of heads) {
+          if (h.getBoundingClientRect().top >= top) { anchor = (h.textContent || "").trim(); break; }
+        }
+        if (!anchor && heads.length) anchor = (heads[heads.length - 1].textContent || "").trim();
+      }
+    } catch { /* 무시 */ }
+    setEditAnchorText(anchor);
     setEditText(currentDoc.content_markdown);
     setEditing(true);
   }
@@ -1092,14 +1111,15 @@ export default function DocumentView({
             </div>
           )}
           {currentDoc && editing && (
-            <div className="max-w-3xl mx-auto doc-wysiwyg">
+            <div className="w-full max-w-[1600px] mx-auto doc-wysiwyg">
               <p className="text-[11px] mb-2" style={{ color: "var(--text-mute)" }}>
                 💡 뷰어처럼 보면서 바로 수정하세요. 표·정렬이 중요한 부분은 하단 <b>Markdown</b> 탭에서 원문으로 고치면 안전해요.
               </p>
               <DocEditor
                 initialValue={editText}
                 registerGetter={(fn) => { getEditMarkdownRef.current = fn; }}
-                height="68vh"
+                scrollToText={editAnchorText}
+                height="74vh"
               />
             </div>
           )}
