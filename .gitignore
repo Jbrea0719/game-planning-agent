@@ -43,3 +43,6 @@ next-env.d.ts
 # Claude Code 로컬 권한 설정 (개인용 — 공유 X)
 .claude/settings.local.json
 category_backup_*.json
+
+# 바이블 백업 덤프 (로컬 전용)
+scripts/.*-backup-*.json
