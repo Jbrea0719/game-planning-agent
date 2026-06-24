@@ -734,9 +734,9 @@ function DecisionCard({
       {/* 액션 — 상태 배지(위) + 아이콘 2×2 그리드 (상세·이동 / 삭제·수정) */}
       <div className="flex-shrink-0 flex flex-col gap-1 items-end">
         {isPending ? (
-          <button onClick={onFinalize} title="결정으로 확정 (카테고리에 자동 등록)" className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: "rgba(100,220,160,0.18)", border: "1px solid rgba(100,220,160,0.5)", color: "rgba(150,255,200,1)" }}>✓ 결정</button>
+          <button onClick={onFinalize} title="이 항목을 '결정'으로 확정 (카테고리에 자동 등록)" className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: "rgba(100,220,160,0.18)", border: "1px solid rgba(100,220,160,0.5)", color: "rgba(150,255,200,1)" }}>✓ 확정</button>
         ) : (
-          <button onClick={onMarkPending} title="미정으로 보류" className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: "rgba(150,180,255,0.15)", border: "1px solid rgba(150,180,255,0.45)", color: "var(--accent-2)" }}>미정</button>
+          <button onClick={onMarkPending} title="이 항목을 '미정'으로 되돌림(보류)" className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: "rgba(150,180,255,0.12)", border: "1px solid rgba(150,180,255,0.4)", color: "var(--accent-2)" }}>↩ 보류</button>
         )}
         <div className="grid grid-cols-2 gap-1">
           <button onClick={() => setShowDetail(true)} title="상세 — 어떤 대화에서 결정됐는지 보기" className="text-sm w-6 h-6 flex items-center justify-center rounded hover:bg-white/5" style={{ color: SILVER_DIM }}>🔍</button>
