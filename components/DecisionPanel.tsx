@@ -177,10 +177,12 @@ export default function DecisionPanel({
   // ── 결정사항 편집 (인라인) ────────────────────────────────────────
   // 미정·보류 항목을 편집·저장하면 '결정(decided)'으로 확정되며 카테고리에 등록됨.
   // (카테고리를 안 골랐고 기존에도 없으면 AI가 자동 분류해 등록)
-  async function saveEdit(id: string, newContent: string, newSubId: string | null) {
+  async function saveEdit(id: string, newContent: string, newSubId: string | null, newConfidence?: "decided" | "review" | "tentative") {
     try {
       const cur = decisions.find(x => x.id === id);
       const wasPending = !!cur && cur.confidence !== "decided";
+      // 명시적 상태(구분값)가 오면 그대로, 아니면 기존 로직(미정 편집 → 확정)
+      const confPatch = newConfidence ? { confidence: newConfidence } : (wasPending ? { confidence: "decided" } : {});
       await fetch(`/api/decisions/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -188,10 +190,10 @@ export default function DecisionPanel({
           content: newContent,
           sub_category_id: newSubId,
           nickname,
-          ...(wasPending ? { confidence: "decided" } : {}), // 미정 → 확정
+          ...confPatch,
         }),
       });
-      if (wasPending && !newSubId) await autoCategorize(id); // 확정인데 카테고리 미선택 → 자동 등록
+      if (!newConfidence && wasPending && !newSubId) await autoCategorize(id); // (인라인 편집) 확정인데 카테고리 미선택 → 자동 등록
       setEditingId(null);
       await loadDecisions();
     } catch (err) {
@@ -529,7 +531,7 @@ export default function DecisionPanel({
                   editing={editingId === d.id}
                   onEditStart={() => setEditingId(d.id)}
                   onEditCancel={() => setEditingId(null)}
-                  onEditSave={(c, sid) => saveEdit(d.id, c, sid)}
+                  onEditSave={(c, sid, conf) => saveEdit(d.id, c, sid, conf)}
                   onDelete={() => deleteDecision(d.id)}
                   onMarkPending={() => markPending(d.id)}
                   onFinalize={() => finalize(d.id)}
@@ -586,7 +588,7 @@ export default function DecisionPanel({
                                 editing={editingId === d.id}
                                 onEditStart={() => setEditingId(d.id)}
                                 onEditCancel={() => setEditingId(null)}
-                                onEditSave={(c, sid) => saveEdit(d.id, c, sid)}
+                                onEditSave={(c, sid, conf) => saveEdit(d.id, c, sid, conf)}
                                 onDelete={() => deleteDecision(d.id)}
                                 onMarkPending={() => markPending(d.id)}
                                 onFinalize={() => finalize(d.id)}
@@ -606,7 +608,7 @@ export default function DecisionPanel({
                       editing={editingId === d.id}
                       onEditStart={() => setEditingId(d.id)}
                       onEditCancel={() => setEditingId(null)}
-                      onEditSave={(c, sid) => saveEdit(d.id, c, sid)}
+                      onEditSave={(c, sid, conf) => saveEdit(d.id, c, sid, conf)}
                       onDelete={() => deleteDecision(d.id)}
                       onMarkPending={() => markPending(d.id)}
                       onFinalize={() => finalize(d.id)}
@@ -632,7 +634,7 @@ export default function DecisionPanel({
                   editing={editingId === d.id}
                   onEditStart={() => setEditingId(d.id)}
                   onEditCancel={() => setEditingId(null)}
-                  onEditSave={(c, sid) => saveEdit(d.id, c, sid)}
+                  onEditSave={(c, sid, conf) => saveEdit(d.id, c, sid, conf)}
                   onDelete={() => deleteDecision(d.id)}
                   onMarkPending={() => markPending(d.id)}
                   onFinalize={() => finalize(d.id)}
@@ -651,26 +653,27 @@ export default function DecisionPanel({
 
 // ── 결정사항 카드 (개별 항목) ─────────────────────────────────────────
 function DecisionCard({
-  d, subName, editing, onEditStart, onEditCancel, onEditSave, onDelete, onMarkPending, onFinalize, categories, confStyle,
+  d, subName, editing, onEditStart, onEditCancel, onEditSave, onDelete, categories, confStyle,
 }: {
   d: Decision;
   subName: string;
   editing: boolean;
   onEditStart: () => void;
   onEditCancel: () => void;
-  onEditSave: (content: string, subId: string | null) => void;
+  onEditSave: (content: string, subId: string | null, confidence?: "decided" | "review" | "tentative") => void;
   onDelete: () => void;
-  onMarkPending: () => void;  // 결정 → 미정으로 보류
-  onFinalize: () => void;     // 미정 → 결정으로 확정 (카테고리 자동 등록)
+  onMarkPending: () => void;  // (미사용) 호환용
+  onFinalize: () => void;     // (미사용) 호환용
   categories: MainCategoryItem[];
   confStyle: { bg: string; color: string; label: string };
 }) {
-  const isPending = d.confidence !== "decided"; // 미정·보류 상태
+  const initConf = (d.confidence === "review" ? "review" : d.confidence === "tentative" ? "tentative" : "decided") as "decided" | "review" | "tentative";
   const [editContent, setEditContent] = useState(d.content);
   const [editSubId, setEditSubId] = useState(d.sub_category_id ?? "");
   const [showDetail, setShowDetail] = useState(false);       // [상세] 팝업
-  const [moving, setMoving] = useState(false);               // 카테고리 이동 팝업
+  const [moving, setMoving] = useState(false);               // 이동 팝업 (구분값 + 카테고리)
   const [moveSubId, setMoveSubId] = useState(d.sub_category_id ?? "");
+  const [moveConf, setMoveConf] = useState<"decided" | "review" | "tentative">(initConf);
 
   // 편집 모드 진입 시 초기화
   useEffect(() => {
@@ -731,16 +734,11 @@ function DecisionCard({
           {d.created_by_nickname && <span className="ml-1.5">— {d.created_by_nickname}</span>}
         </p>
       </div>
-      {/* 액션 — 상태 배지(위) + 아이콘 2×2 그리드 (상세·이동 / 삭제·수정) */}
+      {/* 액션 — 아이콘 2×2 그리드 (상세·이동 / 삭제·수정). 상태·카테고리 변경은 📂 안에서 */}
       <div className="flex-shrink-0 flex flex-col gap-1 items-end">
-        {isPending ? (
-          <button onClick={onFinalize} title="이 항목을 '결정'으로 확정 (카테고리에 자동 등록)" className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: "rgba(100,220,160,0.18)", border: "1px solid rgba(100,220,160,0.5)", color: "rgba(150,255,200,1)" }}>✓ 확정</button>
-        ) : (
-          <button onClick={onMarkPending} title="이 항목을 '미정'으로 되돌림(보류)" className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: "rgba(150,180,255,0.12)", border: "1px solid rgba(150,180,255,0.4)", color: "var(--accent-2)" }}>↩ 보류</button>
-        )}
         <div className="grid grid-cols-2 gap-1">
           <button onClick={() => setShowDetail(true)} title="상세 — 어떤 대화에서 결정됐는지 보기" className="text-sm w-6 h-6 flex items-center justify-center rounded hover:bg-white/5" style={{ color: SILVER_DIM }}>🔍</button>
-          <button onClick={() => { setMoveSubId(d.sub_category_id ?? ""); setMoving(true); }} title="카테고리 이동" className="text-sm w-6 h-6 flex items-center justify-center rounded hover:bg-white/5" style={{ color: SILVER_DIM }}>📂</button>
+          <button onClick={() => { setMoveSubId(d.sub_category_id ?? ""); setMoveConf(initConf); setMoving(true); }} title="이동 — 상태(구분값)·카테고리 변경" className="text-sm w-6 h-6 flex items-center justify-center rounded hover:bg-white/5" style={{ color: SILVER_DIM }}>📂</button>
           <button onClick={onDelete} title="삭제" className="text-sm w-6 h-6 flex items-center justify-center rounded hover:bg-white/5" style={{ color: "rgba(255,180,180,0.7)" }}>🗑️</button>
           <button onClick={onEditStart} title="편집" className="text-sm w-6 h-6 flex items-center justify-center rounded hover:bg-white/5" style={{ color: SILVER_DIM }}>✏️</button>
         </div>
@@ -752,15 +750,34 @@ function DecisionCard({
     {moving && (
       <div data-modal="move" className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.55)" }} onClick={() => setMoving(false)}>
         <div className="rounded-2xl shadow-2xl p-4" style={{ width: "min(420px,94vw)", backgroundColor: "#0d1320", border: `1px solid ${SILVER_FAINT}` }} onClick={e => e.stopPropagation()}>
-          <p className="text-sm font-bold mb-1" style={{ color: SILVER }}>📂 카테고리 이동</p>
+          <p className="text-sm font-bold mb-1" style={{ color: SILVER }}>📂 이동</p>
           <p className="text-[11px] mb-3" style={{ color: SILVER_DIM, lineHeight: 1.4 }}>{d.content}</p>
+
+          {/* 구분값(상태) 이동 */}
+          <p className="text-[10px] mb-1" style={{ color: SILVER_DIM }}>구분값 (상태)</p>
+          <div className="flex gap-1.5 mb-3">
+            {([{ k: "decided", l: "✓ 결정" }, { k: "review", l: "🔍 검토" }, { k: "tentative", l: "⚪ 미정" }] as const).map(o => (
+              <button
+                key={o.k}
+                onClick={() => setMoveConf(o.k)}
+                className="flex-1 text-[11px] py-1.5 rounded"
+                style={moveConf === o.k
+                  ? { backgroundColor: "rgba(100,180,255,0.25)", color: "var(--accent-2)", border: "1px solid rgba(100,180,255,0.5)", fontWeight: 700 }
+                  : { backgroundColor: "rgba(0,0,0,0.3)", color: SILVER_DIM, border: `1px solid ${SILVER_FAINT}` }}
+              >{o.l}</button>
+            ))}
+          </div>
+
+          {/* 스펙 카테고리 이동 */}
+          <p className="text-[10px] mb-1" style={{ color: SILVER_DIM }}>스펙 카테고리</p>
           <select value={moveSubId} onChange={e => setMoveSubId(e.target.value)} className="w-full px-2 py-2 rounded text-xs outline-none mb-3" style={{ backgroundColor: "rgba(0,0,0,0.3)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}>
             <option value="">(카테고리 미지정)</option>
             {allSubs.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
+
           <div className="flex justify-end gap-2">
             <button onClick={() => setMoving(false)} className="text-xs px-3 py-1.5 rounded" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>취소</button>
-            <button onClick={() => { onEditSave(d.content, moveSubId || null); setMoving(false); }} className="text-xs px-3 py-1.5 rounded font-bold" style={{ backgroundColor: "rgba(100,220,160,0.2)", color: "rgba(150,255,200,1)" }}>이동</button>
+            <button onClick={() => { onEditSave(d.content, moveSubId || null, moveConf); setMoving(false); }} className="text-xs px-3 py-1.5 rounded font-bold" style={{ backgroundColor: "rgba(100,220,160,0.2)", color: "rgba(150,255,200,1)" }}>적용</button>
           </div>
         </div>
       </div>
