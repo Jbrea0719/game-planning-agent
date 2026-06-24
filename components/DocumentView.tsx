@@ -27,6 +27,24 @@ import BulkReplaceModal from "./BulkReplaceModal";
 import BulkReviseModal from "./BulkReviseModal";
 import DocComments from "./DocComments";
 
+// WYSIWYG 편집기(Toast UI)가 저장 시 "1." → "1\." , "(...)" → "\(...\)" 처럼 넣는
+// 불필요한 역슬래시 이스케이프를 정리. 코드펜스 안은 건드리지 않고,
+// 줄머리 "숫자\."(리스트로 바뀔 위험)만 보호한 뒤 . ( ) 의 이스케이프 제거.
+function cleanMdEscapes(md: string): string {
+  let inFence = false;
+  return md.split("\n").map((line) => {
+    const t = line.trimStart();
+    if (t.startsWith("```")) { inFence = !inFence; return line; }
+    if (inFence) return line;
+    const lead = line.match(/^(\s*)(\d+)\\\.(.*)$/);
+    if (lead && !t.startsWith("#")) {
+      // 단락 줄머리 "숫자\." 는 유지(리스트화 방지), 뒷부분만 정리
+      return `${lead[1]}${lead[2]}\\.${lead[3].replace(/\\([().])/g, "$1")}`;
+    }
+    return line.replace(/\\([().])/g, "$1");
+  }).join("\n");
+}
+
 // 조던 테마 컬러 — globals.css 의 CSS 변수(토큰)에 연결 → 스킨(테마) 전환 시 자동 반영
 const SILVER = "var(--accent)";
 const SILVER_DIM = "var(--accent-dim)";
@@ -471,7 +489,7 @@ export default function DocumentView({
       const m = line.match(/^(#{1,4})\s+(.+)/);
       if (m) {
         const level = m[1].length;
-        const text = m[2].replace(/[*_`]/g, "").trim();
+        const text = m[2].replace(/\\([.()[\]!#>*_~+\-`])/g, "$1").replace(/[*_`]/g, "").trim();
         if (level >= 2 && level <= 4) {
           items.push({ level, text, id: `toc-${items.length}` });
         }
@@ -508,7 +526,7 @@ export default function DocumentView({
     // 편집기에서 보던 위치 캡처(언마운트 전) → 뷰어 복귀 시 그 위치로
     const target = getEditorTopHeadingRef.current?.() ?? editAnchorText;
     try {
-      const md = getEditMarkdownRef.current?.() ?? editText;
+      const md = cleanMdEscapes(getEditMarkdownRef.current?.() ?? editText);
       await fetch(`/api/design-docs/${currentDoc.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
