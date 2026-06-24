@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import AbsoluteRulesSection from "@/components/AbsoluteRulesSection";
 import PendingReviewList, { type PendingItem } from "@/components/PendingReviewList";
+import DecisionDetailPopup from "@/components/DecisionDetailPopup";
 
 const SILVER = "#c0c8d8";
 const SILVER_DIM = "rgba(192,200,216,0.5)";
@@ -144,7 +145,8 @@ export default function DecisionPanel({
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      // 상세·이동 등 팝업이 열려 있으면 패널은 닫지 않음 (팝업만 먼저 닫히게)
+      if (e.key === "Escape" && !document.querySelector("[data-modal]")) onClose();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -659,6 +661,9 @@ function DecisionCard({
   const isPending = d.confidence !== "decided"; // 미정·보류 상태
   const [editContent, setEditContent] = useState(d.content);
   const [editSubId, setEditSubId] = useState(d.sub_category_id ?? "");
+  const [showDetail, setShowDetail] = useState(false);       // [상세] 팝업
+  const [moving, setMoving] = useState(false);               // 카테고리 이동 팝업
+  const [moveSubId, setMoveSubId] = useState(d.sub_category_id ?? "");
 
   // 편집 모드 진입 시 초기화
   useEffect(() => {
@@ -706,6 +711,7 @@ function DecisionCard({
   }
 
   return (
+    <>
     <div className="px-2 py-1.5 rounded text-xs flex items-start gap-2 group" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${SILVER_FAINT}` }}>
       <span className="flex-shrink-0 mt-0.5 text-[10px] px-1 py-0.5 rounded" style={{ backgroundColor: confStyle.bg, color: confStyle.color }}>
         {confStyle.label}
@@ -718,16 +724,38 @@ function DecisionCard({
           {d.created_by_nickname && <span className="ml-1.5">— {d.created_by_nickname}</span>}
         </p>
       </div>
-      {/* 액션 — 모바일에선 hover가 없으므로 항상 표시. 상태에 따라 미정/결정 버튼 전환 */}
-      <div className="flex-shrink-0 flex gap-1.5 items-start">
+      {/* 액션 — 모바일에선 hover가 없으므로 항상 표시. 줄바꿈 허용 */}
+      <div className="flex-shrink-0 flex flex-wrap gap-1 items-start justify-end" style={{ maxWidth: 92 }}>
         {isPending ? (
           <button onClick={onFinalize} title="결정으로 확정 (카테고리에 자동 등록)" className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: "rgba(100,220,160,0.18)", border: "1px solid rgba(100,220,160,0.5)", color: "rgba(150,255,200,1)" }}>✓ 결정</button>
         ) : (
           <button onClick={onMarkPending} title="미정으로 보류" className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: "rgba(150,180,255,0.15)", border: "1px solid rgba(150,180,255,0.45)", color: "var(--accent-2)" }}>미정</button>
         )}
+        <button onClick={() => setShowDetail(true)} title="상세 — 어떤 대화에서 결정됐는지 보기" className="text-xs" style={{ color: SILVER_DIM }}>🔍</button>
+        <button onClick={() => { setMoveSubId(d.sub_category_id ?? ""); setMoving(true); }} title="카테고리 이동" className="text-xs" style={{ color: SILVER_DIM }}>📂</button>
         <button onClick={onEditStart} title="편집" className="text-xs" style={{ color: SILVER_DIM }}>✏️</button>
         <button onClick={onDelete} title="삭제" className="text-xs" style={{ color: "rgba(255,180,180,0.7)" }}>🗑️</button>
       </div>
     </div>
+
+    {showDetail && <DecisionDetailPopup decisionId={d.id} onClose={() => setShowDetail(false)} />}
+
+    {moving && (
+      <div data-modal="move" className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.55)" }} onClick={() => setMoving(false)}>
+        <div className="rounded-2xl shadow-2xl p-4" style={{ width: "min(420px,94vw)", backgroundColor: "#0d1320", border: `1px solid ${SILVER_FAINT}` }} onClick={e => e.stopPropagation()}>
+          <p className="text-sm font-bold mb-1" style={{ color: SILVER }}>📂 카테고리 이동</p>
+          <p className="text-[11px] mb-3" style={{ color: SILVER_DIM, lineHeight: 1.4 }}>{d.content}</p>
+          <select value={moveSubId} onChange={e => setMoveSubId(e.target.value)} className="w-full px-2 py-2 rounded text-xs outline-none mb-3" style={{ backgroundColor: "rgba(0,0,0,0.3)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}>
+            <option value="">(카테고리 미지정)</option>
+            {allSubs.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setMoving(false)} className="text-xs px-3 py-1.5 rounded" style={{ backgroundColor: SILVER_FAINT, color: SILVER_DIM }}>취소</button>
+            <button onClick={() => { onEditSave(d.content, moveSubId || null); setMoving(false); }} className="text-xs px-3 py-1.5 rounded font-bold" style={{ backgroundColor: "rgba(100,220,160,0.2)", color: "rgba(150,255,200,1)" }}>이동</button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
