@@ -110,6 +110,10 @@ export default function DocumentView({
   const getEditMarkdownRef = useRef<() => string>(() => editText);
   // 편집 시작 시 '보고 있던 위치'(상단 제목)를 기억 → 편집기에서 그 위치로 이동
   const [editAnchorText, setEditAnchorText] = useState<string | null>(null);
+  // 편집기에서 현재 상단에 보이는 제목을 가져오는 함수 (저장/취소 후 뷰어 복귀 위치용)
+  const getEditorTopHeadingRef = useRef<() => string | null>(() => null);
+  // 뷰어로 돌아갈 때 스크롤할 제목
+  const [viewerScrollTarget, setViewerScrollTarget] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   // 수정 요청 모달 상태
   const [showReviseModal, setShowReviseModal] = useState(false);
@@ -450,7 +454,7 @@ export default function DocumentView({
   // ── ESC로 닫기 ───────────────────────────────────────────────────
   useEffect(() => {
     if (!open) return;
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") { if (editing) setEditing(false); else onClose(); } };
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") { if (editing) cancelEdit(); else onClose(); } };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [open, onClose, editing]);
@@ -501,6 +505,8 @@ export default function DocumentView({
   }
   async function saveEdit() {
     if (!currentDoc) return;
+    // 편집기에서 보던 위치 캡처(언마운트 전) → 뷰어 복귀 시 그 위치로
+    const target = getEditorTopHeadingRef.current?.() ?? editAnchorText;
     try {
       const md = getEditMarkdownRef.current?.() ?? editText;
       await fetch(`/api/design-docs/${currentDoc.id}`, {
@@ -509,11 +515,33 @@ export default function DocumentView({
         body: JSON.stringify({ content_markdown: md, nickname }),
       });
       await loadDoc(currentDoc.id);
+      setViewerScrollTarget(target);
       setEditing(false);
     } catch (err) {
       console.error("[doc-view] 편집 저장 실패:", err);
     }
   }
+  // 편집 취소 — 보던 위치 유지한 채 뷰어로
+  function cancelEdit() {
+    setViewerScrollTarget(getEditorTopHeadingRef.current?.() ?? editAnchorText);
+    setEditing(false);
+  }
+  // 저장/취소로 뷰어 복귀 시 그 제목 위치로 스크롤
+  useEffect(() => {
+    if (editing || !viewerScrollTarget) return;
+    const t = viewerScrollTarget;
+    const id = setTimeout(() => {
+      const article = document.querySelector("article");
+      if (article) {
+        const heads = Array.from(article.querySelectorAll("h1,h2,h3,h4")) as HTMLElement[];
+        const hit = heads.find((h) => (h.textContent || "").trim() === t)
+          ?? heads.find((h) => (h.textContent || "").trim().startsWith(t.slice(0, 14)));
+        if (hit) hit.scrollIntoView({ block: "start" });
+      }
+      setViewerScrollTarget(null);
+    }, 220);
+    return () => clearTimeout(id);
+  }, [editing, viewerScrollTarget, currentDoc?.id]);
 
   // ── 수정 요청 (사용자 지시 → 새 버전 생성) ─────────────────────
   async function submitRevise() {
@@ -845,7 +873,7 @@ export default function DocumentView({
           ) : (
             <>
               <button
-                onClick={() => setEditing(false)}
+                onClick={cancelEdit}
                 className="text-xs px-3 py-1.5 rounded-lg"
                 style={{ backgroundColor: SILVER_FAINT, color: SILVER }}
               >
@@ -1118,6 +1146,7 @@ export default function DocumentView({
               <DocEditor
                 initialValue={editText}
                 registerGetter={(fn) => { getEditMarkdownRef.current = fn; }}
+                registerTopHeadingGetter={(fn) => { getEditorTopHeadingRef.current = fn; }}
                 scrollToText={editAnchorText}
                 height="74vh"
               />

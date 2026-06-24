@@ -14,11 +14,13 @@ import Editor from "@toast-ui/editor";
 export default function DocEditor({
   initialValue,
   registerGetter,
+  registerTopHeadingGetter,
   scrollToText,
   height = "70vh",
 }: {
   initialValue: string;
   registerGetter: (fn: () => string) => void;
+  registerTopHeadingGetter?: (fn: () => string | null) => void;  // 현재 상단에 보이는 제목 (복귀 위치용)
   scrollToText?: string | null;   // 이 제목이 보이도록 스크롤 (보던 위치에서 편집)
   height?: string;
 }) {
@@ -49,6 +51,19 @@ export default function DocEditor({
     });
 
     registerGetter(() => editor.getMarkdown());
+
+    // 현재 상단에 보이는 제목 (WYSIWYG 모드일 때만; 마크다운 모드면 null → 호출측 폴백)
+    registerTopHeadingGetter?.(() => {
+      const root = elRef.current;
+      const cont = root?.querySelector(".toastui-editor-ww-container") as HTMLElement | null;
+      if (!cont || cont.offsetParent === null) return null;
+      const ctop = cont.getBoundingClientRect().top;
+      const heads = Array.from(cont.querySelectorAll("h1,h2,h3,h4")) as HTMLElement[];
+      for (const h of heads) {
+        if (h.getBoundingClientRect().top >= ctop - 12) return (h.textContent || "").trim();
+      }
+      return heads.length ? (heads[heads.length - 1].textContent || "").trim() : null;
+    });
 
     // 보던 위치로 이동 — WYSIWYG 본문에서 같은 제목을 찾아 스크롤
     if (scrollToText && scrollToText.trim()) {
