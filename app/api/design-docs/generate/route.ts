@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase";
 import { MODEL } from "@/lib/models";
 import { buildAbsoluteRulesContext } from "@/lib/absolute-rules-context";
 import { suggestDocumentCategory } from "@/lib/document-categorizer";
+import { normalizeDashes } from "@/lib/normalize-text";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -105,8 +106,8 @@ export async function POST(request: Request) {
     // 6. 프롬프트용 카테고리 구조 텍스트 빌드
     const categoryContext = buildCategoryContext(mains, subs, decisionsBySub);
 
-    // 7. Claude로 기획서 마크다운 생성
-    const markdown = await generateMarkdown(project as Project, categoryContext);
+    // 7. Claude로 기획서 마크다운 생성 (긴 줄표 — 를 하이픈 - 으로 정규화)
+    const markdown = normalizeDashes(await generateMarkdown(project as Project, categoryContext));
 
     // 8. design_docs에 저장
     const title = body.title ?? `바이블 기반 자동 생성`;
@@ -262,7 +263,8 @@ async function generateMarkdown(
 - 결정사항 출처 표기 안 함 (사용자 본인이 작성한 내용)
 - 마크다운 코드블록(\`\`\`) 사용 금지 — 그대로 렌더링되는 마크다운만
 - 길이 제한 없음, 결정사항이 많으면 길게, 적으면 짧게
-- 결정사항이 거의 없으면 솔직하게 "아직 결정된 사항이 부족합니다" 명시`;
+- 결정사항이 거의 없으면 솔직하게 "아직 결정된 사항이 부족합니다" 명시
+- 긴 줄표(—, em dash)를 쓰지 말고 일반 하이픈(-)을 사용`;
 
   const userContent = `프로젝트 정보:
 - 이름: ${project.name}

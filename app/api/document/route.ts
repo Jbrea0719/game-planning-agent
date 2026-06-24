@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabase";
 import { suggestDocumentCategory } from "@/lib/document-categorizer";
 import { MODEL } from "@/lib/models";
 import { logActivity, oneLineSummary } from "@/lib/activity-log";
+import { normalizeDashes } from "@/lib/normalize-text";
 
 const DOC_SYSTEM_PROMPT = `당신은 영웅수집형 모바일 게임 기획서 작성 전문가입니다.
 
@@ -38,6 +39,7 @@ const DOC_SYSTEM_PROMPT = `당신은 영웅수집형 모바일 게임 기획서 
 - 마크다운 형식.
 - H1 제목은 주제만 간결하게 ("기획서" 접미사 X).
 - **본문에 해당하지 않는 빈 섹션은 만들지 마세요** (예: UI 기획에 "수익화 연계" 강제 X).
+- 긴 줄표(—, em dash)를 쓰지 말고 일반 하이픈(-)을 사용.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [주제 유형별 목차 템플릿 — 본문 내용에 맞게 선택]
@@ -142,6 +144,8 @@ export async function POST(request: Request) {
 
     // ── 저장(apply) 모드: 미리보기에서 확정한 제목·내용·카테고리를 저장 (생성 X) ──
     if (body.apply) {
+      // 긴 줄표(—)를 하이픈(-)으로 정규화한 본문을 저장 (이하 모든 분기에서 사용)
+      body.content_markdown = normalizeDashes(body.content_markdown ?? "");
       const finalTitle = (body.title ?? "").trim() || "대화 기반 기획서";
       if (!body.project_id || !body.content_markdown?.trim()) {
         return Response.json({ error: "저장할 내용이 없어요" }, { status: 400 });
@@ -281,10 +285,12 @@ export async function POST(request: Request) {
     });
     const res = await stream.finalMessage();
 
-    const fullText = res.content
-      .filter((b) => b.type === "text")
-      .map((b) => (b as Anthropic.TextBlock).text)
-      .join("");
+    const fullText = normalizeDashes(
+      res.content
+        .filter((b) => b.type === "text")
+        .map((b) => (b as Anthropic.TextBlock).text)
+        .join(""),
+    );
 
     // 제목: 본문 첫 H1 추출 (없으면 기본값) — 미리보기에서 사용자가 수정 가능
     const titleMatch = fullText.match(/^#\s+(.+?)$/m);
