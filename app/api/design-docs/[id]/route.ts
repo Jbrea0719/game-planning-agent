@@ -33,6 +33,10 @@ interface UpdateBody {
   status?: "draft" | "final" | "archived";
   changes_summary?: string;
   nickname?: string;
+  // 카테고리 관리에서 문서를 소로 묶기/풀기·정렬 변경할 때 사용
+  category_sub_id?: string | null;
+  category_area_code?: string | null;
+  sort_order?: number;
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
@@ -50,6 +54,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     }
     if (body.changes_summary !== undefined) updates.changes_summary = body.changes_summary;
+    if (body.category_sub_id !== undefined) updates.category_sub_id = body.category_sub_id;
+    if (body.category_area_code !== undefined) updates.category_area_code = body.category_area_code;
+    if (body.sort_order !== undefined) updates.sort_order = body.sort_order;
 
     const { data, error } = await supabase
       .from("design_docs")

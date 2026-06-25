@@ -24,6 +24,7 @@ interface SubItem {
   area_code: string | null;
   area_name: string | null;
   icon?: string | null;
+  display_order?: number | null;
 }
 interface AreaGroup {
   code: string | null;     // null = 영역 없음
@@ -42,6 +43,7 @@ interface DocMeta {
   category_main_id: string | null;
   category_area_code: string | null;
   category_sub_id: string | null;
+  sort_order?: number | null;
 }
 
 export default function CategoryManager({
@@ -80,6 +82,9 @@ export default function CategoryManager({
   >(null);
   const [addText, setAddText] = useState("");
   const [addExtra, setAddExtra] = useState("");  // sub 추가 시 area 추가용
+  // 소(폴더) 접기/펼치기 + 문서 묶기 대상 선택 모달
+  const [collapsedSubs, setCollapsedSubs] = useState<Set<string>>(new Set());
+  const [nesting, setNesting] = useState<{ docId: string; docTitle: string; subs: SubItem[] } | null>(null);
 
   // ── 데이터 로드 ────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -196,17 +201,7 @@ export default function CategoryManager({
     [ids[idx], ids[j]] = [ids[j], ids[idx]];
     void reorder("main", ids);
   }
-  // 소카테고리 위/아래 — 같은 영역 안에서만 이동, 전체 소 순서로 저장
-  function moveSub(m: MainItem, areaIdx: number, subIdx: number, dir: -1 | 1) {
-    const area = m.areas[areaIdx];
-    const j = subIdx + dir;
-    if (j < 0 || j >= area.subs.length) return;
-    const newAreaSubs = [...area.subs];
-    [newAreaSubs[subIdx], newAreaSubs[j]] = [newAreaSubs[j], newAreaSubs[subIdx]];
-    const orderedIds: string[] = [];
-    m.areas.forEach((a, ai) => (ai === areaIdx ? newAreaSubs : a.subs).forEach(s => orderedIds.push(s.id)));
-    void reorder("sub", orderedIds);
-  }
+  // (소 단독 정렬은 areaChildren 통합 정렬로 대체됨)
   // 중카테고리(영역) 위/아래 — 영역 블록 통째로 이동 (areas 테이블 display_order)
   function moveArea(m: MainItem, areaIdx: number, dir: -1 | 1) {
     const j = areaIdx + dir;
@@ -323,6 +318,59 @@ export default function CategoryManager({
 
   // 카테고리별 기획서 묶기
   const docsForSub = (subId: string) => docs.filter(d => d.category_sub_id === subId);
+  // 소 안의 기획서 — sort_order 순 (null은 뒤)
+  const subDocsSorted = (subId: string) =>
+    docsForSub(subId).slice().sort((a, b) => (a.sort_order ?? 1e9) - (b.sort_order ?? 1e9));
+
+  // 중(area) 하위 자식 = 소(폴더) + 단일(중 직속) 기획서를 하나의 순서로 병합
+  type AreaChild = { kind: "sub"; sub: SubItem } | { kind: "doc"; doc: DocMeta };
+  function areaChildren(mainId: string, area: AreaGroup): AreaChild[] {
+    const subs = area.subs.map((s, i) => ({ kind: "sub" as const, sub: s, ord: s.display_order ?? 1e9, seq: i }));
+    const direct = (area.code ? areaDirectDocs(mainId, area.code) : [])
+      .map((d, i) => ({ kind: "doc" as const, doc: d, ord: d.sort_order ?? 1e9, seq: i }));
+    return [...subs, ...direct]
+      .sort((a, b) => (a.ord - b.ord) || (a.kind === b.kind ? a.seq - b.seq : a.kind === "sub" ? -1 : 1))
+      .map(c => (c.kind === "sub" ? { kind: "sub", sub: c.sub } : { kind: "doc", doc: c.doc }));
+  }
+  // 통합 정렬 — 소·직속 문서를 섞은 순서로 저장
+  async function moveAreaChild(mainId: string, area: AreaGroup, idx: number, dir: -1 | 1) {
+    const list = areaChildren(mainId, area);
+    const j = idx + dir;
+    if (j < 0 || j >= list.length) return;
+    [list[idx], list[j]] = [list[j], list[idx]];
+    const items = list.map(c => (c.kind === "sub" ? { type: "sub", id: c.sub.id } : { type: "doc", id: c.doc.id }));
+    const ok = await api("/api/categories/area-children/reorder", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }),
+    });
+    if (ok) { await load(); onChanged(); }
+  }
+  // 소 안 문서끼리 순서 변경
+  async function moveSubDoc(subId: string, idx: number, dir: -1 | 1) {
+    const list = subDocsSorted(subId);
+    const j = idx + dir;
+    if (j < 0 || j >= list.length) return;
+    [list[idx], list[j]] = [list[j], list[idx]];
+    const items = list.map(d => ({ type: "doc", id: d.id }));
+    const ok = await api("/api/categories/area-children/reorder", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }),
+    });
+    if (ok) { await load(); onChanged(); }
+  }
+  // 묶기(문서 → 소) / 풀기(문서 → 중 직속)
+  async function nestDoc(docId: string, subId: string) {
+    const ok = await api(`/api/design-docs/${docId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category_sub_id: subId }),
+    });
+    if (ok) { await load(); onChanged(); }
+  }
+  async function unnestDoc(docId: string) {
+    const ok = await api(`/api/design-docs/${docId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category_sub_id: null }),
+    });
+    if (ok) { await load(); onChanged(); }
+  }
+  const toggleSub = (id: string) =>
+    setCollapsedSubs(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   // 중(area) 직속 기획서 — 소는 없지만 중에는 속한 기획서
   const areaDirectDocs = (mainId: string, areaCode: string) =>
     docs.filter(d => d.category_main_id === mainId && d.category_area_code === areaCode && !d.category_sub_id);
@@ -522,68 +570,65 @@ export default function CategoryManager({
                         </div>
                       )}
 
-                      {/* 소카테고리 리스트 */}
+                      {/* 중 하위 = 소(폴더) + 단일 기획서 통합 리스트 (▲▼로 함께 정렬) */}
                       <div className={`${a.code ? "pl-6 pr-2 pb-2" : "px-2 py-1"} flex flex-col gap-0.5`}>
-                        {a.subs.map((s, si) => (
-                          <div key={s.id}>
-                          <div className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white/5">
+                        {areaChildren(m.id, a).map((c, ci, arr) => {
+                          const moveCol = (
                             <div className="flex flex-col leading-none">
-                              <button onClick={() => moveSub(m, ai, si, -1)} disabled={si === 0 || busy} className="text-[8px] disabled:opacity-20 hover:text-white" style={{ color: SILVER_DIM }} title="위로">▲</button>
-                              <button onClick={() => moveSub(m, ai, si, 1)} disabled={si === a.subs.length - 1 || busy} className="text-[8px] disabled:opacity-20 hover:text-white" style={{ color: SILVER_DIM }} title="아래로">▼</button>
+                              <button onClick={() => moveAreaChild(m.id, a, ci, -1)} disabled={ci === 0 || busy} className="text-[8px] disabled:opacity-20 hover:text-white" style={{ color: SILVER_DIM }} title="위로">▲</button>
+                              <button onClick={() => moveAreaChild(m.id, a, ci, 1)} disabled={ci === arr.length - 1 || busy} className="text-[8px] disabled:opacity-20 hover:text-white" style={{ color: SILVER_DIM }} title="아래로">▼</button>
                             </div>
-                            <button
-                              onClick={() => setIconPicker({ kind: "sub", id: s.id })}
-                              title="아이콘 변경"
-                              className="rounded hover:bg-white/10 leading-none px-0.5"
-                              style={{ fontSize: "12px", color: s.icon ? undefined : SILVER_DIM }}
-                            >{s.icon ?? "•"}</button>
-                            {editing?.type === "sub" && editing.key === s.id ? (
-                              <input
-                                value={editText}
-                                onChange={(e) => setEditText(e.target.value)}
-                                onBlur={() => { void renameSub(s.id, editText); cancelEdit(); }}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") { void renameSub(s.id, editText); cancelEdit(); }
-                                  if (e.key === "Escape") cancelEdit();
-                                }}
-                                className="flex-1 text-xs px-1.5 py-0.5 rounded outline-none"
-                                style={{ backgroundColor: "rgba(0,0,0,0.4)", border: "1px solid rgba(100,180,255,0.5)", color: "#e0e8f0" }}
-                                autoFocus
-                              />
-                            ) : (
-                              <span className="flex-1 text-xs" style={{ color: "#b8c4d4" }}>{s.name_ko}</span>
-                            )}
-                            <button
-                              onClick={() => startEdit("sub", s.id, s.name_ko)}
-                              className="text-xs px-1 py-0.5 rounded hover:bg-white/10"
-                              style={{ color: SILVER_DIM }}
-                            >✏️</button>
-                            <button
-                              onClick={() => deleteSub(s.id, s.name_ko)}
-                              className="text-xs px-1 py-0.5 rounded hover:bg-white/10"
-                              style={{ color: "rgba(255,180,180,0.7)" }}
-                            >🗑️</button>
-                            <button
-                              onClick={() => { setAdding({ type: "doc", mainId: m.id, areaCode: a.code, subId: s.id, subName: s.name_ko }); setAddText(""); }}
-                              className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap"
-                              style={{ backgroundColor: "rgba(100,180,255,0.15)", border: "1px solid rgba(100,180,255,0.35)", color: "var(--accent-2)" }}
-                              title="이 소카테고리에 기획서 추가"
-                            >+ 기획서</button>
-                          </div>
-                          {/* 이 소카테고리에 속한 기획서 */}
-                          {docsForSub(s.id).length > 0 && (
-                            <div className="ml-5 mt-0.5 flex flex-col gap-0.5">
-                              {docsForSub(s.id).map(docRow)}
+                          );
+                          if (c.kind === "sub") {
+                            const s = c.sub;
+                            const collapsed = collapsedSubs.has(s.id);
+                            const sdocs = subDocsSorted(s.id);
+                            return (
+                              <div key={s.id}>
+                                <div className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white/5">
+                                  {moveCol}
+                                  <button onClick={() => toggleSub(s.id)} className="text-[9px] hover:text-white" style={{ color: SILVER_DIM }} title={collapsed ? "펼치기" : "접기"}>{collapsed ? "▶" : "▼"}</button>
+                                  <button onClick={() => setIconPicker({ kind: "sub", id: s.id })} title="아이콘 변경" className="rounded hover:bg-white/10 leading-none px-0.5" style={{ fontSize: "12px", color: s.icon ? undefined : SILVER_DIM }}>{s.icon ?? "📁"}</button>
+                                  {editing?.type === "sub" && editing.key === s.id ? (
+                                    <input value={editText} onChange={(e) => setEditText(e.target.value)} onBlur={() => { void renameSub(s.id, editText); cancelEdit(); }} onKeyDown={(e) => { if (e.key === "Enter") { void renameSub(s.id, editText); cancelEdit(); } if (e.key === "Escape") cancelEdit(); }} className="flex-1 text-xs px-1.5 py-0.5 rounded outline-none" style={{ backgroundColor: "rgba(0,0,0,0.4)", border: "1px solid rgba(100,180,255,0.5)", color: "#e0e8f0" }} autoFocus />
+                                  ) : (
+                                    <span className="flex-1 text-xs font-medium" style={{ color: "#b8c4d4" }}>{s.name_ko} <span style={{ color: SILVER_DIM }}>({sdocs.length})</span></span>
+                                  )}
+                                  <button onClick={() => startEdit("sub", s.id, s.name_ko)} className="text-xs px-1 py-0.5 rounded hover:bg-white/10" style={{ color: SILVER_DIM }}>✏️</button>
+                                  <button onClick={() => deleteSub(s.id, s.name_ko)} className="text-xs px-1 py-0.5 rounded hover:bg-white/10" style={{ color: "rgba(255,180,180,0.7)" }}>🗑️</button>
+                                  <button onClick={() => { setAdding({ type: "doc", mainId: m.id, areaCode: a.code, subId: s.id, subName: s.name_ko }); setAddText(""); }} className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: "rgba(100,180,255,0.15)", border: "1px solid rgba(100,180,255,0.35)", color: "var(--accent-2)" }} title="이 소에 기획서 추가">+ 기획서</button>
+                                </div>
+                                {!collapsed && sdocs.length > 0 && (
+                                  <div className="ml-7 mt-0.5 flex flex-col gap-0.5">
+                                    {sdocs.map((d, di) => (
+                                      <div key={d.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white/5">
+                                        <div className="flex flex-col leading-none">
+                                          <button onClick={() => moveSubDoc(s.id, di, -1)} disabled={di === 0 || busy} className="text-[8px] disabled:opacity-20 hover:text-white" style={{ color: SILVER_DIM }} title="위로">▲</button>
+                                          <button onClick={() => moveSubDoc(s.id, di, 1)} disabled={di === sdocs.length - 1 || busy} className="text-[8px] disabled:opacity-20 hover:text-white" style={{ color: SILVER_DIM }} title="아래로">▼</button>
+                                        </div>
+                                        <span style={{ fontSize: "10px" }}>📄</span>
+                                        <span className="flex-1 text-xs truncate" style={{ color: "rgba(170,200,235,0.95)" }}>{d.title || "(제목 없음)"}</span>
+                                        <button onClick={() => unnestDoc(d.id)} className="text-[10px] px-1.5 py-0.5 rounded hover:bg-white/10" style={{ color: SILVER_DIM }} title="소에서 빼기 (중 직속으로)">↤ 풀기</button>
+                                        <button onClick={() => deleteDoc(d.id, d.title)} className="text-xs px-1 py-0.5 rounded hover:bg-white/10" style={{ color: "rgba(255,180,180,0.7)" }} title="기획서 삭제">🗑️</button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+                          // 단일(중 직속) 기획서
+                          const d = c.doc;
+                          return (
+                            <div key={d.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white/5">
+                              {moveCol}
+                              <span style={{ fontSize: "10px" }}>📄</span>
+                              <span className="flex-1 text-xs truncate" style={{ color: "rgba(170,200,235,0.95)" }}>{d.title || "(제목 없음)"}</span>
+                              <button onClick={() => { if (a.subs.length === 0) { alert("이 중에 소카테고리가 없어요. 먼저 +소로 만들어 주세요."); return; } setNesting({ docId: d.id, docTitle: d.title, subs: a.subs }); }} className="text-[10px] px-1.5 py-0.5 rounded hover:bg-white/10" style={{ color: "var(--accent-2)" }} title="소로 묶기">📁 묶기</button>
+                              <button onClick={() => deleteDoc(d.id, d.title)} className="text-xs px-1 py-0.5 rounded hover:bg-white/10" style={{ color: "rgba(255,180,180,0.7)" }} title="기획서 삭제">🗑️</button>
                             </div>
-                          )}
-                          </div>
-                        ))}
-                        {/* 이 중(area)에 직접 붙은 기획서 — 소 없이 중 직속 */}
-                        {a.code && areaDirectDocs(m.id, a.code).length > 0 && (
-                          <div className="flex flex-col gap-0.5">
-                            {areaDirectDocs(m.id, a.code).map(docRow)}
-                          </div>
-                        )}
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -635,6 +680,37 @@ export default function CategoryManager({
                     >{ic}</button>
                   );
                 })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 묶기 — 단일 기획서를 어느 소로 넣을지 선택 */}
+        {nesting && (
+          <div
+            className="absolute inset-0 z-[80] flex items-center justify-center p-4"
+            style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+            onClick={() => setNesting(null)}
+          >
+            <div
+              className="rounded-xl p-5 w-full max-w-md shadow-2xl flex flex-col gap-2"
+              style={{ backgroundColor: "#0f1628", border: `1px solid ${SILVER_FAINT}` }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="text-sm font-bold" style={{ color: SILVER }}>📁 소카테고리로 묶기</p>
+              <p className="text-xs mb-1" style={{ color: SILVER_DIM }}>「{nesting.docTitle || "(제목 없음)"}」을(를) 넣을 소를 선택하세요.</p>
+              <div className="flex flex-col gap-1 max-h-[40vh] overflow-y-auto">
+                {nesting.subs.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={async () => { const id = nesting.docId; setNesting(null); await nestDoc(id, s.id); }}
+                    className="text-left text-xs px-3 py-2 rounded-lg hover:bg-white/10"
+                    style={{ backgroundColor: "rgba(255,255,255,0.04)", border: `1px solid ${SILVER_FAINT}`, color: "#e0e8f0" }}
+                  >📁 {s.name_ko}</button>
+                ))}
+              </div>
+              <div className="flex justify-end mt-1">
+                <button onClick={() => setNesting(null)} className="text-xs px-4 py-2 rounded-lg" style={{ backgroundColor: SILVER_FAINT, color: SILVER }}>취소</button>
               </div>
             </div>
           </div>
