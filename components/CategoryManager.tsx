@@ -75,6 +75,7 @@ export default function CategoryManager({
     | { type: "main" }
     | { type: "sub"; mainId: string; areaCode: string | null; areaName: string | null }
     | { type: "area"; mainId: string }
+    | { type: "doc"; mainId: string; areaCode: string | null; subId: string; subName: string }
     | null
   >(null);
   const [addText, setAddText] = useState("");
@@ -289,6 +290,23 @@ export default function CategoryManager({
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ main_id: mainId, area_code: areaCode, hard: false }),
+    });
+    if (ok) { await load(); onChanged(); }
+  }
+
+  // ── 기획서(최하위) 추가 — 소카테고리 아래에 빈 기획서 1개 ──────
+  async function createDoc(mainId: string, areaCode: string | null, subId: string, title: string) {
+    if (!title.trim()) return;
+    const ok = await api("/api/design-docs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        project_id: projectId,
+        title: title.trim(),
+        category_main_id: mainId,
+        category_area_code: areaCode,
+        category_sub_id: subId,
+      }),
     });
     if (ok) { await load(); onChanged(); }
   }
@@ -545,6 +563,12 @@ export default function CategoryManager({
                               className="text-xs px-1 py-0.5 rounded hover:bg-white/10"
                               style={{ color: "rgba(255,180,180,0.7)" }}
                             >🗑️</button>
+                            <button
+                              onClick={() => { setAdding({ type: "doc", mainId: m.id, areaCode: a.code, subId: s.id, subName: s.name_ko }); setAddText(""); }}
+                              className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap"
+                              style={{ backgroundColor: "rgba(100,180,255,0.15)", border: "1px solid rgba(100,180,255,0.35)", color: "var(--accent-2)" }}
+                              title="이 소카테고리에 기획서 추가"
+                            >+ 기획서</button>
                           </div>
                           {/* 이 소카테고리에 속한 기획서 */}
                           {docsForSub(s.id).length > 0 && (
@@ -632,7 +656,13 @@ export default function CategoryManager({
                 {adding.type === "main" && "새 대카테고리 추가"}
                 {adding.type === "area" && "새 중카테고리(영역) 추가"}
                 {adding.type === "sub" && `새 소카테고리 추가${adding.areaName ? ` — ${adding.areaName}` : ""}`}
+                {adding.type === "doc" && `새 기획서 추가 — ${adding.subName}`}
               </p>
+              {adding.type === "doc" && (
+                <p className="text-xs" style={{ color: SILVER_DIM }}>
+                  이 소카테고리 아래에 빈 기획서가 생겨요. 만든 뒤 열어서 내용을 작성하면 됩니다.
+                </p>
+              )}
               {adding.type === "area" && (
                 <p className="text-xs" style={{ color: SILVER_DIM }}>
                   중카테고리는 소 없이도 생성돼요. 만든 뒤 기획서를 바로 넣거나 소를 추가할 수 있어요.
@@ -644,6 +674,7 @@ export default function CategoryManager({
                 placeholder={
                   adding.type === "main" ? "예: 라이브 운영"
                     : adding.type === "area" ? "중카테고리 이름 (예: 영웅, PVE)"
+                    : adding.type === "doc" ? "기획서 제목 (예: 영웅 등급 기획서)"
                     : "소카테고리 이름 (예: 영웅 등급)"
                 }
                 className="px-3 py-2 rounded-lg text-sm outline-none"
@@ -662,6 +693,7 @@ export default function CategoryManager({
                     if (adding.type === "main") await createMain(addText);
                     else if (adding.type === "sub") await createSub(adding.mainId, adding.areaCode, adding.areaName, addText);
                     else if (adding.type === "area") await createArea(adding.mainId, addText);
+                    else if (adding.type === "doc") await createDoc(adding.mainId, adding.areaCode, adding.subId, addText);
                     setAdding(null); setAddText(""); setAddExtra("");
                   }}
                   className="text-xs px-4 py-2 rounded-lg font-bold disabled:opacity-40"

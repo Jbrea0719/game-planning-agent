@@ -1,7 +1,48 @@
-// 기획서 목록·생성 API (생성은 /generate 별도, 여기는 목록만)
-// GET /api/design-docs?project_id=...  → 모든 버전 메타 정보 목록
+// 기획서 목록·생성 API
+// GET  /api/design-docs?project_id=...  → 모든 버전 메타 정보 목록
+// POST /api/design-docs { project_id, title, category_* , nickname } → 빈(작성 예정) 기획서 1개 생성
+//      (카테고리 관리에서 소카테고리 아래에 기획서 단위를 바로 추가하는 용도)
 
 import { supabase } from "@/lib/supabase";
+
+export async function POST(request: Request) {
+  try {
+    const body = (await request.json()) as {
+      project_id?: string;
+      title?: string;
+      category_main_id?: string | null;
+      category_area_code?: string | null;
+      category_sub_id?: string | null;
+      nickname?: string;
+    };
+    if (!body.project_id || !body.title?.trim()) {
+      return Response.json({ error: "project_id, title 필수" }, { status: 400 });
+    }
+    const { data, error } = await supabase
+      .from("design_docs")
+      .insert({
+        project_id: body.project_id,
+        title: body.title.trim(),
+        content_markdown: "",
+        status: "planned", // 빈 placeholder — 열어서 작성하면 draft로 채워짐
+        category_main_id: body.category_main_id ?? null,
+        category_area_code: body.category_area_code ?? null,
+        category_sub_id: body.category_sub_id ?? null,
+        created_by_nickname: body.nickname ?? null,
+        changes_summary: "카테고리에서 추가한 빈 기획서",
+      })
+      .select()
+      .single();
+    if (error) {
+      console.error("[design-docs] 생성 실패:", error.message);
+      return Response.json({ error: error.message }, { status: 500 });
+    }
+    return Response.json({ doc: data });
+  } catch (err) {
+    console.error("[design-docs] 생성 오류:", err);
+    return Response.json({ error: String(err) }, { status: 500 });
+  }
+}
 
 export async function GET(request: Request) {
   try {
