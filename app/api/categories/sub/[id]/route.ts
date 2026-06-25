@@ -70,6 +70,11 @@ export async function DELETE(request: Request, context: RouteContext) {
       .update({ category_sub_id: null })
       .eq("category_sub_id", id)
       .select("id");
+    // 결정 대기(pending_decisions)도 이 소카테고리를 참조하므로 함께 detach (안 하면 FK 제약으로 삭제 실패)
+    await supabase
+      .from("pending_decisions")
+      .update({ sub_category_id: null })
+      .eq("sub_category_id", id);
 
     const { error } = await supabase
       .from("sub_categories")
