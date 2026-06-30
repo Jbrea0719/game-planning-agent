@@ -13,7 +13,7 @@ import { supabase } from "@/lib/supabase";
 import { suggestDocumentCategory } from "@/lib/document-categorizer";
 import { MODEL } from "@/lib/models";
 import { logActivity, oneLineSummary } from "@/lib/activity-log";
-import { normalizeDashes } from "@/lib/normalize-text";
+import { normalizeDashes, stripReviewSections } from "@/lib/normalize-text";
 
 const DOC_SYSTEM_PROMPT = `당신은 영웅수집형 모바일 게임 기획서 작성 전문가입니다.
 
@@ -117,7 +117,8 @@ const DOC_SYSTEM_PROMPT = `당신은 영웅수집형 모바일 게임 기획서 
   8. 다음 단계 (TODO)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-**중요**: 위 7개 템플릿 중 본문에 가장 맞는 것을 선택. 본문이 짧거나 한 가지 영역만 다루면 해당 템플릿. 여러 영역이 섞이면 G(통합) 사용. 어떤 템플릿을 골라도 **마지막은 항상 "기획 바이블 교차 검증 결과"와 "다음 단계 (TODO)"**로 마무리.`;
+**중요**: 위 7개 템플릿 중 본문에 가장 맞는 것을 선택. 본문이 짧거나 한 가지 영역만 다루면 해당 템플릿. 여러 영역이 섞이면 G(통합) 사용.
+**단, 템플릿 목록에 있더라도 "기획 바이블 교차 검증(결과)"와 "다음 단계(TODO)" 섹션은 절대 작성하지 마세요.** 본문 핵심 내용으로 마무리합니다.`;
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -145,7 +146,7 @@ export async function POST(request: Request) {
     // ── 저장(apply) 모드: 미리보기에서 확정한 제목·내용·카테고리를 저장 (생성 X) ──
     if (body.apply) {
       // 긴 줄표(—)를 하이픈(-)으로 정규화한 본문을 저장 (이하 모든 분기에서 사용)
-      body.content_markdown = normalizeDashes(body.content_markdown ?? "");
+      body.content_markdown = stripReviewSections(normalizeDashes(body.content_markdown ?? ""));
       const finalTitle = (body.title ?? "").trim() || "대화 기반 기획서";
       if (!body.project_id || !body.content_markdown?.trim()) {
         return Response.json({ error: "저장할 내용이 없어요" }, { status: 400 });
@@ -285,12 +286,12 @@ export async function POST(request: Request) {
     });
     const res = await stream.finalMessage();
 
-    const fullText = normalizeDashes(
+    const fullText = stripReviewSections(normalizeDashes(
       res.content
         .filter((b) => b.type === "text")
         .map((b) => (b as Anthropic.TextBlock).text)
         .join(""),
-    );
+    ));
 
     // 제목: 본문 첫 H1 추출 (없으면 기본값) — 미리보기에서 사용자가 수정 가능
     const titleMatch = fullText.match(/^#\s+(.+?)$/m);
